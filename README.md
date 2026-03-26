@@ -4,7 +4,7 @@
 [Python 3.8+](https://www.python.org/downloads/)
 [CI](https://github.com/y31ling/glaDE/actions)
 
-**GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of `glafic2`, GLADE specializes in subhalo detection and strong lensing system modeling.
+**GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of [glafic2](https://github.com/oguri/glafic2), GLADE specializes in subhalo detection and strong lensing system modeling.
 
 ## 🌟 Features
 
