@@ -242,11 +242,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📈 Roadmap
 
-- GPU acceleration support
-- Web-based interface
-- Additional lens models (Sersic, Einasto)
-- Docker containerization
-- Intergrate Differential Evolution into glafic command directly
+- [ ] GPU acceleration support
+- [ ] Web-based interface
+- [ ] Additional lens models (Sersic, Einasto)
+- [ ] Docker containerization
+- [ ] Intergrate Differential Evolution into glafic command directly
+
 
 ## !!  Known Issues
 
