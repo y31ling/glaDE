@@ -93,7 +93,7 @@ def _draw_king_subhalos(ax, king_params):
         (x, y, M, rc, c)          — 无 mass_label
         (x, y, M, rc, c, mass)    — 兼容旧格式，mass==M
     """
-    if king_params is None:
+    if king_params is None or len(king_params) == 0:
         return
 
     for i, p in enumerate(king_params, start=1):

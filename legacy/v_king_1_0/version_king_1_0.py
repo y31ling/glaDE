@@ -650,6 +650,11 @@ def plot_iteration_population(population, iteration_num, output_dir, bounds):
     """绘制 DE 种群参数分布（每 draw_interval 次保存一张）"""
     if Draw_Graph == 0:
         return
+    
+    # 如果没有 subhalo，跳过绘图
+    if n_active_subhalos == 0:
+        return
+    
     if iteration_num % draw_interval != 0 and iteration_num != 0:
         return
 
@@ -998,42 +1003,45 @@ if MCMC_ENABLED:
         print(f"  mass_{img_idx}: {med:.3e} +{hi84-med:.3e} -{med-lo16:.3e} M☉")
 
     # Corner plot
-    corner_labels = []
-    for img_idx in active_subhalos:
-        corner_labels.extend([
-            f'$x_{img_idx}$', f'$y_{img_idx}$',
-            f'$\\log_{{10}}M_{img_idx}$',
-            f'$r_{{c,{img_idx}}}$',
-            f'$c_{img_idx}$',
-        ])
+    if n_params_subhalo > 0:
+        corner_labels = []
+        for img_idx in active_subhalos:
+            corner_labels.extend([
+                f'$x_{img_idx}$', f'$y_{img_idx}$',
+                f'$\\log_{{10}}M_{img_idx}$',
+                f'$r_{{c,{img_idx}}}$',
+                f'$c_{img_idx}$',
+            ])
 
-    fig_corner = corner.corner(
-        samples[:, :n_params_subhalo],
-        labels=corner_labels[:n_params_subhalo],
-        quantiles=[0.16, 0.5, 0.84],
-        show_titles=True, title_fmt='.4f',
-        truths=best_result[:n_params_subhalo],
-        truth_color='red',
-    )
-    corner_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_corner.png')
-    fig_corner.savefig(corner_file, dpi=150, bbox_inches='tight')
-    plt.close(fig_corner)
-    print(f"  ✓ Corner plot: {corner_file}")
+        fig_corner = corner.corner(
+            samples[:, :n_params_subhalo],
+            labels=corner_labels[:n_params_subhalo],
+            quantiles=[0.16, 0.5, 0.84],
+            show_titles=True, title_fmt='.4f',
+            truths=best_result[:n_params_subhalo],
+            truth_color='red',
+        )
+        corner_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_corner.png')
+        fig_corner.savefig(corner_file, dpi=150, bbox_inches='tight')
+        plt.close(fig_corner)
+        print(f"  ✓ Corner plot: {corner_file}")
 
-    # 轨迹图
-    fig_trace, axes_trace = plt.subplots(
-        n_params_subhalo, figsize=(10, 2 * n_params_subhalo), sharex=True)
-    if n_params_subhalo == 1:
-        axes_trace = [axes_trace]
-    for k in range(n_params_subhalo):
-        axes_trace[k].plot(chain[:, :, k], alpha=0.3)
-        axes_trace[k].axvline(MCMC_BURNIN, color='red', ls='--')
-        axes_trace[k].set_ylabel(corner_labels[k])
-    axes_trace[-1].set_xlabel("Step")
-    trace_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_trace.png')
-    fig_trace.savefig(trace_file, dpi=150, bbox_inches='tight')
-    plt.close(fig_trace)
-    print(f"  ✓ 轨迹图: {trace_file}")
+        # 轨迹图
+        fig_trace, axes_trace = plt.subplots(
+            n_params_subhalo, figsize=(10, 2 * n_params_subhalo), sharex=True)
+        if n_params_subhalo == 1:
+            axes_trace = [axes_trace]
+        for k in range(n_params_subhalo):
+            axes_trace[k].plot(chain[:, :, k], alpha=0.3)
+            axes_trace[k].axvline(MCMC_BURNIN, color='red', ls='--')
+            axes_trace[k].set_ylabel(corner_labels[k])
+        axes_trace[-1].set_xlabel("Step")
+        trace_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_trace.png')
+        fig_trace.savefig(trace_file, dpi=150, bbox_inches='tight')
+        plt.close(fig_trace)
+        print(f"  ✓ 轨迹图: {trace_file}")
+    else:
+        print(f"  跳过 Corner plot 和轨迹图（无 subhalo 参数）")
 
     # 保存完整后验统计
     posterior_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_posterior.txt')

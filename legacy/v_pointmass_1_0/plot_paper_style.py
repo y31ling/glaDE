@@ -173,7 +173,7 @@ def plot_paper_style(
                fontsize=11, fontweight='bold', color='darkblue')
     
     # 标注sub-halo位置
-    if subhalo_positions is not None:
+    if subhalo_positions is not None and len(subhalo_positions) > 0:
         for i, (x_sub, y_sub, m_sub) in enumerate(subhalo_positions, start=1):
             # 绘制sub-halo位置
             ax.scatter(x_sub, y_sub, marker='D', s=150, 

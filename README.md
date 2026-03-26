@@ -248,7 +248,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Docker containerization
 - [ ] Intergrate Differential Evolution into glafic command directly
 
-
 ## !!  Known Issues
 
 - Encountering Multiple Errors when the subhalos list is empty, plz double check your result when you are doing that.

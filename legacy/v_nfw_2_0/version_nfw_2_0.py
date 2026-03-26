@@ -428,6 +428,10 @@ print(f"\n输出目录: {output_dir}")
 
 def plot_iteration_population(population, iteration_num, output_dir, bounds):
     """绘制种群分布（只在 Draw_Graph=1 且满足间隔时才实际执行）"""
+    # 如果没有 subhalo，跳过绘图
+    if n_active_subhalos == 0:
+        return
+    
     # 反归一化
     if population.max() <= 1.0 and population.min() >= 0.0:
         population_denorm = np.zeros_like(population)
@@ -1203,60 +1207,64 @@ if MCMC_ENABLED:
             print(f"  {name}: {median:.6e} +{upper-median:.3e} -{median-lower:.3e}")
 
     # ==================== 绘制 Corner Plot ====================
-    print(f"\n生成 Corner Plot...")
-    corner_labels = []
-    for img_idx in active_subhalos:
-        corner_labels.extend([f'$x_{img_idx}$', f'$y_{img_idx}$',
-                               f'$\\log M_{img_idx}$', f'$c_{img_idx}$'])
+    if n_params_subhalo > 0:
+        print(f"\n生成 Corner Plot...")
+        corner_labels = []
+        for img_idx in active_subhalos:
+            corner_labels.extend([f'$x_{img_idx}$', f'$y_{img_idx}$',
+                                   f'$\\log M_{img_idx}$', f'$c_{img_idx}$'])
 
-    _n_corner = n_params_subhalo
-    _corner_samples = samples[:, :_n_corner]
-    _N_corner = len(_corner_samples)
+        _n_corner = n_params_subhalo
+        _corner_samples = samples[:, :_n_corner]
+        _N_corner = len(_corner_samples)
 
-    fig = corner.corner(
-        _corner_samples,
-        labels=corner_labels[:_n_corner],
-        quantiles=[0.16, 0.5, 0.84],
-        show_titles=True, title_fmt='.3f',
-        truths=best_result[:_n_corner],
-        truth_color='red',
-        hist_kwargs={'alpha': 0.75},
-    )
-    _corner_grid = np.array(fig.axes).reshape((_n_corner, _n_corner))
-    for _ci in range(_n_corner):
-        _ax = _corner_grid[_ci, _ci]
-        from matplotlib.ticker import MaxNLocator as _MLoc
-        _ylo, _yhi = _ax.get_ylim()
-        _ax2 = _ax.twinx()
-        _ax2.set_ylim(_ylo / _N_corner * 100, _yhi / _N_corner * 100)
-        _ax2.yaxis.set_major_locator(_MLoc(nbins=4, prune='lower'))
-        _ax2.tick_params(axis='y', labelsize=7, length=3, width=0.8)
-        _ax2.set_ylabel('%', fontsize=8, rotation=0, labelpad=10, va='center')
-    corner_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_corner.png')
-    plt.savefig(corner_file, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  ✓ Corner plot 已保存: {corner_file}")
+        fig = corner.corner(
+            _corner_samples,
+            labels=corner_labels[:_n_corner],
+            quantiles=[0.16, 0.5, 0.84],
+            show_titles=True, title_fmt='.3f',
+            truths=best_result[:_n_corner],
+            truth_color='red',
+            hist_kwargs={'alpha': 0.75},
+        )
+        _corner_grid = np.array(fig.axes).reshape((_n_corner, _n_corner))
+        for _ci in range(_n_corner):
+            _ax = _corner_grid[_ci, _ci]
+            from matplotlib.ticker import MaxNLocator as _MLoc
+            _ylo, _yhi = _ax.get_ylim()
+            _ax2 = _ax.twinx()
+            _ax2.set_ylim(_ylo / _N_corner * 100, _yhi / _N_corner * 100)
+            _ax2.yaxis.set_major_locator(_MLoc(nbins=4, prune='lower'))
+            _ax2.tick_params(axis='y', labelsize=7, length=3, width=0.8)
+            _ax2.set_ylabel('%', fontsize=8, rotation=0, labelpad=10, va='center')
+        corner_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_corner.png')
+        plt.savefig(corner_file, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  ✓ Corner plot 已保存: {corner_file}")
 
-    # ==================== 绘制轨迹图 ====================
-    print(f"\n生成 MCMC 链轨迹图...")
-    fig, axes = plt.subplots(n_params_subhalo, figsize=(10, 2*n_params_subhalo), sharex=True)
-    if n_params_subhalo == 1:
-        axes = [axes]
-    for i in range(n_params_subhalo):
-        ax = axes[i]
-        ax.plot(chain[:, :, i], alpha=0.3)
-        ax.axvline(MCMC_BURNIN, color='red', linestyle='--', label='Burn-in')
-        ax.set_ylabel(corner_labels[i])
-        ax.yaxis.set_label_coords(-0.1, 0.5)
-    axes[-1].set_xlabel("Step")
-    axes[0].legend(loc='upper right')
-    trace_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_trace.png')
-    plt.savefig(trace_file, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  ✓ 轨迹图已保存: {trace_file}")
+        # ==================== 绘制轨迹图 ====================
+        print(f"\n生成 MCMC 链轨迹图...")
+        fig, axes = plt.subplots(n_params_subhalo, figsize=(10, 2*n_params_subhalo), sharex=True)
+        if n_params_subhalo == 1:
+            axes = [axes]
+        for i in range(n_params_subhalo):
+            ax = axes[i]
+            ax.plot(chain[:, :, i], alpha=0.3)
+            ax.axvline(MCMC_BURNIN, color='red', linestyle='--', label='Burn-in')
+            ax.set_ylabel(corner_labels[i])
+            ax.yaxis.set_label_coords(-0.1, 0.5)
+        axes[-1].set_xlabel("Step")
+        axes[0].legend(loc='upper right')
+        trace_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_trace.png')
+        plt.savefig(trace_file, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  ✓ 轨迹图已保存: {trace_file}")
+    else:
+        print(f"\n跳过 Corner Plot 和轨迹图（无 subhalo 参数）")
 
     # ==================== 计算质量后验分布 ====================
-    print(f"\n计算质量后验分布...")
+    if n_active_subhalos > 0:
+        print(f"\n计算质量后验分布...")
     mass_posterior_stats = {}
     for i, img_idx in enumerate(active_subhalos):
         log_m_samples_i = samples[:, i*4 + 2]
@@ -1274,15 +1282,16 @@ if MCMC_ENABLED:
         print(f"  mass_{img_idx}: {median:.3e} +{upper-median:.3e} -{median-lower:.3e} M_sun")
 
     # ==================== 绘制质量一维后验分布图 ====================
-    print(f"\n生成质量一维后验分布图（logM）...")
-    from scipy.stats import gaussian_kde
+    if n_active_subhalos > 0:
+        print(f"\n生成质量一维后验分布图（logM）...")
+        from scipy.stats import gaussian_kde
 
-    n_mass_halos = len(active_subhalos)
-    fig_mass, axes_mass = plt.subplots(1, n_mass_halos, figsize=(5 * n_mass_halos, 4))
-    if n_mass_halos == 1:
-        axes_mass = [axes_mass]
+        n_mass_halos = len(active_subhalos)
+        fig_mass, axes_mass = plt.subplots(1, n_mass_halos, figsize=(5 * n_mass_halos, 4))
+        if n_mass_halos == 1:
+            axes_mass = [axes_mass]
 
-    for i, img_idx in enumerate(active_subhalos):
+        for i, img_idx in enumerate(active_subhalos):
         mass_name = f'mass_{img_idx}'
         mass_samples_i = mass_posterior_stats[mass_name]['samples']
         valid_mask = mass_samples_i > 0
@@ -1316,14 +1325,16 @@ if MCMC_ENABLED:
         ax.set_title(f'NFW Sub-halo {img_idx} mass posterior', fontsize=12)
         ax.legend(fontsize=9)
         ax.grid(True, linestyle=':', alpha=0.4)
-        ax.set_xlim(x_min_log, x_max_log)
-        ax.set_ylim(bottom=0)
+            ax.set_xlim(x_min_log, x_max_log)
+            ax.set_ylim(bottom=0)
 
-    plt.tight_layout()
-    mass_1d_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_mass_posterior_1d.png')
-    plt.savefig(mass_1d_file, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  ✓ 质量一维后验分布图已保存: {mass_1d_file}")
+        plt.tight_layout()
+        mass_1d_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_mass_posterior_1d.png')
+        plt.savefig(mass_1d_file, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  ✓ 质量一维后验分布图已保存: {mass_1d_file}")
+    else:
+        print(f"\n跳过质量后验分布图（无 subhalo）")
 
     # ==================== 保存后验统计文件 ====================
     posterior_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_posterior.txt')
