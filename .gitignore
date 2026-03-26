@@ -100,10 +100,17 @@ Desktop.ini
 *.hdf5
 *.fits.gz
 
-# Compiled extensions
+# Compiled extensions and object files
 *.so
 *.dylib
 *.dll
+*.o
+*.a
+
+# glafic compiled binaries
+glafic2/glafic
+glafic2/libglafic.a
+glafic2/*.o
 
 # ==================== 部署工具 ====================
 # GitHub部署相关脚本（不应包含在仓库中）
