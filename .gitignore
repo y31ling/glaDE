@@ -105,6 +105,14 @@ Desktop.ini
 *.dylib
 *.dll
 
+# ==================== 部署工具 ====================
+# GitHub部署相关脚本（不应包含在仓库中）
+deploy_to_github.sh
+setup_github_auth.sh
+setup_ssh_auth.sh
+github_deploy_*
+*_deploy_*
+
 # ==================== 备份文件 ====================
 *.bak
 *.backup
