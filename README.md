@@ -1,8 +1,8 @@
 # GLADE: Gravitational Lensing Analysis and Differential Evolution
 
-[License: MIT](https://opensource.org/licenses/MIT)
-[Python 3.8+](https://www.python.org/downloads/)
-[CI](https://github.com/y31ling/glaDE/actions)
+[[License: MIT](https://opensource.org/licenses/MIT)]
+[[Python 3.8+](https://www.python.org/downloads/)]
+[[CI](https://github.com/y31ling/glaDE/actions)]
 
 **GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of [glafic2](https://github.com/oguri/glafic2), GLADE specializes in subhalo detection and strong lensing system modeling.
 
@@ -242,11 +242,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📈 Roadmap
 
-- [ ] GPU acceleration support
-- [ ] Web-based interface
-- [ ] Additional lens models (Sersic, Einasto)
-- [ ] Docker containerization
-- [ ] Intergrate Differential Evolution into glafic command directly
+- GPU acceleration support
+- Web-based interface
+- Additional lens models (Sersic, Einasto)
+- Docker containerization
+- Intergrate Differential Evolution into glafic command directly
 
 ## !!  Known Issues
 

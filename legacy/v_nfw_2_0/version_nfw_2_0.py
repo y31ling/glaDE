@@ -1292,39 +1292,39 @@ if MCMC_ENABLED:
             axes_mass = [axes_mass]
 
         for i, img_idx in enumerate(active_subhalos):
-        mass_name = f'mass_{img_idx}'
-        mass_samples_i = mass_posterior_stats[mass_name]['samples']
-        valid_mask = mass_samples_i > 0
-        log_mass_samples = np.log10(mass_samples_i[valid_mask])
+            mass_name = f'mass_{img_idx}'
+            mass_samples_i = mass_posterior_stats[mass_name]['samples']
+            valid_mask = mass_samples_i > 0
+            log_mass_samples = np.log10(mass_samples_i[valid_mask])
 
-        # DE 最优解质量
-        log_de_mass = np.log10(best_params[i][2])
+            # DE 最优解质量
+            log_de_mass = np.log10(best_params[i][2])
 
-        kde = gaussian_kde(log_mass_samples, bw_method='scott')
-        x_min_log = min(log_mass_samples.min() - 0.3, log_de_mass - 0.3)
-        x_max_log = max(log_mass_samples.max() + 0.3, log_de_mass + 0.3)
-        x_grid = np.linspace(x_min_log, x_max_log, 500)
-        y_kde  = kde(x_grid)
+            kde = gaussian_kde(log_mass_samples, bw_method='scott')
+            x_min_log = min(log_mass_samples.min() - 0.3, log_de_mass - 0.3)
+            x_max_log = max(log_mass_samples.max() + 0.3, log_de_mass + 0.3)
+            x_grid = np.linspace(x_min_log, x_max_log, 500)
+            y_kde  = kde(x_grid)
 
-        ax = axes_mass[i]
-        ax.plot(x_grid, y_kde, color='steelblue', lw=2)
-        ax.fill_between(x_grid, y_kde, alpha=0.25, color='steelblue')
+            ax = axes_mass[i]
+            ax.plot(x_grid, y_kde, color='steelblue', lw=2)
+            ax.fill_between(x_grid, y_kde, alpha=0.25, color='steelblue')
 
-        log_median = np.log10(mass_posterior_stats[mass_name]['median'])
-        log_lower  = np.log10(mass_posterior_stats[mass_name]['lower_1sigma'])
-        log_upper  = np.log10(mass_posterior_stats[mass_name]['upper_1sigma'])
+            log_median = np.log10(mass_posterior_stats[mass_name]['median'])
+            log_lower  = np.log10(mass_posterior_stats[mass_name]['lower_1sigma'])
+            log_upper  = np.log10(mass_posterior_stats[mass_name]['upper_1sigma'])
 
-        ax.axvline(log_median, color='steelblue', lw=1.5, ls='--',
-                   label=f'median = {log_median:.2f}')
-        ax.axvspan(log_lower, log_upper, alpha=0.15, color='steelblue', label=r'1$\sigma$')
-        ax.axvline(log_de_mass, color='tomato', lw=2, ls='-',
-                   label=f'DE best = {log_de_mass:.2f}')
+            ax.axvline(log_median, color='steelblue', lw=1.5, ls='--',
+                       label=f'median = {log_median:.2f}')
+            ax.axvspan(log_lower, log_upper, alpha=0.15, color='steelblue', label=r'1$\sigma$')
+            ax.axvline(log_de_mass, color='tomato', lw=2, ls='-',
+                       label=f'DE best = {log_de_mass:.2f}')
 
-        ax.set_xlabel(r'$\log_{10}(M_{\rm vir} / M_\odot)$', fontsize=13)
-        ax.set_ylabel('Posterior density', fontsize=13)
-        ax.set_title(f'NFW Sub-halo {img_idx} mass posterior', fontsize=12)
-        ax.legend(fontsize=9)
-        ax.grid(True, linestyle=':', alpha=0.4)
+            ax.set_xlabel(r'$\log_{10}(M_{\rm vir} / M_\odot)$', fontsize=13)
+            ax.set_ylabel('Posterior density', fontsize=13)
+            ax.set_title(f'NFW Sub-halo {img_idx} mass posterior', fontsize=12)
+            ax.legend(fontsize=9)
+            ax.grid(True, linestyle=':', alpha=0.4)
             ax.set_xlim(x_min_log, x_max_log)
             ax.set_ylim(bottom=0)
 
