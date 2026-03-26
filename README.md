@@ -235,10 +235,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **corner**: Posterior distribution visualization
 - **matplotlib**: Publication-quality plotting
 
-## 📞 Support and Contact
-
-- **Issues**: [GitHub Issues](https://github.com/y31ling/glaDE/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/y31ling/glaDE/discussions)
 
 ## 📈 Roadmap
 
@@ -251,10 +247,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## !!  Known Issues
 
 - Encountering Multiple Errors when the subhalos list is empty, plz double check your result when you are doing that.
+
 - Optimization-DE command doesn't work correctly, plz don't use it for now.
 
 ---
 
 
 
-![GREY](https://github.com/user-attachments/assets/abf32bcc-83f0-4bbe-9de4-c91288566a30)
+![74502093_p0_master1200](https://github.com/user-attachments/assets/d4993fc5-4601-4c2c-9ebb-015c53162878)
+
+グレイ最高
+(Image Not authorized by the [author](https://www.pixiv.net/artworks/74502093), Will delete if u mind)
+
