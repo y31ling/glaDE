@@ -246,9 +246,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## !!  Known Issues
 
-- Encountering Multiple Errors when the subhalos list is empty, plz double check your result when you are doing that.
 
 - Optimization-DE command doesn't work correctly, plz don't use it for now.
+
+- Glafic checking progress doesn't using absolute value to compare, plz compare the result manually for now.
 
 ---
 
