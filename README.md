@@ -1,19 +1,18 @@
 # GLADE: Gravitational Lensing Analysis and Differential Evolution
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/y31ling/glaDE/workflows/CI/badge.svg)](https://github.com/y31ling/glaDE/actions)
+[License: MIT](https://opensource.org/licenses/MIT)
+[Python 3.8+](https://www.python.org/downloads/)
+[CI](https://github.com/y31ling/glaDE/actions)
 
-**GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of the powerful `glafic2` engine, GLADE specializes in subhalo detection and strong lensing system modeling.
+**GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of `glafic2`, GLADE specializes in subhalo detection and strong lensing system modeling.
 
 ## 🌟 Features
 
 - **Multi-Model Support**: Point Mass, NFW, King, and Pseudo-Jaffe lens models
-- **Advanced Optimization**: Differential Evolution (DE) and MCMC sampling algorithms  
-- **One-Click Deployment**: Automated Linux environment setup and dependency management
-- **Unified Interface**: Single entry point through `main.py` for all models
-- **Extensible Architecture**: Easy to add new lens models and optimization methods
-- **Professional Toolset**: Complete analysis pipeline from modeling to visualization
+- **Optimization**: Differential Evolution (DE) and MCMC sampling algorithms  
+- **Deployment**: Automated Linux environment setup and dependency management
+- **Interface**: Single entry point through `main.py` for all models
+- **Toolset**: Complete analysis pipeline from modeling to visualization
 
 ## 🚀 Quick Start
 
@@ -40,6 +39,7 @@ bash bootstrap_linux.sh
 ```
 
 The bootstrap script automatically:
+
 - Installs system dependencies (apt packages)
 - Downloads and compiles CFITSIO, FFTW, GSL libraries
 - Builds glafic2 binary and Python modules
@@ -55,6 +55,7 @@ Edit `main.py` to configure your analysis:
 model_use = "point_mass"  # Options: 'nfw', 'king', 'p-jaffe'
 
 # Set data directory (containing bestfit.dat)
+# Or you can simply change the parameters in the scripts directly
 source_dir = "work/your_data_directory"
 
 # Configure optimization parameters
@@ -64,6 +65,7 @@ common_overrides = {
     "DE_POPSIZE": 75,                 # Population size
     "MCMC_ENABLED": True,             # Enable MCMC sampling
     "MCMC_NSTEPS": 5000,             # MCMC steps
+    ...
 }
 ```
 
@@ -96,12 +98,14 @@ glade/
 
 ## 🔧 Supported Lens Models
 
-| Model | Description | Parameters | Use Case |
-|-------|-------------|------------|----------|
-| **Point Mass** | Point mass approximation | x, y, mass | Subhalo detection |
-| **NFW** | Navarro-Frenk-White profile | x, y, M_vir, c_vir | Dark matter halos |
-| **King** | King profile | x, y, mass, r_c, c | Globular clusters |
-| **Pseudo-Jaffe** | Pseudo-Jaffe profile | x, y, σ, a, r_co | Elliptical galaxies |
+
+| Model            | Description                 | Parameters         | Use Case            |
+| ---------------- | --------------------------- | ------------------ | ------------------- |
+| **Point Mass**   | Point mass approximation    | x, y, mass         | Subhalo detection   |
+| **NFW**          | Navarro-Frenk-White profile | x, y, M_vir, c_vir | Dark matter halos   |
+| **King**         | King profile                | x, y, mass, r_c, c | Globular clusters   |
+| **Pseudo-Jaffe** | Pseudo-Jaffe profile        | x, y, σ, a, r_co   | Elliptical galaxies |
+
 
 ## 🎯 Usage Examples
 
@@ -110,7 +114,7 @@ glade/
 ```python
 # 1. Configure model
 model_use = "point_mass"
-source_dir = "work/SN_2Sersic_NFW"
+source_dir = ""
 
 # 2. Set optimization parameters
 common_overrides = {
@@ -172,14 +176,14 @@ source env.sh  # Load runtime environment
 ### glafic Optimization Tool
 
 ```bash
-# Basic optimization from existing results
-python tools/glafic_optimize.py results/point_mass/241126_1234/
+# Using glafic optimization(ameoba) to repeat optimization process for an existing result 
+python tools/glafic_optimize.py results/point_mass/result_dir/
 
 # Enable MCMC sampling
-python tools/glafic_optimize.py results/point_mass/241126_1234/ --mcmc --mcmc_nsteps 50000
+python tools/glafic_optimize.py results/point_mass/result_dir/ --mcmc --mcmc_nsteps 50000
 
 # Verbose output with restart control
-python tools/glafic_optimize.py results/point_mass/241126_1234/ --verbose --max_restart 5
+python tools/glafic_optimize.py results/point_mass/result_dir/ --verbose --max_restart 5
 ```
 
 ### MCMC Post-Processing
@@ -194,16 +198,6 @@ python tools/replot_mcmc.py results/point_mass/241126_1234/
 # Generate publication-quality plots
 python tools/drawgraph.py results/point_mass/241126_1234/
 ```
-
-## 🔬 Scientific Applications
-
-GLADE has been successfully applied to:
-
-- **Strong gravitational lens system modeling**
-- **Dark matter substructure detection**
-- **Gravitational lensing of supernovae**
-- **Galaxy mass distribution studies**
-- **Lens model comparison and validation**
 
 ## 📚 Technical Details
 
@@ -229,30 +223,13 @@ GLADE has been successfully applied to:
 - **Parameter bounds**: Automatic and custom parameter range setting
 - **Convergence monitoring**: Real-time optimization progress tracking
 
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow PEP 8 style guidelines for Python code
-- Add unit tests for new features
-- Update documentation for API changes
-- Ensure backward compatibility when possible
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- **glafic2**: Core gravitational lensing computation engine by Masamune Oguri
+- **glafic2**: Core gravitational lensing computation engine by Masamune Oguri, Really Great Thanks!
 - **SciPy ecosystem**: Scientific computing foundation
 - **emcee**: Affine-invariant MCMC sampling
 - **corner**: Posterior distribution visualization
@@ -262,31 +239,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/y31ling/glaDE/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/y31ling/glaDE/discussions)
-- **Documentation**: See `docs/` directory (coming soon)
 
 ## 📈 Roadmap
 
-- [ ] GPU acceleration support
-- [ ] Web-based interface
-- [ ] Additional lens models (Sersic, Einasto)
-- [ ] Automated model selection
-- [ ] Integration with observational databases
-- [ ] Docker containerization
+- GPU acceleration support
+- Web-based interface
+- Additional lens models (Sersic, Einasto)
+- Docker containerization
+- Intergrate Differential Evolution into glafic command directly
+
+## !!  Known Issues
+
+- Encountering Multiple Errors when the subhalos list is empty, plz double check your result when you are doing that.
+- Optimization-DE command doesn't work correctly, plz don't use it for now.
 
 ---
 
-**⭐ If this project helps your research, please give us a star and consider citing our work!**
-
-## Citation
-
-If you use GLADE in your research, please cite:
-
-```bibtex
-@software{glade2024,
-  title={GLADE: Gravitational Lensing Analysis and Differential Evolution},
-  author={GLADE Development Team},
-  year={2024},
-  url={https://github.com/y31ling/glaDE},
-  version={1.0}
-}
-```
