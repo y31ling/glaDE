@@ -1,0 +1,114 @@
+# ==================== Python ====================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# ==================== 项目特定 ====================
+# 依赖库构建目录（由bootstrap_linux.sh自动生成）
+deps/
+
+# 运行时生成的文件
+env.sh
+run_glade.sh
+
+# 结果输出目录
+results/
+results_*/
+output/
+output_*/
+
+# 临时文件和日志
+*.log
+*.tmp
+temp_*
+*_temp*
+
+# glafic输出文件
+*.dat
+*.fits
+*.png
+*.pdf
+*_optresult.dat
+*_mcmc.dat
+*_point.dat
+*_crit.dat
+
+# 时间戳目录（脚本输出）
+[0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]/
+
+# 生成的脚本
+legacy/*/_glade_generated_run.py
+
+# ==================== 系统文件 ====================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==================== IDE ====================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ==================== 科学计算 ====================
+# Large data files
+*.h5
+*.hdf5
+*.fits.gz
+
+# Compiled extensions
+*.so
+*.dylib
+*.dll
+
+# ==================== 备份文件 ====================
+*.bak
+*.backup
+*.orig
+*.swp
+*.swo
+*~
