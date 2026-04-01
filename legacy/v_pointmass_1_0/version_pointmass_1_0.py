@@ -8,7 +8,6 @@ Version Point Mass 1.0: Flexible Sub-halos Search
 """
 
 import sys
-sys.path.insert(0, '/home/luukiaun/glafic251018/glafic2/python')
 import random
 import glafic
 import numpy as np
@@ -19,8 +18,6 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import subprocess
 from plot_paper_style import plot_paper_style, plot_paper_style_compare, read_critical_curves
-
-os.environ['LD_LIBRARY_PATH'] = '/home/luukiaun/glafic251018/gsl-2.8/.libs:/home/luukiaun/glafic251018/fftw-3.3.10/.libs:/home/luukiaun/glafic251018/cfitsio-4.6.2/.libs'
 
 # ==================== 基准透镜参数加载函数 ====================
 def load_baseline_lens_params(directory):
@@ -88,7 +85,7 @@ def load_baseline_lens_params(directory):
 # ║              智能查找 glafic 可执行文件                                ║
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
-def find_glafic_bin(default_path="/home/luukiaun/glafic251018/glafic2/glafic"):
+def find_glafic_bin(default_path=""):
     """
     智能查找 glafic 可执行文件。
 
@@ -138,7 +135,7 @@ print("=" * 70)
 # 支持 sie（SIE 模型）和 anfw（轴对称 NFW）两种主透镜类型。
 # 留空字符串 "" 则使用下方内置的 SIE 默认参数。
 # 示例: BASELINE_LENS_DIR = "work/SN_2Sersic_NFW"
-BASELINE_LENS_DIR = '/home/luukiaun/glafic251018/work/glade/legacy/v_pointmass_1_0/bestfit_default'
+BASELINE_LENS_DIR = ''
 
 # ==================== 1. 约束条件配置 ====================
 CONSTRAINT_SIGMA = 1

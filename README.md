@@ -12,8 +12,6 @@
 >
 > fixed multiple hard-coded values for broader dataset compatibility.
 
-
-
 **GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of [glafic2](https://github.com/oguri/glafic2), GLADE specializes in subhalo detection and strong lensing system modeling.
 
 ## 🌟 Features
@@ -63,9 +61,10 @@ GLADE includes a web-based interface for configuring and launching analyses with
 GLADE_PORT=8080 ./run_webui.sh
 ```
 
-Then open **http://localhost:6017** in your browser.
+Then open **[http://localhost:6017](http://localhost:6017)** in your browser.
 
 **WebUI Features:**
+
 - Select subhalo model (Point Mass, NFW, King, Pseudo-Jaffe, None) from the sidebar
 - Configure all optimization parameters through a graphical form
 - Load baseline lens parameters from a `bestfit.dat` file path or paste content manually
@@ -280,7 +279,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **corner**: Posterior distribution visualization
 - **matplotlib**: Publication-quality plotting
 
-
 ## 📈 Roadmap
 
 - [] GPU acceleration support
@@ -293,15 +291,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **[Critical] WebUI parallel workers**: Launching the optimizer from the WebUI with `DE_WORKERS > 1` triggers severe process race conditions (glafic global state is not thread-safe). **Workaround**: keep `DE_WORKERS = 1` when using the WebUI, **or** click **"Set as Default"** to write your parameters back to the script and run the script directly from the terminal.
 - **[glafic]** The built-in Optimization-DE command in glafic does not work correctly — do not use it for now.
-
 - Glafic checking progress doesn't using absolute value to compare, plz compare the result manually for now.
 
 ---
 
-
-
-![74502093_p0_master1200](https://github.com/user-attachments/assets/d4993fc5-4601-4c2c-9ebb-015c53162878)
+74502093_p0_master1200
 
 グレイ最高
 (Image Not authorized by the [author](https://www.pixiv.net/artworks/74502093), Will delete if u mind)
-

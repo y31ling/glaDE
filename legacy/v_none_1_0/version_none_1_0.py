@@ -24,7 +24,6 @@ lens_optimize_bounds 格式（fine_tuning=True 时生效）:
 """
 
 import sys
-sys.path.insert(0, '/home/luukiaun/glafic251018/glafic2/python')
 import random
 import glafic
 import numpy as np
@@ -35,12 +34,6 @@ from datetime import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
-os.environ['LD_LIBRARY_PATH'] = (
-    '/home/luukiaun/glafic251018/gsl-2.8/.libs:'
-    '/home/luukiaun/glafic251018/fftw-3.3.10/.libs:'
-    '/home/luukiaun/glafic251018/cfitsio-4.6.2/.libs'
-)
 
 # ══════════════════════════════════════════════════════════
 # §1  公共辅助函数（与其他版本保持一致）
@@ -90,7 +83,7 @@ def load_baseline_lens_params(directory):
     return params_dict, float(point_params[2]), float(point_params[3]), main_lens_key
 
 
-def find_glafic_bin(default_path="/home/luukiaun/glafic251018/glafic2/glafic"):
+def find_glafic_bin(default_path=""):
     if os.path.isfile(default_path) and os.access(default_path, os.X_OK):
         return default_path
     try:
@@ -114,7 +107,7 @@ print("=" * 70)
 # ══════════════════════════════════════════════════════════
 
 # ── 0. 基准透镜参数路径 ────────────────────────────────────
-BASELINE_LENS_DIR = '/home/luukiaun/glafic251018/work/glade/legacy/v_none_1_0/bestfit_default'
+BASELINE_LENS_DIR = ''
 
 # ── 1. 约束条件 ────────────────────────────────────────────
 CONSTRAINT_SIGMA = 1

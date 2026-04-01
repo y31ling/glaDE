@@ -12,7 +12,6 @@ Version NFW 2.0: Optimized NFW Sub-halos Search
 """
 
 import sys
-sys.path.insert(0, '/home/luukiaun/glafic251018/glafic2/python')
 
 import random
 import glafic
@@ -26,8 +25,6 @@ import subprocess
 from plot_paper_style import plot_paper_style_nfw, plot_paper_style_nfw_compare, read_critical_curves
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
-
-os.environ['LD_LIBRARY_PATH'] = '/home/luukiaun/glafic251018/gsl-2.8/.libs:/home/luukiaun/glafic251018/fftw-3.3.10/.libs:/home/luukiaun/glafic251018/cfitsio-4.6.2/.libs'
 
 # ==================== 基准透镜参数加载函数 ====================
 def load_baseline_lens_params(directory):
@@ -94,7 +91,7 @@ def load_baseline_lens_params(directory):
 # ║              智能查找 glafic 可执行文件                                ║
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
-def find_glafic_bin(default_path="/home/luukiaun/glafic251018/glafic2/glafic"):
+def find_glafic_bin(default_path=""):
     """
     智能查找 glafic 可执行文件
     
@@ -186,7 +183,7 @@ def calculate_nfw_radii(m_vir_msun, c_vir, z_lens):
 # 支持 sie（SIE 模型）和 anfw（轴对称 NFW）两种主透镜类型。
 # 留空字符串 "" 则使用下方内置的 SIE 默认参数。
 # 示例: BASELINE_LENS_DIR = "work/SN_2Sersic_NFW"
-BASELINE_LENS_DIR = "work/SN_2Sersic_NFW"
+BASELINE_LENS_DIR = ""
 
 # ==================== 1. 约束条件配置 ====================
 CONSTRAINT_SIGMA = 1.0       # 位置约束的σ倍数 [dimensionless]
@@ -1548,7 +1545,7 @@ print("步骤5: 验证结果（glafic 命令行 vs Python 接口）")
 print("=" * 70)
 
 # 使用智能查找 glafic 可执行文件
-GLAFIC_BIN = find_glafic_bin("/home/luukiaun/glafic251018/glafic2/glafic")
+GLAFIC_BIN = find_glafic_bin()
 
 if GLAFIC_BIN:
     print(f"  glafic 路径: {GLAFIC_BIN}")
