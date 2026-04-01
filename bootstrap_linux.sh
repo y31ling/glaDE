@@ -253,8 +253,10 @@ setup_python_env() {
     fi
     # shellcheck disable=SC2086
     pip3 install ${bsp_flag} --upgrade pip setuptools wheel
+    # --ignore-installed: skip distutils-managed packages (e.g. blinker)
+    # that pip cannot uninstall; new versions are installed alongside them.
     # shellcheck disable=SC2086
-    pip3 install ${bsp_flag} -r "${SCRIPT_DIR}/requirements.txt"
+    pip3 install ${bsp_flag} --ignore-installed -r "${SCRIPT_DIR}/requirements.txt"
   fi
 }
 
