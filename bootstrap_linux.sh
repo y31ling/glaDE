@@ -258,6 +258,27 @@ EOF
   chmod +x "${SCRIPT_DIR}/run_glade.sh"
 }
 
+write_webui_script() {
+  cat > "${SCRIPT_DIR}/run_webui.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/env.sh"
+
+GLADE_PORT="${GLADE_PORT:-6017}"
+export GLADE_PORT
+
+echo "============================================================"
+echo "  GLADE WebUI"
+echo "  Open in browser: http://localhost:${GLADE_PORT}"
+echo "  Press Ctrl+C to stop"
+echo "============================================================"
+python "${SCRIPT_DIR}/web/app.py"
+EOF
+  chmod +x "${SCRIPT_DIR}/run_webui.sh"
+}
+
 verify_installation() {
   info "验证 glafic Python 模块导入..."
   # shellcheck disable=SC1091
@@ -284,13 +305,20 @@ main() {
   setup_python_env
   write_env_script
   write_run_script
+  write_webui_script
   verify_installation
 
   info "全部完成。"
   echo
-  echo "下一步："
-  echo "  1) 修改 ${SCRIPT_DIR}/main.py 中的 model_use 和参数"
-  echo "  2) 执行: ${SCRIPT_DIR}/run_glade.sh"
+  echo "Next steps:"
+  echo "  CLI mode:"
+  echo "    1) Edit model_use and parameters in ${SCRIPT_DIR}/main.py"
+  echo "    2) Run: ${SCRIPT_DIR}/run_glade.sh"
+  echo
+  echo "  WebUI mode:"
+  echo "    1) Run: ${SCRIPT_DIR}/run_webui.sh"
+  echo "    2) Open http://localhost:6017 in your browser"
+  echo "    (Set GLADE_PORT=<port> to use a different port)"
 }
 
 main "$@"

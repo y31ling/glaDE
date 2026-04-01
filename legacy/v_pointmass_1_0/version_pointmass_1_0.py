@@ -55,27 +55,32 @@ def load_baseline_lens_params(directory):
             elif parts[0] == 'point':
                 point_params = parts
 
-    if len(lens_lines) < 3:
+    if len(lens_lines) < 1:
         raise ValueError(
-            f"bestfit.dat 需要至少3行 lens 参数，实际找到 {len(lens_lines)} 行: {bestfit_path}")
+            f"bestfit.dat 需要至少1行 lens 参数，实际找到 {len(lens_lines)} 行: {bestfit_path}")
     if point_params is None:
         raise ValueError(f"bestfit.dat 缺少 point 行（源位置参数）: {bestfit_path}")
 
-    params_dict, sers_count, main_lens_key = {}, 0, None
+    params_dict, sers_count, type_counts, main_lens_key = {}, 0, {}, None
     for parts in lens_lines:
         lens_type = parts[1]
         z = float(parts[2])
-        vals = [float(v) for v in parts[3:]]
+        raw = [float(v) for v in parts[3:]]
+        vals = (raw + [0.0] * 7)[:7]          # 不足7个补0，超出截断
+        idx = len(params_dict) + 1
         if lens_type == 'sers':
             sers_count += 1
-            params_dict[f'sers{sers_count}'] = (sers_count, 'sers', z, *vals)
+            key = f'sers{sers_count}'
         else:
-            main_lens_key = lens_type
-            params_dict[lens_type] = (sers_count + 1, lens_type, z, *vals)
+            type_counts[lens_type] = type_counts.get(lens_type, 0) + 1
+            n = type_counts[lens_type]
+            key = lens_type if n == 1 else f'{lens_type}{n}'
+            main_lens_key = key
+        params_dict[key] = (idx, lens_type, z, *vals)
 
+    # 全为 sers 时将最后一个视为主透镜
     if main_lens_key is None:
-        raise ValueError(
-            f"bestfit.dat 中未找到主透镜（非 sers 类型，如 sie/anfw）: {bestfit_path}")
+        main_lens_key = list(params_dict.keys())[-1]
 
     return params_dict, float(point_params[2]), float(point_params[3]), main_lens_key
 
@@ -133,18 +138,18 @@ print("=" * 70)
 # 支持 sie（SIE 模型）和 anfw（轴对称 NFW）两种主透镜类型。
 # 留空字符串 "" 则使用下方内置的 SIE 默认参数。
 # 示例: BASELINE_LENS_DIR = "work/SN_2Sersic_NFW"
-BASELINE_LENS_DIR = "work/SN_2Sersic_NFW"
+BASELINE_LENS_DIR = '/home/luukiaun/glafic251018/work/glade/legacy/v_pointmass_1_0/bestfit_default'
 
 # ==================== 1. 约束条件配置 ====================
-CONSTRAINT_SIGMA = 1.0  # 位置约束的σ倍数
-PENALTY_COEFFICIENT = 1000  # 违反约束的惩罚系数
+CONSTRAINT_SIGMA = 1
+PENALTY_COEFFICIENT = 1000
 
 # ==================== 2. Sub-halo 启用配置 (新功能) ====================
 # 控制在哪些图像附近拟合 sub-halo
 # 例如: [1,2,3,4] 在所有4个图像附近拟合
 #      [1,3] 只在图像1和3附近拟合
 #      [2,4] 只在图像2和4附近拟合
-active_subhalos = [1,2,3,4]  # 可修改为任意子集，如 [1, 3]
+active_subhalos = []
 
 # ==================== 3. 精细调试模式 (新功能) ====================
 # 如果为 True，每个 sub-halo 的搜索半径、初始质量、质量范围独立设置
@@ -152,68 +157,50 @@ active_subhalos = [1,2,3,4]  # 可修改为任意子集，如 [1, 3]
 fine_tuning = False
 
 # --- 通用配置（当 fine_tuning=False 时使用） ---
-SEARCH_RADIUS = 0.075  # ±75 mas 搜索半径
-MASS_GUESS = 1.0e6     # 初始质量猜测
-MASS_LOG_RANGE = 3.0   # 质量搜索范围 ±x个数量级
+SEARCH_RADIUS = 0.075
+MASS_GUESS = 1000000
+MASS_LOG_RANGE = 3
 
 # --- 精细配置（当 fine_tuning=True 时使用） ---
 # 每个 sub-halo 的独立配置
-fine_tuning_configs = {
-    1: {  # Sub-halo 1
-        'search_radius': 0.080,
-        'mass_guess': 1.0e5,
-        'mass_log_range': 4.5
-    },
-    2: {  # Sub-halo 2
-        'search_radius': 0.070,
-        'mass_guess': 5.0e4,
-        'mass_log_range': 4.0
-    },
-    3: {  # Sub-halo 3
-        'search_radius': 0.075,
-        'mass_guess': 8.0e4,
-        'mass_log_range': 4.2
-    },
-    4: {  # Sub-halo 4
-        'search_radius': 0.065,
-        'mass_guess': 3.0e4,
-        'mass_log_range': 3.8
-    }
-}
+fine_tuning_configs = {1: {'search_radius': 0.08, 'mass_guess': 100000, 'mass_log_range': 4.5},
+ 2: {'search_radius': 0.07, 'mass_guess': 50000, 'mass_log_range': 4},
+ 3: {'search_radius': 0.075, 'mass_guess': 80000, 'mass_log_range': 4.2},
+ 4: {'search_radius': 0.065, 'mass_guess': 30000, 'mass_log_range': 3.8}}
 
 # ==================== 4. 机器学习目标函数参数 ====================
-LOSS_COEF_A = 4.0   # 位置chi²的权重系数
-LOSS_COEF_B = 1   # 放大率chi²的权重系数
-LOSS_PENALTY_PL = 10000.0  # 位置惩罚系数
+LOSS_COEF_A = 4
+LOSS_COEF_B = 1
+LOSS_PENALTY_PL = 10000
 
 # ==================== 4.1 透镜和源参数修改配置 ====================
-source_modify = False  # 是否优化source位置（x, y）
-lens_modify = False    # 是否优化lens参数（mass, x, y, re/e, pa）
-modify_percentage = 0.1  # 参数允许变化的百分比（例如0.01表示±1%）
+source_modify = True
+lens_modify = True
+modify_percentage = 0.2
 # 注：两个都为True时，同时优化source和lens参数
 
 # ==================== 5. 优化算法配置 ====================
-DE_MAXITER = 650    # 最大迭代次数
-DE_POPSIZE = 65     # 种群大小
-DE_ATOL = 1e-4      # 绝对容差
-DE_TOL = 1e-4       # 相对容差
-DE_SEED = random.randint(1, 100000)        # 随机种子
-DE_POLISH = True    # 局部优化抛光
-DE_WORKERS = 12     # 并行核心数：-1表示使用所有核心，或者指定具体数字（如12）
+DE_MAXITER = 650
+DE_POPSIZE = 32
+DE_ATOL = 0.0001
+DE_TOL = 0.0001
+DE_SEED = 42
+DE_POLISH = True
+DE_WORKERS = -1
 
 # 早停机制配置
-EARLY_STOPPING = True       # 是否启用早停
-EARLY_STOP_PATIENCE = 30    # 容忍次数
+EARLY_STOPPING = True
+EARLY_STOP_PATIENCE = 30
 
 # ==================== 6. MCMC 配置 ====================
-MCMC_ENABLED = False          # 是否启用MCMC采样
-MCMC_NWALKERS = 32           # walker数量 [count]，至少是参数维度的2倍
-MCMC_NSTEPS = 2000           # 采样步数 [count]
-MCMC_BURNIN = 300            # burn-in 步数 [count]，丢弃前N步
-MCMC_THIN = 2                # 稀疏采样 [count]，每N步保留1个
-MCMC_PERTURBATION = 0.01     # 初始扰动幅度 [fraction]，相对于参数范围
-MCMC_PROGRESS = True         # 是否显示进度条
-MCMC_WORKERS = -1            # 并行核心数 [count]，1=串行，-1=全部CPU，>1=指定核心数
+MCMC_ENABLED = False
+MCMC_NWALKERS = 32
+MCMC_NSTEPS = 2000
+MCMC_BURNIN = 300
+MCMC_THIN = 2
+MCMC_PERTURBATION = 0.01
+MCMC_PROGRESS = True
+MCMC_WORKERS = -1
 
 # ==================== 6.1 MCMC 先验范围配置 ====================
 # MCMC_CUSTOM_RANGE = True  → 使用下方自定义范围作为先验边界
@@ -221,14 +208,14 @@ MCMC_WORKERS = -1            # 并行核心数 [count]，1=串行，-1=全部CPU
 MCMC_CUSTOM_RANGE = False
 
 # 自定义先验范围（仅在 MCMC_CUSTOM_RANGE=True 时生效）
-MCMC_SEARCH_RADIUS = 0.3     # 位置搜索半径 [arcsec]，以各图像观测位置为中心
-MCMC_LOG_M_MIN = 1.0         # log10(M) 下限 [dex]
-MCMC_LOG_M_MAX = 14.0        # log10(M) 上限 [dex]
+MCMC_SEARCH_RADIUS = 0.3
+MCMC_LOG_M_MIN = 1
+MCMC_LOG_M_MAX = 14
 
 # ==================== 7. 绘图配置 (新功能) ====================
 SHOW_2SIGMA = False
-OUTPUT_PREFIX = "v_pm_1_0"
-COMPARE_GRAPH = True       # 比较模式：生成 baseline vs optimized 对比图（仅在 n_active_subhalos > 0 时生效）
+OUTPUT_PREFIX = 'v_pm_1_0'
+COMPARE_GRAPH = True
 
 # Draw_Graph 控制：
 # - 0: 不绘制任何迭代图
@@ -238,30 +225,32 @@ Draw_Graph = 1
 # 绘图间隔参数（最小=1）
 # 例如：draw_interval=5 表示每5次迭代绘制一次
 #      draw_interval=1 表示每次迭代都绘制
-draw_interval = 5  # 可修改
+draw_interval = 5
 
 # ╔═══════════════════════════════════════════════════════════════════════╗
 # ║                         固定参数                                       ║
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
-# 观测数据
-obs_positions_mas = np.array([
-    [-266.035, +0.427],
-    [+118.835, -221.927],
-    [+238.324, +227.270],
-    [-126.157, +319.719],
-])
+# ==================== 可注入的观测数据（WebUI / 注入器可覆盖）====================
+obs_positions_mas_list = [[-330.461, 0], [330.461, 0], [0, -262.771], [0, 262.771]]
+obs_magnifications_list = [2.9205, 2.9205, -1.52908, -1.52908]
+obs_mag_errors_list = [0, 0, 0, 0]
+obs_pos_sigma_mas_list = [0.5, 0.5, 0.5, 0.5]
+center_offset_x = 0
+center_offset_y = 0
+obs_x_flip = False
 
+# 坐标转换：统一取符号，同时作用于观测位置和中心偏移，确保两者始终在同一坐标系下
+_x_sign = -1 if obs_x_flip else 1
+obs_positions_mas = np.array(obs_positions_mas_list)
 obs_positions = np.zeros_like(obs_positions_mas)
-obs_positions[:, 0] = -obs_positions_mas[:, 0] / 1000.0
+obs_positions[:, 0] = _x_sign * obs_positions_mas[:, 0] / 1000.0
 obs_positions[:, 1] = obs_positions_mas[:, 1] / 1000.0
+center_offset_x = 0
 
-obs_magnifications = np.array([-35.6, 15.7, -7.5, 9.1])
-obs_mag_errors = np.array([2.1, 1.3, 1.0, 1.1])
-obs_pos_sigma_mas = np.array([0.41, 0.86, 2.23, 3.11])
-
-center_offset_x = -0.01535000
-center_offset_y = +0.03220000
+obs_magnifications = np.array(obs_magnifications_list)
+obs_mag_errors = np.array(obs_mag_errors_list)
+obs_pos_sigma_mas = np.array(obs_pos_sigma_mas_list)
 
 # 基础模型参数
 omega = 0.3
@@ -308,7 +297,7 @@ else:
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
 # 验证 active_subhalos 参数
-active_subhalos = sorted(list(set(active_subhalos)))  # 去重并排序
+active_subhalos = []
 for idx in active_subhalos:
     if idx not in [1, 2, 3, 4]:
         raise ValueError(f"active_subhalos 包含无效的图像索引: {idx}，必须是 1-4 之间的整数")
@@ -324,8 +313,8 @@ if source_modify:
     n_params_source = 2  # source_x, source_y
 
 if lens_modify:
-    # lens_params: sers1, sers2, 主透镜（sie/anfw）各5个参数 (p1, x, y, e/re, pa)
-    n_params_lens = 15  # 3个透镜，每个5个参数
+    # 每个透镜优化 5 个自由参数（p1, x, y, p4, p5），数量由 bestfit.dat 实际透镜数决定
+    n_params_lens = len(lens_params) * 5
 
 n_params_extra = n_params_source + n_params_lens
 n_params = n_params_subhalo + n_params_extra  # 总参数数量
@@ -600,18 +589,22 @@ def compute_model(subhalo_params_list, verbose=False, src_x=None, src_y=None, le
     use_src_y = src_y if src_y is not None else source_y
     use_lens_params = lens_params_dict if lens_params_dict is not None else lens_params
     
-    glafic.init(omega, lambda_cosmo, weos, hubble, f'temp_{OUTPUT_PREFIX}',
+    # 每个进程用独立的临时文件前缀，避免 workers=-1 时文件冲突
+    _prefix = f'temp_{OUTPUT_PREFIX}_{os.getpid()}'
+    glafic.init(omega, lambda_cosmo, weos, hubble, _prefix,
                 xmin, ymin, xmax, ymax, pix_ext, pix_poi, maxlev, verb=0)
-    
+
     n_subhalos = len(subhalo_params_list)
-    glafic.startup_setnum(3 + n_subhalos, 0, 1)
-    
-    glafic.set_lens(*use_lens_params['sers1'])
-    glafic.set_lens(*use_lens_params['sers2'])
-    glafic.set_lens(*use_lens_params[MAIN_LENS_KEY])
+    n_base_lenses = len(use_lens_params)
+    glafic.startup_setnum(n_base_lenses + n_subhalos, 0, 1)
+
+    # 动态遍历所有基础透镜（不再硬编码 sers1/sers2/MAIN_LENS_KEY）
+    for key, pv in use_lens_params.items():
+        glafic.set_lens(*pv)
 
     for i, (x_sub, y_sub, mass_sub) in enumerate(subhalo_params_list):
-        glafic.set_lens(4 + i, 'point', 0.2160, mass_sub, x_sub, y_sub, 0.0, 0.0, 0.0, 0.0)
+        glafic.set_lens(n_base_lenses + 1 + i, 'point', lens_z, mass_sub,
+                        x_sub, y_sub, 0.0, 0.0, 0.0, 0.0)
     
     glafic.set_point(1, source_z, use_src_x, use_src_y)
     glafic.model_init(verb=0)
@@ -709,41 +702,15 @@ def objective_function(params):
         src_y_opt = params[idx + 1]
         idx += 2
     
-    # 解析透镜参数（如果启用lens_modify）
+    # 解析透镜参数（动态遍历，不硬编码 sers1/sers2/MAIN_LENS_KEY）
     if lens_modify:
         lens_params_opt = {}
-        
-        # sers1: (id, type, z, mass, x, y, re, pa, e_amp, index)
-        sers1_mass = params[idx]
-        sers1_x = params[idx + 1]
-        sers1_y = params[idx + 2]
-        sers1_re = params[idx + 3]
-        sers1_pa = params[idx + 4]
-        lens_params_opt['sers1'] = (1, 'sers', 0.2160, sers1_mass, sers1_x, sers1_y,
-                                     sers1_re, sers1_pa, lens_params['sers1'][8], lens_params['sers1'][9])
-        idx += 5
-        
-        # sers2: (id, type, z, mass, x, y, re, pa, e_amp, index)
-        sers2_mass = params[idx]
-        sers2_x = params[idx + 1]
-        sers2_y = params[idx + 2]
-        sers2_re = params[idx + 3]
-        sers2_pa = params[idx + 4]
-        lens_params_opt['sers2'] = (2, 'sers', 0.2160, sers2_mass, sers2_x, sers2_y,
-                                     sers2_re, sers2_pa, lens_params['sers2'][8], lens_params['sers2'][9])
-        idx += 5
-        
-        # 主透镜（sie 或 anfw）：优化前5个自由参数，第8/9个参数保持原值
-        ml_p1 = params[idx]       # sigma (sie) 或 mass (anfw)
-        ml_x = params[idx + 1]
-        ml_y = params[idx + 2]
-        ml_e = params[idx + 3]
-        ml_pa = params[idx + 4]
-        lens_params_opt[MAIN_LENS_KEY] = (
-            3, MAIN_LENS_KEY, 0.2160, ml_p1, ml_x, ml_y,
-            ml_e, ml_pa,
-            lens_params[MAIN_LENS_KEY][8],
-            lens_params[MAIN_LENS_KEY][9])
+        for _key, _pv in lens_params.items():
+            new_pv = list(_pv)
+            for _pi in [3, 4, 5, 6, 7]:   # 与 bounds 构建顺序一致
+                new_pv[_pi] = params[idx]
+                idx += 1
+            lens_params_opt[_key] = tuple(new_pv)
 
     pos, mag, delta_pos, mag_chi2 = compute_model(subhalo_list, src_x=src_x_opt, src_y=src_y_opt,
                                                     lens_params_dict=lens_params_opt)
@@ -779,26 +746,15 @@ if source_modify:
     bounds.append((source_x * (1 - modify_percentage), source_x * (1 + modify_percentage)))
     bounds.append((source_y * (1 - modify_percentage), source_y * (1 + modify_percentage)))
 
-# 再添加lens参数（如果lens_modify=True）
+# 再添加lens参数（如果lens_modify=True）——动态遍历所有透镜，不硬编码 sers1/sers2
 if lens_modify:
-    # sers1参数的bounds
-    bounds.append((lens_params['sers1'][3] * (1 - modify_percentage), lens_params['sers1'][3] * (1 + modify_percentage)))  # mass
-    bounds.append((lens_params['sers1'][4] * (1 - modify_percentage), lens_params['sers1'][4] * (1 + modify_percentage)))  # x
-    bounds.append((lens_params['sers1'][5] * (1 - modify_percentage), lens_params['sers1'][5] * (1 + modify_percentage)))  # y
-    bounds.append((lens_params['sers1'][6] * (1 - modify_percentage), lens_params['sers1'][6] * (1 + modify_percentage)))  # re
-    bounds.append((lens_params['sers1'][7] * (1 - modify_percentage), lens_params['sers1'][7] * (1 + modify_percentage)))  # pa
-    
-    # sers2参数的bounds
-    bounds.append((lens_params['sers2'][3] * (1 - modify_percentage), lens_params['sers2'][3] * (1 + modify_percentage)))  # mass
-    bounds.append((lens_params['sers2'][4] * (1 - modify_percentage), lens_params['sers2'][4] * (1 + modify_percentage)))  # x
-    bounds.append((lens_params['sers2'][5] * (1 - modify_percentage), lens_params['sers2'][5] * (1 + modify_percentage)))  # y
-    bounds.append((lens_params['sers2'][6] * (1 - modify_percentage), lens_params['sers2'][6] * (1 + modify_percentage)))  # re
-    bounds.append((lens_params['sers2'][7] * (1 - modify_percentage), lens_params['sers2'][7] * (1 + modify_percentage)))  # pa
-    
-    # 主透镜参数的 bounds（sie 或 anfw）
-    for _i in [3, 4, 5, 6, 7]:
-        bounds.append((lens_params[MAIN_LENS_KEY][_i] * (1 - modify_percentage),
-                       lens_params[MAIN_LENS_KEY][_i] * (1 + modify_percentage)))
+    for _key, _pv in lens_params.items():
+        for _pi in [3, 4, 5, 6, 7]:   # p1, x, y, p4, p5
+            v = _pv[_pi]
+            delta = abs(v) * modify_percentage
+            if delta < 1e-10:          # 防止零值导致零宽 bounds
+                delta = modify_percentage
+            bounds.append((v - delta, v + delta))
 
 print(f"\n搜索参数空间（{n_params}维）:")
 for i, img_idx in enumerate(active_subhalos):
@@ -981,42 +937,15 @@ if source_modify:
     best_source_y = result[idx + 1]
     idx += 2
 
-# 解析透镜参数（如果启用lens_modify）
+# 解析透镜参数（动态遍历，与 objective_function 及 bounds 顺序一致）
 if lens_modify:
-    # 重构最佳透镜参数
     best_lens_params = {}
-    
-    # sers1
-    sers1_mass = result[idx]
-    sers1_x = result[idx + 1]
-    sers1_y = result[idx + 2]
-    sers1_re = result[idx + 3]
-    sers1_pa = result[idx + 4]
-    best_lens_params['sers1'] = (1, 'sers', 0.2160, sers1_mass, sers1_x, sers1_y,
-                                  sers1_re, sers1_pa, lens_params['sers1'][8], lens_params['sers1'][9])
-    idx += 5
-    
-    # sers2
-    sers2_mass = result[idx]
-    sers2_x = result[idx + 1]
-    sers2_y = result[idx + 2]
-    sers2_re = result[idx + 3]
-    sers2_pa = result[idx + 4]
-    best_lens_params['sers2'] = (2, 'sers', 0.2160, sers2_mass, sers2_x, sers2_y,
-                                  sers2_re, sers2_pa, lens_params['sers2'][8], lens_params['sers2'][9])
-    idx += 5
-    
-    # 主透镜（sie 或 anfw）
-    ml_p1 = result[idx]
-    ml_x = result[idx + 1]
-    ml_y = result[idx + 2]
-    ml_e = result[idx + 3]
-    ml_pa = result[idx + 4]
-    best_lens_params[MAIN_LENS_KEY] = (
-        3, MAIN_LENS_KEY, 0.2160, ml_p1, ml_x, ml_y,
-        ml_e, ml_pa,
-        lens_params[MAIN_LENS_KEY][8],
-        lens_params[MAIN_LENS_KEY][9])
+    for _key, _pv in lens_params.items():
+        new_pv = list(_pv)
+        for _pi in [3, 4, 5, 6, 7]:
+            new_pv[_pi] = result[idx]
+            idx += 1
+        best_lens_params[_key] = tuple(new_pv)
 
 print(f"\n" + "=" * 70)
 print("步骤3: 分析最佳结果")
@@ -1044,26 +973,14 @@ if source_modify:
 
 if lens_modify:
     print(f"\n优化后的透镜参数:")
-    print(f"  sers1:")
-    print(f"    mass: {lens_params['sers1'][3]:.6e} -> {best_lens_params['sers1'][3]:.6e} (变化: {(best_lens_params['sers1'][3]/lens_params['sers1'][3] - 1)*100:+.3f}%)")
-    print(f"    x: {lens_params['sers1'][4]:.6e} -> {best_lens_params['sers1'][4]:.6e} (变化: {(best_lens_params['sers1'][4]/lens_params['sers1'][4] - 1)*100:+.3f}%)")
-    print(f"    y: {lens_params['sers1'][5]:.6e} -> {best_lens_params['sers1'][5]:.6e} (变化: {(best_lens_params['sers1'][5]/lens_params['sers1'][5] - 1)*100:+.3f}%)")
-    print(f"    re: {lens_params['sers1'][6]:.6e} -> {best_lens_params['sers1'][6]:.6e} (变化: {(best_lens_params['sers1'][6]/lens_params['sers1'][6] - 1)*100:+.3f}%)")
-    print(f"    pa: {lens_params['sers1'][7]:.6e} -> {best_lens_params['sers1'][7]:.6e} (变化: {(best_lens_params['sers1'][7]/lens_params['sers1'][7] - 1)*100:+.3f}%)")
-    
-    print(f"  sers2:")
-    print(f"    mass: {lens_params['sers2'][3]:.6e} -> {best_lens_params['sers2'][3]:.6e} (变化: {(best_lens_params['sers2'][3]/lens_params['sers2'][3] - 1)*100:+.3f}%)")
-    print(f"    x: {lens_params['sers2'][4]:.6e} -> {best_lens_params['sers2'][4]:.6e} (变化: {(best_lens_params['sers2'][4]/lens_params['sers2'][4] - 1)*100:+.3f}%)")
-    print(f"    y: {lens_params['sers2'][5]:.6e} -> {best_lens_params['sers2'][5]:.6e} (变化: {(best_lens_params['sers2'][5]/lens_params['sers2'][5] - 1)*100:+.3f}%)")
-    print(f"    re: {lens_params['sers2'][6]:.6e} -> {best_lens_params['sers2'][6]:.6e} (变化: {(best_lens_params['sers2'][6]/lens_params['sers2'][6] - 1)*100:+.3f}%)")
-    print(f"    pa: {lens_params['sers2'][7]:.6e} -> {best_lens_params['sers2'][7]:.6e} (变化: {(best_lens_params['sers2'][7]/lens_params['sers2'][7] - 1)*100:+.3f}%)")
-    
-    print(f"  {MAIN_LENS_KEY}:")
-    print(f"    p1: {lens_params[MAIN_LENS_KEY][3]:.6e} -> {best_lens_params[MAIN_LENS_KEY][3]:.6e} (变化: {(best_lens_params[MAIN_LENS_KEY][3]/lens_params[MAIN_LENS_KEY][3] - 1)*100:+.3f}%)")
-    print(f"    x: {lens_params[MAIN_LENS_KEY][4]:.6e} -> {best_lens_params[MAIN_LENS_KEY][4]:.6e} (变化: {(best_lens_params[MAIN_LENS_KEY][4]/lens_params[MAIN_LENS_KEY][4] - 1)*100:+.3f}%)")
-    print(f"    y: {lens_params[MAIN_LENS_KEY][5]:.6e} -> {best_lens_params[MAIN_LENS_KEY][5]:.6e} (变化: {(best_lens_params[MAIN_LENS_KEY][5]/lens_params[MAIN_LENS_KEY][5] - 1)*100:+.3f}%)")
-    print(f"    e: {lens_params[MAIN_LENS_KEY][6]:.6e} -> {best_lens_params[MAIN_LENS_KEY][6]:.6e} (变化: {(best_lens_params[MAIN_LENS_KEY][6]/lens_params[MAIN_LENS_KEY][6] - 1)*100:+.3f}%)")
-    print(f"    pa: {lens_params[MAIN_LENS_KEY][7]:.6e} -> {best_lens_params[MAIN_LENS_KEY][7]:.6e} (变化: {(best_lens_params[MAIN_LENS_KEY][7]/lens_params[MAIN_LENS_KEY][7] - 1)*100:+.3f}%)")
+    _param_labels = ['p1', 'x', 'y', 'p4', 'p5']
+    for _key in lens_params:
+        print(f"  {_key}:")
+        for _pi, _label in zip([3, 4, 5, 6, 7], _param_labels):
+            orig = lens_params[_key][_pi]
+            best = best_lens_params[_key][_pi]
+            chg = (best / orig - 1) * 100 if abs(orig) > 1e-12 else float('nan')
+            print(f"    {_label}: {orig:.6e} -> {best:.6e} (变化: {chg:+.3f}%)")
 
 print(f"\n改善效果:")
 print(f"  基准chi2: {base_mag_chi2:.2f}")
@@ -1151,22 +1068,12 @@ if MCMC_ENABLED:
 
         if lens_modify:
             lens_params_opt = {}
-            sers1_mass = params[idx]; sers1_x = params[idx+1]; sers1_y = params[idx+2]
-            sers1_re   = params[idx+3]; sers1_pa = params[idx+4]
-            lens_params_opt['sers1'] = (1, 'sers', 0.2160, sers1_mass, sers1_x, sers1_y,
-                                        sers1_re, sers1_pa, lens_params['sers1'][8], lens_params['sers1'][9])
-            idx += 5
-            sers2_mass = params[idx]; sers2_x = params[idx+1]; sers2_y = params[idx+2]
-            sers2_re   = params[idx+3]; sers2_pa = params[idx+4]
-            lens_params_opt['sers2'] = (2, 'sers', 0.2160, sers2_mass, sers2_x, sers2_y,
-                                        sers2_re, sers2_pa, lens_params['sers2'][8], lens_params['sers2'][9])
-            idx += 5
-            ml_p1 = params[idx]; ml_x = params[idx+1]; ml_y = params[idx+2]
-            ml_e  = params[idx+3]; ml_pa = params[idx+4]
-            lens_params_opt[MAIN_LENS_KEY] = (3, MAIN_LENS_KEY, 0.2160, ml_p1, ml_x, ml_y,
-                                              ml_e, ml_pa,
-                                              lens_params[MAIN_LENS_KEY][8],
-                                              lens_params[MAIN_LENS_KEY][9])
+            for _key, _pv in lens_params.items():
+                new_pv = list(_pv)
+                for _pi in [3, 4, 5, 6, 7]:
+                    new_pv[_pi] = params[idx]
+                    idx += 1
+                lens_params_opt[_key] = tuple(new_pv)
 
         pos, mag, delta_pos, _ = compute_model(subhalo_list, src_x=src_x_opt, src_y=src_y_opt,
                                                lens_params_dict=lens_params_opt)
@@ -1249,10 +1156,8 @@ if MCMC_ENABLED:
     if source_modify:
         param_names.extend(['src_x', 'src_y'])
     if lens_modify:
-        param_names.extend(['sers1_m', 'sers1_x', 'sers1_y', 'sers1_re', 'sers1_pa',
-                            'sers2_m', 'sers2_x', 'sers2_y', 'sers2_re', 'sers2_pa',
-                            f'{MAIN_LENS_KEY}_p1', f'{MAIN_LENS_KEY}_x', f'{MAIN_LENS_KEY}_y',
-                            f'{MAIN_LENS_KEY}_e', f'{MAIN_LENS_KEY}_pa'])
+        for _key in lens_params:
+            param_names.extend([f'{_key}_p1', f'{_key}_x', f'{_key}_y', f'{_key}_p4', f'{_key}_p5'])
     np.savetxt(mcmc_chain_file, samples, header=' '.join(param_names))
     print(f"  ✓ MCMC链已保存: {mcmc_chain_file}")
 
@@ -1456,12 +1361,12 @@ print("=" * 70)
 glafic.init(omega, lambda_cosmo, weos, hubble, f'temp_{OUTPUT_PREFIX}_best',
             xmin, ymin, xmax, ymax, pix_ext, pix_poi, maxlev, verb=0)
 
-glafic.startup_setnum(3 + n_active_subhalos, 0, 1)
-glafic.set_lens(*best_lens_params['sers1'])
-glafic.set_lens(*best_lens_params['sers2'])
-glafic.set_lens(*best_lens_params[MAIN_LENS_KEY])
+_n_base = len(best_lens_params)
+glafic.startup_setnum(_n_base + n_active_subhalos, 0, 1)
+for _key, _pv in best_lens_params.items():
+    glafic.set_lens(*_pv)
 for i, (x_sub, y_sub, mass_sub) in enumerate(best_params):
-    glafic.set_lens(4 + i, 'point', 0.2160, mass_sub, x_sub, y_sub, 0.0, 0.0, 0.0, 0.0)
+    glafic.set_lens(_n_base + 1 + i, 'point', lens_z, mass_sub, x_sub, y_sub, 0.0, 0.0, 0.0, 0.0)
 
 glafic.set_point(1, source_z, best_source_x, best_source_y)
 glafic.model_init(verb=0)
@@ -1547,44 +1452,19 @@ with open(params_file, 'w') as f:
         f.write(f"source_x_optimized = {best_source_x:.10e}  # change: {(best_source_x/source_x - 1)*100:+.4f}%\n")
         f.write(f"source_y_optimized = {best_source_y:.10e}  # change: {(best_source_y/source_y - 1)*100:+.4f}%\n\n")
     
-    # 保存透镜参数（如果优化了）
+    # 保存透镜参数（动态遍历，兼容任意透镜数量）
     if lens_modify:
         f.write(f"# Optimized Lens Parameters\n")
-        f.write(f"# sers1\n")
-        f.write(f"sers1_mass_original = {lens_params['sers1'][3]:.10e}\n")
-        f.write(f"sers1_mass_optimized = {best_lens_params['sers1'][3]:.10e}  # change: {(best_lens_params['sers1'][3]/lens_params['sers1'][3] - 1)*100:+.4f}%\n")
-        f.write(f"sers1_x_original = {lens_params['sers1'][4]:.10e}\n")
-        f.write(f"sers1_x_optimized = {best_lens_params['sers1'][4]:.10e}  # change: {(best_lens_params['sers1'][4]/lens_params['sers1'][4] - 1)*100:+.4f}%\n")
-        f.write(f"sers1_y_original = {lens_params['sers1'][5]:.10e}\n")
-        f.write(f"sers1_y_optimized = {best_lens_params['sers1'][5]:.10e}  # change: {(best_lens_params['sers1'][5]/lens_params['sers1'][5] - 1)*100:+.4f}%\n")
-        f.write(f"sers1_re_original = {lens_params['sers1'][6]:.10e}\n")
-        f.write(f"sers1_re_optimized = {best_lens_params['sers1'][6]:.10e}  # change: {(best_lens_params['sers1'][6]/lens_params['sers1'][6] - 1)*100:+.4f}%\n")
-        f.write(f"sers1_pa_original = {lens_params['sers1'][7]:.10e}\n")
-        f.write(f"sers1_pa_optimized = {best_lens_params['sers1'][7]:.10e}  # change: {(best_lens_params['sers1'][7]/lens_params['sers1'][7] - 1)*100:+.4f}%\n\n")
-        
-        f.write(f"# sers2\n")
-        f.write(f"sers2_mass_original = {lens_params['sers2'][3]:.10e}\n")
-        f.write(f"sers2_mass_optimized = {best_lens_params['sers2'][3]:.10e}  # change: {(best_lens_params['sers2'][3]/lens_params['sers2'][3] - 1)*100:+.4f}%\n")
-        f.write(f"sers2_x_original = {lens_params['sers2'][4]:.10e}\n")
-        f.write(f"sers2_x_optimized = {best_lens_params['sers2'][4]:.10e}  # change: {(best_lens_params['sers2'][4]/lens_params['sers2'][4] - 1)*100:+.4f}%\n")
-        f.write(f"sers2_y_original = {lens_params['sers2'][5]:.10e}\n")
-        f.write(f"sers2_y_optimized = {best_lens_params['sers2'][5]:.10e}  # change: {(best_lens_params['sers2'][5]/lens_params['sers2'][5] - 1)*100:+.4f}%\n")
-        f.write(f"sers2_re_original = {lens_params['sers2'][6]:.10e}\n")
-        f.write(f"sers2_re_optimized = {best_lens_params['sers2'][6]:.10e}  # change: {(best_lens_params['sers2'][6]/lens_params['sers2'][6] - 1)*100:+.4f}%\n")
-        f.write(f"sers2_pa_original = {lens_params['sers2'][7]:.10e}\n")
-        f.write(f"sers2_pa_optimized = {best_lens_params['sers2'][7]:.10e}  # change: {(best_lens_params['sers2'][7]/lens_params['sers2'][7] - 1)*100:+.4f}%\n\n")
-        
-        f.write(f"# {MAIN_LENS_KEY}\n")
-        f.write(f"{MAIN_LENS_KEY}_p1_original = {lens_params[MAIN_LENS_KEY][3]:.10e}\n")
-        f.write(f"{MAIN_LENS_KEY}_p1_optimized = {best_lens_params[MAIN_LENS_KEY][3]:.10e}  # change: {(best_lens_params[MAIN_LENS_KEY][3]/lens_params[MAIN_LENS_KEY][3] - 1)*100:+.4f}%\n")
-        f.write(f"{MAIN_LENS_KEY}_x_original = {lens_params[MAIN_LENS_KEY][4]:.10e}\n")
-        f.write(f"{MAIN_LENS_KEY}_x_optimized = {best_lens_params[MAIN_LENS_KEY][4]:.10e}  # change: {(best_lens_params[MAIN_LENS_KEY][4]/lens_params[MAIN_LENS_KEY][4] - 1)*100:+.4f}%\n")
-        f.write(f"{MAIN_LENS_KEY}_y_original = {lens_params[MAIN_LENS_KEY][5]:.10e}\n")
-        f.write(f"{MAIN_LENS_KEY}_y_optimized = {best_lens_params[MAIN_LENS_KEY][5]:.10e}  # change: {(best_lens_params[MAIN_LENS_KEY][5]/lens_params[MAIN_LENS_KEY][5] - 1)*100:+.4f}%\n")
-        f.write(f"{MAIN_LENS_KEY}_e_original = {lens_params[MAIN_LENS_KEY][6]:.10e}\n")
-        f.write(f"{MAIN_LENS_KEY}_e_optimized = {best_lens_params[MAIN_LENS_KEY][6]:.10e}  # change: {(best_lens_params[MAIN_LENS_KEY][6]/lens_params[MAIN_LENS_KEY][6] - 1)*100:+.4f}%\n")
-        f.write(f"{MAIN_LENS_KEY}_pa_original = {lens_params[MAIN_LENS_KEY][7]:.10e}\n")
-        f.write(f"{MAIN_LENS_KEY}_pa_optimized = {best_lens_params[MAIN_LENS_KEY][7]:.10e}  # change: {(best_lens_params[MAIN_LENS_KEY][7]/lens_params[MAIN_LENS_KEY][7] - 1)*100:+.4f}%\n\n")
+        _pnames = ['p1', 'x', 'y', 'p4', 'p5']
+        for _key in lens_params:
+            f.write(f"# {_key}\n")
+            for _pi, _pn in zip([3, 4, 5, 6, 7], _pnames):
+                orig = lens_params[_key][_pi]
+                best = best_lens_params[_key][_pi]
+                chg = (best / orig - 1) * 100 if abs(orig) > 1e-12 else float('nan')
+                f.write(f"{_key}_{_pn}_original = {orig:.10e}\n")
+                f.write(f"{_key}_{_pn}_optimized = {best:.10e}  # change: {chg:+.4f}%\n")
+            f.write("\n")
     
     f.write(f"# Sub-halo Parameters (高精度保存，避免放大率敏感性问题)\n")
     for img_idx, x, y, m in best_params_with_img_idx:
@@ -1661,24 +1541,17 @@ with open(verify_input_file, 'w') as f:
     f.write(f"pix_poi    {pix_poi}\n")
     f.write(f"maxlev     {maxlev}\n\n")
     
-    # 启动设置（基础3个透镜 + N个sub-halos + 1个点源）
-    n_lenses = 3 + n_active_subhalos
+    # 启动设置（动态透镜数量 + N个sub-halos + 1个点源）
+    n_lenses = len(lens_params) + n_active_subhalos
     f.write(f"# Startup: {n_lenses} lenses, 0 extended, 1 point source\n")
     f.write(f"startup    {n_lenses} 0 1\n\n")
-    
-    # 基础透镜模型
+
+    # 基础透镜模型（动态遍历）
     f.write("# Base lens model\n")
-    f.write(f"lens       sers    {lens_params['sers1'][2]}    ")
-    f.write(f"{lens_params['sers1'][3]:.6e}    {lens_params['sers1'][4]:.6e}    {lens_params['sers1'][5]:.6e}    ")
-    f.write(f"{lens_params['sers1'][6]:.6e}    {lens_params['sers1'][7]:.6e}    {lens_params['sers1'][8]:.6e}    {lens_params['sers1'][9]:.6e}\n")
-    
-    f.write(f"lens       sers    {lens_params['sers2'][2]}    ")
-    f.write(f"{lens_params['sers2'][3]:.6e}    {lens_params['sers2'][4]:.6e}    {lens_params['sers2'][5]:.6e}    ")
-    f.write(f"{lens_params['sers2'][6]:.6e}    {lens_params['sers2'][7]:.6e}    {lens_params['sers2'][8]:.6e}    {lens_params['sers2'][9]:.6e}\n")
-    
-    f.write(f"lens       {MAIN_LENS_KEY}     {lens_params[MAIN_LENS_KEY][2]}    ")
-    f.write(f"{lens_params[MAIN_LENS_KEY][3]:.6e}    {lens_params[MAIN_LENS_KEY][4]:.6e}    {lens_params[MAIN_LENS_KEY][5]:.6e}    ")
-    f.write(f"{lens_params[MAIN_LENS_KEY][6]:.6e}    {lens_params[MAIN_LENS_KEY][7]:.6e}    {lens_params[MAIN_LENS_KEY][8]:.6e}    {lens_params[MAIN_LENS_KEY][9]:.6e}\n\n")
+    for _key, _pv in lens_params.items():
+        f.write(f"lens       {_pv[1]:<10} {_pv[2]}    ")
+        f.write("    ".join(f"{_pv[i]:.6e}" for i in range(3, 10)) + "\n")
+    f.write("\n")
     
     # Sub-halos (点质量模型)
     f.write(f"# Sub-halos ({n_active_subhalos} point mass perturbations)\n")

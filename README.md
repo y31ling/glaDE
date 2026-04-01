@@ -4,6 +4,12 @@
 [[Python 3.8+](https://www.python.org/downloads/)]
 [[CI](https://github.com/y31ling/glaDE/actions)]
 
+---------------It's quite a prototype right now, there are still many works and problems waiting to do and fix.---------------
+
+> **V0.2.0 Major Update**: Added a bilingual (Chinese / English) WebUI for browser-based parameter configuration and job launching; new **None** model for direct DE/MCMC optimization of source or lens parameters without subhalo search; fixed multiple hard-coded values for broader dataset compatibility.
+
+
+
 **GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of [glafic2](https://github.com/oguri/glafic2), GLADE specializes in subhalo detection and strong lensing system modeling.
 
 ## 🌟 Features
@@ -34,17 +40,44 @@ cd glaDE
 # One-click installation (first time setup)
 bash bootstrap_linux.sh
 
-# Run the project
+# Run via CLI
 ./run_glade.sh
+
+# Or launch the WebUI
+./run_webui.sh        # then open http://localhost:6017
 ```
+
+### WebUI (Browser Interface)
+
+GLADE includes a web-based interface for configuring and launching analyses without editing code.
+
+```bash
+# Start the WebUI server (after running bootstrap_linux.sh once)
+./run_webui.sh
+
+# Use a custom port (default: 6017)
+GLADE_PORT=8080 ./run_webui.sh
+```
+
+Then open **http://localhost:6017** in your browser.
+
+**WebUI Features:**
+- Select subhalo model (Point Mass, NFW, King, Pseudo-Jaffe, None) from the sidebar
+- Configure all optimization parameters through a graphical form
+- Load baseline lens parameters from a `bestfit.dat` file path or paste content manually
+- Launch and monitor optimization runs in real time via the built-in terminal panel
+- Switch between **Chinese** and **English** interface using the toggle button in the top-right corner
+- Save the current parameter configuration back to the model script as new defaults ("Set as Default")
+
+> **⚠️ Known WebUI limitation**: Running with `DE_WORKERS > 1` (parallel workers) via the WebUI causes process race conditions. **Workaround**: set `DE_WORKERS = 1` in the WebUI, **or** use "Set as Default" to save parameters to the script, then run the script directly from the terminal.
 
 The bootstrap script automatically:
 
 - Installs system dependencies (apt packages)
 - Downloads and compiles CFITSIO, FFTW, GSL libraries
 - Builds glafic2 binary and Python modules
-- Creates virtual environment and installs Python dependencies
-- Generates environment scripts (`env.sh`, `run_glade.sh`)
+- Creates virtual environment and installs Python dependencies (including Flask for the WebUI)
+- Generates environment scripts (`env.sh`, `run_glade.sh`, `run_webui.sh`)
 
 ### Quick Configuration
 
@@ -73,12 +106,15 @@ common_overrides = {
 
 ```
 glade/
-├── main.py              # Main entry point
+├── main.py              # Main entry point (CLI)
 ├── bootstrap_linux.sh   # One-click installation script
 ├── requirements.txt     # Python dependencies
 ├── runner.py           # Model execution engine
 ├── runtime_env.py      # Runtime environment setup
 ├── injector.py         # Parameter injection system
+├── run_glade.sh        # Generated: CLI launcher
+├── run_webui.sh        # Generated: WebUI launcher
+├── env.sh              # Generated: environment loader
 ├── glafic2/            # glafic gravitational lensing engine
 │   ├── *.c, *.h       # C source code
 │   ├── Makefile       # Build configuration
@@ -87,7 +123,12 @@ glade/
 │   ├── v_pointmass_1_0/  # Point mass model
 │   ├── v_nfw_2_0/        # NFW profile model
 │   ├── v_king_1_0/       # King profile model
-│   └── v_p_jaffe_2_0/    # Pseudo-Jaffe model
+│   ├── v_p_jaffe_2_0/    # Pseudo-Jaffe model
+│   └── v_none_1_0/       # None model (source/lens optimizer)
+├── web/                # WebUI (Flask backend + frontend)
+│   ├── app.py          # Flask server
+│   └── templates/
+│       └── index.html  # Single-page WebUI (bilingual)
 ├── tools/              # Analysis toolkit
 │   ├── glafic_optimize.py  # glafic-based optimization
 │   ├── mcmc_from_result.py # MCMC post-processing
@@ -238,16 +279,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📈 Roadmap
 
-- GPU acceleration support
-- Web-based interface
-- Additional lens models (Sersic, Einasto)
-- Docker containerization
-- Intergrate Differential Evolution into glafic command directly
+- [] GPU acceleration support
+- [√] Web-based interface
+- [] Additional lens models (Sersic, Einasto)
+- [] Docker containerization
+- [] Intergrate Differential Evolution into glafic command directly
 
-## !!  Known Issues
+## !! Known Issues
 
-
-- Optimization-DE command doesn't work correctly, plz don't use it for now.
+- **[Critical] WebUI parallel workers**: Launching the optimizer from the WebUI with `DE_WORKERS > 1` triggers severe process race conditions (glafic global state is not thread-safe). **Workaround**: keep `DE_WORKERS = 1` when using the WebUI, **or** click **"Set as Default"** to write your parameters back to the script and run the script directly from the terminal.
+- **[glafic]** The built-in Optimization-DE command in glafic does not work correctly — do not use it for now.
 
 - Glafic checking progress doesn't using absolute value to compare, plz compare the result manually for now.
 

@@ -80,8 +80,8 @@ OBS_MAG_ERRORS = np.array([2.1, 1.3, 1.0, 1.1])  # 修正误差值
 OBS_POSITION_ERRORS = np.array([0.00041, 0.00086, 0.00223, 0.00311])  # arcsec (从mas转换)
 
 # 源位置和红移
-SOURCE_Z = 0.409
-SOURCE_X = 2.685497e-03
+SOURCE_Z = 2
+SOURCE_X = 9
 SOURCE_Y = 2.443616e-02
 
 # 宇宙学参数
@@ -120,7 +120,7 @@ GLAFIC_GUESS         = True   # 是否启用 glafic 内置 initial guess
 GLAFIC_GUESS_PERTURB = 0.10    # 参数范围：最优解 ± 此比例（0.10 = ±10%）
 # opt_explore 模式：>0 时使用 opt_explore N c2lim 代替 randomize+optimize
 # opt_explore 会在每次 randomize 后 optimize，取 N 次中最优结果
-GLAFIC_GUESS_N_EXPLORE = 20     # 0 = 仅 randomize 一次；>0 = opt_explore N 次
+GLAFIC_GUESS_N_EXPLORE = 10     # 0 = 仅 randomize 一次；>0 = opt_explore N 次
 GLAFIC_GUESS_C2LIM     = 100  # opt_explore 的 chi2 上限（只记录低于此值的结果）
 
 

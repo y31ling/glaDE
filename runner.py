@@ -14,6 +14,7 @@ MODEL_TO_DIR = {
     "nfw": "v_nfw_2_0",
     "king": "v_king_1_0",
     "p-jaffe": "v_p_jaffe_2_0",
+    "none": "v_none_1_0",
 }
 
 MODEL_TO_ENTRY = {
@@ -21,6 +22,7 @@ MODEL_TO_ENTRY = {
     "nfw": "version_nfw_2_0.py",
     "king": "version_king_1_0.py",
     "p-jaffe": "version_p_jaffe_2_0.py",
+    "none": "version_none_1_0.py",
 }
 
 

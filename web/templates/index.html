@@ -1,0 +1,2496 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLADE WebUI — 引力透镜子晕优化</title>
+<style>
+:root {
+  --bg:       #080c14;
+  --bg2:      #0d1421;
+  --bg3:      #111827;
+  --bg4:      #1a2638;
+  --border:   #1e2d45;
+  --border2:  #2a3d5a;
+  --text:     #e2e8f0;
+  --text2:    #94a3b8;
+  --text3:    #4b6080;
+  --accent:   #3b82f6;
+  --accent2:  #60a5fa;
+  --green:    #22c55e;
+  --red:      #ef4444;
+  --yellow:   #f59e0b;
+  --purple:   #a855f7;
+  --orange:   #f97316;
+  --teal:     #14b8a6;
+  --pm-color: #3b82f6;
+  --nfw-color:#a855f7;
+  --king-color:#22c55e;
+  --jaffe-color:#f97316;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+     display:flex;flex-direction:column;font-size:13px;line-height:1.5;}
+
+/* ── Header ── */
+header{background:var(--bg2);border-bottom:1px solid var(--border);
+       padding:0 20px;height:54px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.logo{font-size:18px;font-weight:800;color:var(--accent2);letter-spacing:.06em;}
+.logo-sub{color:var(--text3);font-size:12px;font-weight:400;margin-left:6px;}
+.hdr-gap{flex:1;}
+.hdr-status{display:flex;align-items:center;gap:8px;}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);transition:background .3s;}
+.status-dot.running{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.status-txt{color:var(--text2);font-size:12px;}
+
+/* ── Layout ── */
+.layout{display:flex;flex:1;overflow:hidden;}
+
+/* ── Sidebar ── */
+.sidebar{width:268px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
+         display:flex;flex-direction:column;overflow:hidden;}
+.sb-scroll{flex:1;overflow-y:auto;padding-bottom:4px;}
+.sb-section{padding:14px 14px 10px;}
+.sb-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+          color:var(--text3);margin-bottom:10px;}
+
+/* Model Cards */
+.model-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;
+            margin-bottom:7px;cursor:pointer;transition:all .15s;
+            display:flex;align-items:center;gap:10px;background:var(--bg3);}
+.model-card:hover{background:var(--bg4);border-color:var(--border2);}
+.model-card.active{background:rgba(59,130,246,.08);border-color:var(--accent);}
+.model-card.active.nfw{background:rgba(168,85,247,.08);border-color:var(--nfw-color);}
+.model-card.active.king{background:rgba(34,197,94,.08);border-color:var(--king-color);}
+.model-card.active.jaffe{background:rgba(249,115,22,.08);border-color:var(--jaffe-color);}
+.mc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.mc-body{flex:1;min-width:0;}
+.mc-name{font-weight:700;font-size:13px;}
+.mc-sub{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.mc-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;flex-shrink:0;}
+
+/* Sidebar form */
+.sb-field{margin-bottom:9px;}
+.sb-field label{display:block;font-size:11px;color:var(--text2);margin-bottom:3px;}
+.sb-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+          color:var(--text);padding:6px 10px;font-size:12px;outline:none;transition:border-color .15s;}
+.sb-input:focus{border-color:var(--accent);}
+.sb-hint{font-size:10px;color:var(--text3);margin-top:3px;line-height:1.4;}
+
+/* Run/Stop buttons */
+.run-row{padding:8px 14px 12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
+.run-main{display:flex;gap:7px;}
+.btn{padding:7px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:700;
+     transition:all .15s;display:inline-flex;align-items:center;gap:5px;}
+.btn-run{background:var(--accent);color:#fff;flex:1;justify-content:center;}
+.btn-run:hover{background:#2563eb;}
+.btn-run:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed;}
+.btn-stop{background:transparent;color:var(--red);border:1px solid var(--red);padding:7px 10px;}
+.btn-stop:hover:not(:disabled){background:rgba(239,68,68,.12);}
+.btn-stop:disabled{opacity:.3;cursor:not-allowed;}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);font-size:11px;padding:4px 9px;}
+.btn-ghost:hover{background:var(--bg3);color:var(--text);}
+.btn-save{background:transparent;color:var(--teal);border:1px solid var(--teal);width:100%;justify-content:center;font-size:11px;padding:6px 0;}
+.btn-save:hover:not(:disabled){background:rgba(20,184,166,.1);}
+.btn-save:disabled{opacity:.3;cursor:not-allowed;}
+
+/* bestfit.dat mode toggle */
+.bf-modes{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:6px;}
+.bf-mode-btn{flex:1;padding:5px 0;font-size:11px;font-weight:600;border:none;cursor:pointer;
+             background:var(--bg3);color:var(--text3);transition:all .15s;text-align:center;}
+.bf-mode-btn.active{background:var(--accent);color:#fff;}
+.bf-textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+             color:var(--text);padding:7px 9px;font-size:11px;font-family:'Consolas','Courier New',monospace;
+             outline:none;resize:vertical;min-height:90px;transition:border-color .15s;line-height:1.5;}
+.bf-textarea:focus{border-color:var(--accent);}
+/* bestfit parse result */
+.bf-result{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+           padding:8px 10px;margin-top:5px;font-size:11px;}
+.bf-result.ok{border-color:rgba(20,184,166,.4);}
+.bf-result.err{border-color:rgba(239,68,68,.4);}
+.bf-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;color:var(--text2);}
+.bf-row span:first-child{color:var(--text3);}
+.bf-row input{width:52px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+              color:var(--text);padding:2px 6px;font-size:11px;outline:none;text-align:right;}
+.bf-row input:focus{border-color:var(--accent);}
+.bf-tag{font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;}
+.bf-tag.ok{background:rgba(20,184,166,.15);color:var(--teal);}
+.bf-tag.err{background:rgba(239,68,68,.15);color:var(--red);}
+.bf-types{font-size:10px;color:var(--text3);margin-top:3px;}
+
+/* ── Main content ── */
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative;}
+
+/* ── bestfit.dat 全屏编辑器 overlay ── */
+.bfe-ov{position:absolute;inset:0;z-index:20;background:var(--bg);
+        display:flex;flex-direction:column;
+        transform:translateX(102%);transition:transform .28s cubic-bezier(.4,0,.2,1);}
+.bfe-ov.open{transform:translateX(0);}
+/* header */
+.bfe-hdr{height:48px;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);
+         display:flex;align-items:center;gap:10px;padding:0 16px;}
+.bfe-hdr-title{font-weight:700;font-size:14px;flex:1;}
+.bfe-back{background:transparent;border:1px solid var(--border);border-radius:6px;
+          color:var(--text2);padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600;
+          display:flex;align-items:center;gap:5px;}
+.bfe-back:hover{background:var(--bg3);color:var(--text);}
+/* body: 2-col */
+.bfe-body{flex:1;display:flex;overflow:hidden;}
+/* editor pane */
+.bfe-ep{flex:3;display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0;}
+.bfe-ph{padding:8px 14px;font-size:11px;font-weight:700;color:var(--text3);
+        background:var(--bg2);border-bottom:1px solid var(--border);
+        display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.bfe-editor-wrap{flex:1;display:flex;overflow:hidden;background:var(--bg);}
+.bfe-lnum{width:40px;flex-shrink:0;padding:12px 0;overflow:hidden;
+          font-family:'Consolas','Courier New',monospace;font-size:12px;line-height:1.75;
+          color:var(--text3);text-align:right;padding-right:8px;
+          border-right:1px solid var(--border);background:var(--bg2);user-select:none;}
+.bfe-ta{flex:1;resize:none;border:none;outline:none;padding:12px 14px;
+        background:var(--bg);color:var(--text);
+        font-family:'Consolas','Courier New',monospace;font-size:12px;line-height:1.75;
+        tab-size:2;white-space:pre;overflow-wrap:normal;overflow-x:auto;}
+.bfe-ta::placeholder{color:var(--text3);}
+/* guide pane */
+.bfe-gp{flex:2;display:flex;flex-direction:column;min-width:260px;max-width:380px;}
+.bfe-guide{flex:1;overflow-y:auto;padding:12px 14px;}
+/* guide content */
+.g-section{margin-bottom:16px;}
+.g-type{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+        margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.g-tag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;}
+.g-code{background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+        padding:7px 10px;font-family:'Consolas','Courier New',monospace;font-size:11px;
+        color:var(--teal);margin-bottom:6px;word-break:break-all;}
+.g-params{display:flex;flex-direction:column;gap:3px;}
+.g-param{display:flex;gap:8px;font-size:11px;line-height:1.5;}
+.g-pname{color:var(--accent2);font-family:'Consolas','Courier New',monospace;
+         flex-shrink:0;width:56px;font-weight:600;}
+.g-punit{color:var(--text3);font-size:10px;}
+.g-pdesc{color:var(--text2);flex:1;}
+.g-divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.g-example{background:var(--bg2);border-left:3px solid var(--teal);
+           padding:8px 10px;border-radius:0 6px 6px 0;
+           font-family:'Consolas','Courier New',monospace;font-size:10.5px;color:var(--text2);
+           white-space:pre;overflow-x:auto;margin-top:6px;}
+/* bottom status bar */
+.bfe-bar{height:36px;flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border);
+         display:flex;align-items:center;gap:14px;padding:0 16px;font-size:11px;}
+.bfe-bar-item{display:flex;align-items:center;gap:5px;color:var(--text3);}
+.bfe-bar-item b{color:var(--text2);}
+.bfe-bar-item.ok b{color:var(--green);}
+.bfe-bar-item.err b{color:var(--red);}
+
+/* Params area */
+.params-area{flex:1;overflow-y:auto;padding:14px 16px;}
+.params-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    height:100%;gap:14px;color:var(--text3);}
+.ph-icon{font-size:52px;opacity:.25;}
+.ph-title{font-size:16px;font-weight:700;color:var(--text2);}
+
+.model-heading{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;
+               border-bottom:1px solid var(--border);}
+.mh-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.mh-name{font-size:16px;font-weight:800;}
+.mh-sub{font-size:12px;color:var(--text3);}
+
+/* Accordion sections */
+.section{background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:9px;}
+.sec-hdr{padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
+         border-radius:8px 8px 0 0;}
+.sec-hdr:hover{background:var(--bg4);}
+.section.collapsed .sec-hdr{border-radius:8px;}
+.sec-icon{font-size:15px;width:22px;text-align:center;}
+.sec-title{font-weight:700;font-size:13px;flex:1;}
+.sec-count{font-size:10px;color:var(--text3);background:var(--bg4);
+           border:1px solid var(--border);border-radius:10px;padding:1px 7px;}
+.sec-chevron{color:var(--text3);font-size:11px;transition:transform .2s;}
+.section.collapsed .sec-chevron{transform:rotate(-90deg);}
+.sec-body{padding:4px 14px 14px;border-top:1px solid var(--border);}
+.section.collapsed .sec-body{display:none;}
+
+/* Param grid */
+.p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px 12px;margin-top:10px;}
+.p-item{}
+.p-label{font-size:11px;color:var(--text2);margin-bottom:3px;display:flex;align-items:center;gap:3px;}
+.p-unit{font-size:10px;color:var(--text3);}
+.p-desc{font-size:10px;color:var(--text3);margin-top:3px;line-height:1.4;}
+.p-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:5px;
+         color:var(--text);padding:5px 9px;font-size:12px;outline:none;transition:border-color .15s;}
+.p-input:focus{border-color:var(--accent);}
+.p-input:disabled{opacity:.4;cursor:not-allowed;}
+.p-input[type=number]{-moz-appearance:textfield;}
+.p-input[type=number]::-webkit-inner-spin-button{opacity:.6;}
+select.p-input{cursor:pointer;}
+.full-w{grid-column:1/-1;}
+.hidden{display:none!important;}
+
+/* Toggle */
+.tog-row{display:flex;align-items:center;justify-content:space-between;
+         padding:6px 0;min-height:38px;}
+.tog-left{}
+.tog-name{font-size:13px;color:var(--text);}
+.tog-desc{font-size:10px;color:var(--text3);margin-top:1px;line-height:1.3;}
+.tog{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;}
+.tog input{opacity:0;width:0;height:0;}
+.tog-sl{position:absolute;inset:0;background:var(--bg4);border-radius:11px;cursor:pointer;
+        transition:.2s;border:1px solid var(--border2);}
+.tog-sl::before{content:"";position:absolute;width:16px;height:16px;left:2px;bottom:2px;
+                background:var(--text3);border-radius:50%;transition:.2s;}
+.tog input:checked+.tog-sl{background:var(--accent);border-color:var(--accent);}
+.tog input:checked+.tog-sl::before{transform:translateX(18px);background:#fff;}
+
+/* Subhalo checkboxes */
+.sub-checks{display:flex;gap:7px;flex-wrap:wrap;}
+.sub-chk{display:flex;align-items:center;gap:5px;background:var(--bg2);
+         border:1px solid var(--border);border-radius:6px;padding:5px 11px;
+         cursor:pointer;transition:all .15s;user-select:none;}
+.sub-chk:hover{border-color:var(--border2);}
+.sub-chk.on{border-color:var(--accent);background:rgba(59,130,246,.1);color:var(--accent2);}
+.sub-chk input{display:none;}
+.sub-chk span{font-size:12px;font-weight:600;}
+
+/* Fine-tuning table */
+.ft-wrap{overflow-x:auto;margin-top:10px;border-radius:6px;border:1px solid var(--border);}
+table.ft{width:100%;border-collapse:collapse;font-size:11px;}
+table.ft th{background:var(--bg2);color:var(--text3);padding:7px 9px;text-align:center;
+            border-bottom:1px solid var(--border);white-space:nowrap;font-weight:700;}
+table.ft td{padding:5px 5px;border-bottom:1px solid var(--border);text-align:center;}
+table.ft tr:last-child td{border-bottom:none;}
+table.ft tr:hover td{background:var(--bg4);}
+table.ft td.row-lbl{font-weight:700;color:var(--accent2);background:var(--bg2);
+                    min-width:38px;border-right:1px solid var(--border);}
+table.ft input{width:84px;background:var(--bg);border:1px solid var(--border);border-radius:4px;
+               color:var(--text);padding:3px 6px;font-size:11px;outline:none;text-align:right;}
+table.ft input:focus{border-color:var(--accent);}
+
+/* Terminal resize bar */
+.t-resize{height:4px;background:var(--border);cursor:ns-resize;flex-shrink:0;}
+.t-resize:hover{background:var(--accent);}
+
+/* Terminal */
+.terminal{height:250px;flex-shrink:0;background:var(--bg);border-top:1px solid var(--border);
+          display:flex;flex-direction:column;}
+.t-hdr{padding:6px 14px;background:var(--bg2);border-bottom:1px solid var(--border);
+       display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.t-title{font-size:11px;color:var(--text2);font-weight:700;flex:1;}
+.t-out{flex:1;overflow-y:auto;padding:8px 14px;
+       font-family:'Consolas','Courier New',monospace;font-size:11.5px;line-height:1.65;}
+.t-line{white-space:pre-wrap;word-break:break-all;}
+.t-line.inf{color:var(--text);}
+.t-line.dim{color:var(--text3);}
+.t-line.acc{color:var(--accent2);}
+.t-line.ok {color:var(--green);}
+.t-line.err{color:var(--red);}
+.t-line.wrn{color:var(--yellow);}
+.t-line.sep{color:var(--teal);}
+
+/* Scrollbars */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--text3);}
+
+/* Language Toggle */
+.lang-btn{background:transparent;border:1px solid var(--border2);border-radius:6px;
+          color:var(--text2);padding:3px 10px;cursor:pointer;font-size:11px;font-weight:700;
+          transition:all .15s;letter-spacing:.04em;margin-left:8px;}
+.lang-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--accent);}
+.lang-btn.en-active{border-color:var(--accent);color:var(--accent2);}
+
+/* zh/en visibility */
+.en-only{display:none!important;}
+body.lang-en .zh-only{display:none!important;}
+body.lang-en .en-only{display:block!important;}
+body.lang-en .bfe-guide.en-only{display:flex!important;flex-direction:column;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">GLADE<span class="logo-sub" data-i18n="logo-sub">引力透镜子晕优化 WebUI</span></span>
+  <span class="hdr-gap"></span>
+  <div class="hdr-status">
+    <div class="status-dot" id="sdot"></div>
+    <span class="status-txt" id="stxt">就绪</span>
+  </div>
+  <button class="lang-btn" id="langBtn" onclick="toggleLang()" title="Switch Language / 切换语言">EN</button>
+</header>
+
+<div class="layout">
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sb-scroll">
+      <div class="sb-section">
+        <div class="sb-label" data-i18n="sb-models">子晕模型</div>
+        <div class="model-card" data-model="point_mass" onclick="selModel('point_mass')">
+          <div class="mc-dot" style="background:var(--pm-color)"></div>
+          <div class="mc-body">
+            <div class="mc-name">Point Mass</div>
+            <div class="mc-sub" data-i18n="mc-sub-pm">点质量子晕 v1.0</div>
+          </div>
+          <div class="mc-badge" style="background:rgba(59,130,246,.15);color:var(--pm-color)">PM</div>
+        </div>
+        <div class="model-card" data-model="nfw" onclick="selModel('nfw')">
+          <div class="mc-dot" style="background:var(--nfw-color)"></div>
+          <div class="mc-body">
+            <div class="mc-name">NFW</div>
+            <div class="mc-sub" data-i18n="mc-sub-nfw">Navarro-Frenk-White 暗晕 v2.0</div>
+          </div>
+          <div class="mc-badge" style="background:rgba(168,85,247,.15);color:var(--nfw-color)">NFW</div>
+        </div>
+        <div class="model-card" data-model="king" onclick="selModel('king')">
+          <div class="mc-dot" style="background:var(--king-color)"></div>
+          <div class="mc-body">
+            <div class="mc-name">King Profile</div>
+            <div class="mc-sub" data-i18n="mc-sub-king">King 球状星团轮廓 v1.0</div>
+          </div>
+          <div class="mc-badge" style="background:rgba(34,197,94,.15);color:var(--king-color)">King</div>
+        </div>
+        <div class="model-card" data-model="p-jaffe" onclick="selModel('p-jaffe')">
+          <div class="mc-dot" style="background:var(--jaffe-color)"></div>
+          <div class="mc-body">
+            <div class="mc-name">Pseudo-Jaffe</div>
+            <div class="mc-sub" data-i18n="mc-sub-jaffe">截断等温椭球 v2.0</div>
+          </div>
+          <div class="mc-badge" style="background:rgba(249,115,22,.15);color:var(--jaffe-color)">PJ</div>
+        </div>
+        <div class="model-card" data-model="none" onclick="selModel('none')">
+          <div class="mc-dot" style="background:#64748b"></div>
+          <div class="mc-body">
+            <div class="mc-name" data-i18n="mc-name-none">None（无子晕）</div>
+            <div class="mc-sub" data-i18n="mc-sub-none">源/透镜参数优化 v1.0</div>
+          </div>
+          <div class="mc-badge" style="background:rgba(100,116,139,.15);color:#94a3b8">SL</div>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label" data-i18n="sb-baseline">基准透镜参数</div>
+        <div class="sb-field">
+          <div class="bf-modes">
+            <button class="bf-mode-btn active" id="bfBtnPath" onclick="setBfMode('path')" data-i18n="bf-mode-path">📁 目录路径</button>
+            <button class="bf-mode-btn" id="bfBtnEdit" onclick="setBfMode('manual')" data-i18n="bf-mode-edit">✏️ 手动输入</button>
+          </div>
+          <div id="bfPathPane">
+            <input class="sb-input" id="srcDir" type="text" data-i18n-ph="src-dir-ph" placeholder="例：work/SN_2Sersic_NFW">
+            <div class="sb-hint" data-i18n="src-dir-hint">含 bestfit.dat 的目录（相对项目根或绝对路径）。留空则使用脚本内置默认参数。</div>
+          </div>
+          <div id="bfEditPane" style="display:none">
+            <textarea class="bf-textarea" id="bfContent"
+              data-i18n-ph="bf-edit-ph"
+              placeholder="粘贴 bestfit.dat 内容，格式：&#10;lens sers z p1..p7&#10;lens sie  z p1..p7&#10;point z_s x_s y_s"
+              oninput="scheduleParse()"></textarea>
+            <div id="bfResult" class="bf-result" style="display:none">
+              <div class="bf-row">
+                <span data-i18n="bfr-status">状态</span>
+                <span id="bfStatus" class="bf-tag">—</span>
+              </div>
+              <div class="bf-row">
+                <span data-i18n="bfr-nlens">透镜组件数 <span style="color:var(--text3);font-weight:400">(可改)</span></span>
+                <input type="number" id="bfNLens" min="1" max="20" value="3">
+              </div>
+              <div class="bf-row"><span data-i18n="bfr-maintype">主透镜类型</span><span id="bfMainType">—</span></div>
+              <div class="bf-row"><span data-i18n="bfr-nsers">Sersic 数量</span><span id="bfNSers">—</span></div>
+              <div class="bf-row"><span data-i18n="bfr-srcz">源 z</span><span id="bfSrcZ">—</span></div>
+              <div class="bf-row"><span data-i18n="bfr-srcxy">源 (x, y) arcsec</span><span id="bfSrcXY">—</span></div>
+              <div class="bf-types" id="bfTypes"></div>
+            </div>
+          </div>
+        </div>
+        <div class="sb-field">
+          <label data-i18n="res-root-label">结果输出目录</label>
+          <input class="sb-input" id="resRoot" type="text" value="results" placeholder="results">
+          <div class="sb-hint" data-i18n="res-root-hint">相对于 GLADE 根目录</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="run-row">
+      <button class="btn btn-save" id="saveBtn" onclick="doSaveDefaults()" disabled
+              data-i18n-title="btn-save-title" title="将当前表单参数覆写回原始模型脚本文件，作为新的默认值">
+        <span data-i18n="btn-save">💾 设为默认（覆写脚本）</span>
+      </button>
+      <div class="run-main">
+        <button class="btn btn-run" id="runBtn" onclick="doRun()" disabled><span data-i18n="btn-run">▶ 运行</span></button>
+        <button class="btn btn-stop" id="stopBtn" onclick="doStop()" disabled>■</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="content">
+
+    <!-- ══ bestfit.dat 全屏编辑器 overlay ══ -->
+    <div class="bfe-ov" id="bfeOv">
+      <!-- 顶栏 -->
+      <div class="bfe-hdr">
+        <button class="bfe-back" onclick="closeBfeOv()" data-i18n="bfe-back">← 返回参数配置</button>
+        <span class="bfe-hdr-title" data-i18n="bfe-title">📋 bestfit.dat 编辑器</span>
+        <div id="bfeStatusBadge" class="bf-tag" style="font-size:11px;padding:3px 10px">—</div>
+      </div>
+
+      <!-- 主体：编辑区 + 说明区 -->
+      <div class="bfe-body">
+
+        <!-- 左：代码编辑器 -->
+        <div class="bfe-ep">
+          <div class="bfe-ph">
+            <span data-i18n="bfe-edit-pane">编辑区</span>
+            <span><span data-i18n="bfe-realtime">实时解析</span> · <kbd style="background:var(--bg4);padding:1px 5px;border-radius:3px;font-size:10px">Tab</kbd> <span data-i18n="bfe-tab-hint">缩进</span></span>
+          </div>
+          <div class="bfe-editor-wrap">
+            <div class="bfe-lnum" id="bfeLnum">1</div>
+            <textarea class="bfe-ta" id="bfeTA" spellcheck="false"
+              placeholder="# 至少 1 行 lens + 1 行 point 即可运行
+# 最简示例：
+lens sie  0.2160  118.3  0.00266  0.02758  0.157  29.2  0.0  0.0
+point 0.4090  2.685e-03  2.444e-02
+
+# 完整示例（2×Sersic + SIE）：
+# lens sers 0.2160  9.897e+09  2.657e-03  2.758e-02  2.987e-01  1.125e+02  3.940e-01  1.058e+00
+# lens sers 0.2160  2.556e+10  2.657e-03  2.758e-02  4.242e-01  5.396e+01  1.539e+00  1.000e+00
+# lens sie  0.2160  1.183e+02  2.657e-03  2.758e-02  1.571e-01  2.920e+01  0.0  0.0
+# point 0.4090  2.685e-03  2.444e-02"
+              oninput="bfeInput(this)" onscroll="bfeSyncLnum(this)"
+              onkeydown="bfeKeydown(event)"></textarea>
+          </div>
+        </div>
+
+        <!-- 右：格式说明 -->
+        <div class="bfe-gp">
+          <div class="bfe-ph"><span data-i18n="bfe-guide-title">格式说明</span></div>
+          <div class="bfe-guide zh-only">
+
+            <!-- 总体格式 -->
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">📄 文件结构</div>
+              <div class="g-code">lens  &lt;类型&gt;  &lt;z&gt;  p1  p2  p3  p4  p5  p6  p7
+point  &lt;z_s&gt;  &lt;x_s&gt;  &lt;y_s&gt;</div>
+              <div style="font-size:10px;color:var(--text3);line-height:1.7">
+                · <b style="color:var(--teal)">最少 1 行 lens + 1 行 point</b> 即可运行<br>
+                · 支持任意 glafic 模型类型，任意数量<br>
+                · 参数不足 7 个时自动补 0，超出 7 个截断<br>
+                · # 开头为注释行，空行忽略<br>
+                · 数值支持科学计数法 (1.2e+09)
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- sers -->
+            <div class="g-section">
+              <div class="g-type" style="color:#60a5fa">🌟 Sérsic
+                <span class="g-tag" style="background:rgba(96,165,250,.15);color:#60a5fa">sers</span>
+                <span style="font-size:10px;color:var(--text3);font-weight:400">星系光度分量</span>
+              </div>
+              <div class="g-code">lens sers  z  M  x₀  y₀  Rₑ  n  e  PA</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M</span><span class="g-pdesc">质量/光度 <span class="g-punit">[M☉]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">中心位置 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">Rₑ</span><span class="g-pdesc">有效半径 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">n</span><span class="g-pdesc">Sérsic 指数 <span class="g-punit">（椭圆≈4，盘≈1）</span></span></div>
+                <div class="g-param"><span class="g-pname">e</span><span class="g-pdesc">椭率 <span class="g-punit">[0,1)</span></span></div>
+                <div class="g-param"><span class="g-pname">PA</span><span class="g-pdesc">位置角 <span class="g-punit">[deg] 从北向东</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- sie / sis -->
+            <div class="g-section">
+              <div class="g-type" style="color:#a78bfa">⚡ 等温球/椭球
+                <span class="g-tag" style="background:rgba(167,139,250,.15);color:#a78bfa">sie</span>
+                <span class="g-tag" style="background:rgba(167,139,250,.1);color:#a78bfa;margin-left:3px">sis</span>
+              </div>
+              <div class="g-code">lens sie  z  σ  x₀  y₀  e  PA  0  0
+lens sis  z  σ  x₀  y₀  0  0  0  0</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">σ</span><span class="g-pdesc">速度弥散 <span class="g-punit">[km/s]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">中心位置 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">e</span><span class="g-pdesc">椭率 <span class="g-punit">（sis 固定为 0）</span></span></div>
+                <div class="g-param"><span class="g-pname">PA</span><span class="g-pdesc">位置角 <span class="g-punit">[deg]</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- anfw / gnfw -->
+            <div class="g-section">
+              <div class="g-type" style="color:#34d399">🌀 NFW 暗物质晕
+                <span class="g-tag" style="background:rgba(52,211,153,.15);color:#34d399">anfw</span>
+                <span class="g-tag" style="background:rgba(52,211,153,.1);color:#34d399;margin-left:3px">gnfw</span>
+              </div>
+              <div class="g-code">lens anfw  z  M_vir  c  x₀  y₀  0  0  0
+lens gnfw  z  M_vir  x₀  y₀  0  0  c  1.0</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M_vir</span><span class="g-pdesc">维里质量 <span class="g-punit">[M☉]</span></span></div>
+                <div class="g-param"><span class="g-pname">c</span><span class="g-pdesc">浓度参数 <span class="g-punit">（典型 5–50）</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">中心位置 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">1.0</span><span class="g-pdesc" style="color:var(--text3)">gnfw 外斜率 γ，固定为 1</span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- jaffe -->
+            <div class="g-section">
+              <div class="g-type" style="color:#fb923c">💫 Pseudo-Jaffe
+                <span class="g-tag" style="background:rgba(251,146,60,.15);color:#fb923c">jaffe</span>
+              </div>
+              <div class="g-code">lens jaffe  z  σ  x₀  y₀  a  0  0  rco</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">σ</span><span class="g-pdesc">速度弥散 <span class="g-punit">[km/s]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">中心位置 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">a</span><span class="g-pdesc">截断半径 <span class="g-punit">[arcsec]，须 > rco</span></span></div>
+                <div class="g-param"><span class="g-pname">rco</span><span class="g-pdesc">核心半径 <span class="g-punit">[arcsec]，≥ 0</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- pgc / king -->
+            <div class="g-section">
+              <div class="g-type" style="color:#fbbf24">👑 King 球状星团
+                <span class="g-tag" style="background:rgba(251,191,36,.15);color:#fbbf24">pgc</span>
+                <span class="g-tag" style="background:rgba(251,191,36,.1);color:#fbbf24;margin-left:3px">king</span>
+              </div>
+              <div class="g-code">lens pgc  z  M  x₀  y₀  0  0  rc  c</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M</span><span class="g-pdesc">总质量 <span class="g-punit">[M☉]，典型 10⁴–10⁸</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">中心位置 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">rc</span><span class="g-pdesc">核半径 <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">c</span><span class="g-pdesc">集中度 log₁₀(rt/rc) <span class="g-punit">（典型 0.8–2.2）</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- point mass -->
+            <div class="g-section">
+              <div class="g-type" style="color:#e879f9">⚫ 点质量
+                <span class="g-tag" style="background:rgba(232,121,249,.15);color:#e879f9">point</span>
+                <span class="g-tag" style="background:rgba(232,121,249,.1);color:#e879f9;margin-left:3px">pnt</span>
+              </div>
+              <div class="g-code">lens point  z  M  x₀  y₀  0  0  0  0</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M</span><span class="g-pdesc">质量 <span class="g-punit">[M☉]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">位置 <span class="g-punit">[arcsec]</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- tnfw / hern -->
+            <div class="g-section">
+              <div class="g-type" style="color:var(--teal)">🔵 其他常用类型</div>
+              <div class="g-code">lens tnfw  z  M_vir  x₀  y₀  0  0  c  rt  # 截断NFW
+lens hern  z  M     x₀  y₀  rs  0  e  PA  # Hernquist</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.6">
+                tnfw: rt = 截断半径 [arcsec]<br>
+                hern: rs = 特征半径 [arcsec]
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- 点源 -->
+            <div class="g-section">
+              <div class="g-type" style="color:#fb923c">📍 背景点源
+                <span class="g-tag" style="background:rgba(251,146,60,.15);color:#fb923c">point</span>
+                <span style="font-size:10px;color:var(--text3);font-weight:400">（恰好 1 行）</span>
+              </div>
+              <div class="g-code">point  z_s  x_s  y_s</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">z_s</span><span class="g-pdesc">源红移 <span class="g-punit">（如 0.4090）</span></span></div>
+                <div class="g-param"><span class="g-pname">x_s</span><span class="g-pdesc">源位置 x <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">y_s</span><span class="g-pdesc">源位置 y <span class="g-punit">[arcsec]</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <!-- 示例 -->
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">✨ 示例</div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">最简（1 lens + 1 point）：</div>
+              <div class="g-example">lens sie  0.2160  118.3  0.00266  0.02758  0.157  29.2  0.0  0.0
+point 0.4090  2.685e-03  2.444e-02</div>
+              <div style="font-size:10px;color:var(--text3);margin:8px 0 4px">完整（iPTF16geu，2×Sersic + SIE）：</div>
+              <div class="g-example"># 星系光度分量
+lens sers 0.2160  9.897e+09  2.657e-03  2.758e-02  2.987e-01  1.125e+02  3.940e-01  1.058e+00
+lens sers 0.2160  2.556e+10  2.657e-03  2.758e-02  4.242e-01  5.396e+01  1.539e+00  1.000e+00
+# 主质量分布
+lens sie  0.2160  1.183e+02  2.657e-03  2.758e-02  1.571e-01  2.920e+01  0.0  0.0
+# 背景超新星
+point 0.4090  2.685e-03  2.444e-02</div>
+            </div>
+
+          </div><!-- .bfe-guide zh-only -->
+
+          <!-- ══ English Format Guide ══ -->
+          <div class="bfe-guide en-only">
+
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">📄 File Structure</div>
+              <div class="g-code">lens  &lt;type&gt;  &lt;z&gt;  p1  p2  p3  p4  p5  p6  p7
+point  &lt;z_s&gt;  &lt;x_s&gt;  &lt;y_s&gt;</div>
+              <div style="font-size:10px;color:var(--text3);line-height:1.7">
+                · <b style="color:var(--teal)">Minimum: 1 lens line + 1 point line</b> to run<br>
+                · Supports any glafic model type, any number<br>
+                · Params fewer than 7 are auto-padded with 0, excess truncated<br>
+                · Lines starting with # are comments, blank lines ignored<br>
+                · Values support scientific notation (1.2e+09)
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#60a5fa">🌟 Sérsic
+                <span class="g-tag" style="background:rgba(96,165,250,.15);color:#60a5fa">sers</span>
+                <span style="font-size:10px;color:var(--text3);font-weight:400">Galaxy Luminosity Component</span>
+              </div>
+              <div class="g-code">lens sers  z  M  x₀  y₀  Rₑ  n  e  PA</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M</span><span class="g-pdesc">Mass/Luminosity <span class="g-punit">[M☉]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">Center Position <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">Rₑ</span><span class="g-pdesc">Effective Radius <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">n</span><span class="g-pdesc">Sérsic Index <span class="g-punit">(elliptical≈4, disk≈1)</span></span></div>
+                <div class="g-param"><span class="g-pname">e</span><span class="g-pdesc">Ellipticity <span class="g-punit">[0,1)</span></span></div>
+                <div class="g-param"><span class="g-pname">PA</span><span class="g-pdesc">Position Angle <span class="g-punit">[deg] from N to E</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#a78bfa">⚡ Isothermal Sphere/Ellipsoid
+                <span class="g-tag" style="background:rgba(167,139,250,.15);color:#a78bfa">sie</span>
+                <span class="g-tag" style="background:rgba(167,139,250,.1);color:#a78bfa;margin-left:3px">sis</span>
+              </div>
+              <div class="g-code">lens sie  z  σ  x₀  y₀  e  PA  0  0
+lens sis  z  σ  x₀  y₀  0  0  0  0</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">σ</span><span class="g-pdesc">Velocity Dispersion <span class="g-punit">[km/s]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">Center Position <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">e</span><span class="g-pdesc">Ellipticity <span class="g-punit">(sis fixed at 0)</span></span></div>
+                <div class="g-param"><span class="g-pname">PA</span><span class="g-pdesc">Position Angle <span class="g-punit">[deg]</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#34d399">🌀 NFW Dark Matter Halo
+                <span class="g-tag" style="background:rgba(52,211,153,.15);color:#34d399">anfw</span>
+                <span class="g-tag" style="background:rgba(52,211,153,.1);color:#34d399;margin-left:3px">gnfw</span>
+              </div>
+              <div class="g-code">lens anfw  z  M_vir  c  x₀  y₀  0  0  0
+lens gnfw  z  M_vir  x₀  y₀  0  0  c  1.0</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M_vir</span><span class="g-pdesc">Virial Mass <span class="g-punit">[M☉]</span></span></div>
+                <div class="g-param"><span class="g-pname">c</span><span class="g-pdesc">Concentration Parameter <span class="g-punit">(typical 5–50)</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">Center Position <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">1.0</span><span class="g-pdesc" style="color:var(--text3)">gnfw outer slope γ, fixed at 1</span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#fb923c">💫 Pseudo-Jaffe
+                <span class="g-tag" style="background:rgba(251,146,60,.15);color:#fb923c">jaffe</span>
+              </div>
+              <div class="g-code">lens jaffe  z  σ  x₀  y₀  a  0  0  rco</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">σ</span><span class="g-pdesc">Velocity Dispersion <span class="g-punit">[km/s]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">Center Position <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">a</span><span class="g-pdesc">Truncation Radius <span class="g-punit">[arcsec], must > rco</span></span></div>
+                <div class="g-param"><span class="g-pname">rco</span><span class="g-pdesc">Core Radius <span class="g-punit">[arcsec], ≥ 0</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#fbbf24">👑 King Globular Cluster
+                <span class="g-tag" style="background:rgba(251,191,36,.15);color:#fbbf24">pgc</span>
+                <span class="g-tag" style="background:rgba(251,191,36,.1);color:#fbbf24;margin-left:3px">king</span>
+              </div>
+              <div class="g-code">lens pgc  z  M  x₀  y₀  0  0  rc  c</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M</span><span class="g-pdesc">Total Mass <span class="g-punit">[M☉], typical 10⁴–10⁸</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">Center Position <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">rc</span><span class="g-pdesc">Core Radius <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">c</span><span class="g-pdesc">Concentration log₁₀(rt/rc) <span class="g-punit">(typical 0.8–2.2)</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#e879f9">⚫ Point Mass
+                <span class="g-tag" style="background:rgba(232,121,249,.15);color:#e879f9">point</span>
+                <span class="g-tag" style="background:rgba(232,121,249,.1);color:#e879f9;margin-left:3px">pnt</span>
+              </div>
+              <div class="g-code">lens point  z  M  x₀  y₀  0  0  0  0</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">M</span><span class="g-pdesc">Mass <span class="g-punit">[M☉]</span></span></div>
+                <div class="g-param"><span class="g-pname">x₀, y₀</span><span class="g-pdesc">Position <span class="g-punit">[arcsec]</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:var(--teal)">🔵 Other Common Types</div>
+              <div class="g-code">lens tnfw  z  M_vir  x₀  y₀  0  0  c  rt  # Truncated NFW
+lens hern  z  M     x₀  y₀  rs  0  e  PA  # Hernquist</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.6">
+                tnfw: rt = truncation radius [arcsec]<br>
+                hern: rs = scale radius [arcsec]
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:#fb923c">📍 Background Point Source
+                <span class="g-tag" style="background:rgba(251,146,60,.15);color:#fb923c">point</span>
+                <span style="font-size:10px;color:var(--text3);font-weight:400">(exactly 1 line)</span>
+              </div>
+              <div class="g-code">point  z_s  x_s  y_s</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname">z_s</span><span class="g-pdesc">Source Redshift <span class="g-punit">(e.g. 0.4090)</span></span></div>
+                <div class="g-param"><span class="g-pname">x_s</span><span class="g-pdesc">Source Position x <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname">y_s</span><span class="g-pdesc">Source Position y <span class="g-punit">[arcsec]</span></span></div>
+              </div>
+            </div>
+
+            <hr class="g-divider">
+
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">✨ Examples</div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Minimal (1 lens + 1 point):</div>
+              <div class="g-example">lens sie  0.2160  118.3  0.00266  0.02758  0.157  29.2  0.0  0.0
+point 0.4090  2.685e-03  2.444e-02</div>
+              <div style="font-size:10px;color:var(--text3);margin:8px 0 4px">Full (iPTF16geu, 2×Sersic + SIE):</div>
+              <div class="g-example"># Galaxy luminosity components
+lens sers 0.2160  9.897e+09  2.657e-03  2.758e-02  2.987e-01  1.125e+02  3.940e-01  1.058e+00
+lens sers 0.2160  2.556e+10  2.657e-03  2.758e-02  4.242e-01  5.396e+01  1.539e+00  1.000e+00
+# Main mass distribution
+lens sie  0.2160  1.183e+02  2.657e-03  2.758e-02  1.571e-01  2.920e+01  0.0  0.0
+# Background supernova
+point 0.4090  2.685e-03  2.444e-02</div>
+            </div>
+
+          </div><!-- .bfe-guide en-only -->
+        </div><!-- .bfe-gp -->
+      </div><!-- .bfe-body -->
+
+      <!-- 底部状态栏 -->
+      <div class="bfe-bar" id="bfeBar">
+        <div class="bfe-bar-item"><span data-i18n="bfe-bar-status">状态：</span><b id="bfeBarSt" data-i18n-id="bfe-waiting">等待输入…</b></div>
+        <div class="bfe-bar-item"><span data-i18n="bfe-bar-nlens">透镜数：</span><b id="bfeBarN">—</b></div>
+        <div class="bfe-bar-item"><span data-i18n="bfe-bar-maintype">主透镜：</span><b id="bfeBarType">—</b></div>
+        <div class="bfe-bar-item"><span data-i18n="bfe-bar-srcz">源 z：</span><b id="bfeBarSrcZ">—</b></div>
+        <div class="bfe-bar-item"><span data-i18n="bfe-bar-srcxy">源 (x,y)：</span><b id="bfeBarSrcXY">—</b></div>
+        <div style="flex:1"></div>
+        <div style="font-size:10px;color:var(--text3)" data-i18n="bfe-auto-parse">输入后自动解析</div>
+      </div>
+    </div>
+    <!-- ══ /overlay ══ -->
+    <div class="params-area" id="paramsArea">
+      <div class="params-placeholder">
+        <div class="ph-icon">🔭</div>
+        <div class="ph-title" data-i18n="ph-title">请从左侧选择子晕模型</div>
+        <div style="font-size:12px;" data-i18n="ph-sub">选择模型后将显示所有可调参数</div>
+      </div>
+    </div>
+
+    <div class="t-resize" id="tResize"></div>
+
+    <div class="terminal" id="termPanel">
+      <div class="t-hdr">
+        <span class="t-title" data-i18n="term-title">🖥 运行输出</span>
+        <button class="btn-ghost" onclick="clearTerm()" data-i18n="btn-clear">清除</button>
+        <button class="btn-ghost" id="foldBtn" onclick="foldTerm()" data-i18n-id="fold-btn">折叠</button>
+      </div>
+      <div class="t-out" id="tOut"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  i18n – Language Toggle
+// ══════════════════════════════════════════════════════════
+let lang = localStorage.getItem('glade_lang') || 'zh';
+
+const TRANS = {
+  'logo-sub':       {zh:'引力透镜子晕优化 WebUI',       en:'Gravitational Lensing Subhalo Optimizer WebUI'},
+  'sb-models':      {zh:'子晕模型',                     en:'Subhalo Models'},
+  'mc-sub-pm':      {zh:'点质量子晕 v1.0',               en:'Point Mass Subhalo v1.0'},
+  'mc-sub-nfw':     {zh:'Navarro-Frenk-White 暗晕 v2.0',en:'Navarro-Frenk-White Dark Halo v2.0'},
+  'mc-sub-king':    {zh:'King 球状星团轮廓 v1.0',        en:'King Globular Cluster Profile v1.0'},
+  'mc-sub-jaffe':   {zh:'截断等温椭球 v2.0',             en:'Truncated Isothermal Ellipsoid v2.0'},
+  'mc-name-none':   {zh:'None（无子晕）',                en:'None (No Subhalo)'},
+  'mc-sub-none':    {zh:'源/透镜参数优化 v1.0',          en:'Source/Lens Param Optimizer v1.0'},
+  'sb-baseline':    {zh:'基准透镜参数',                  en:'Baseline Lens Params'},
+  'bf-mode-path':   {zh:'📁 目录路径',                   en:'📁 Directory Path'},
+  'bf-mode-edit':   {zh:'✏️ 手动输入',                  en:'✏️ Manual Input'},
+  'src-dir-hint':   {zh:'含 bestfit.dat 的目录（相对项目根或绝对路径）。留空则使用脚本内置默认参数。',
+                     en:'Directory containing bestfit.dat (relative to project root or absolute). Leave empty to use script built-in defaults.'},
+  'res-root-label': {zh:'结果输出目录',                  en:'Results Output Directory'},
+  'res-root-hint':  {zh:'相对于 GLADE 根目录',           en:'Relative to GLADE root directory'},
+  'btn-save':       {zh:'💾 设为默认（覆写脚本）',        en:'💾 Set as Default (Overwrite Script)'},
+  'btn-run':        {zh:'▶ 运行',                        en:'▶ Run'},
+  'bfe-back':       {zh:'← 返回参数配置',                en:'← Back to Parameters'},
+  'bfe-title':      {zh:'📋 bestfit.dat 编辑器',         en:'📋 bestfit.dat Editor'},
+  'bfe-edit-pane':  {zh:'编辑区',                        en:'Editor'},
+  'bfe-realtime':   {zh:'实时解析',                      en:'Live Parse'},
+  'bfe-tab-hint':   {zh:'缩进',                          en:'indent'},
+  'bfe-guide-title':{zh:'格式说明',                      en:'Format Guide'},
+  'bfe-bar-status': {zh:'状态：',                        en:'Status:'},
+  'bfe-bar-nlens':  {zh:'透镜数：',                      en:'Lenses:'},
+  'bfe-bar-maintype':{zh:'主透镜：',                     en:'Main Lens:'},
+  'bfe-bar-srcz':   {zh:'源 z：',                        en:'Source z:'},
+  'bfe-bar-srcxy':  {zh:'源 (x,y)：',                   en:'Source (x,y):'},
+  'bfe-auto-parse': {zh:'输入后自动解析',                 en:'Auto-parsed on input'},
+  'ph-title':       {zh:'请从左侧选择子晕模型',           en:'Select a subhalo model from the left'},
+  'ph-sub':         {zh:'选择模型后将显示所有可调参数',   en:'All tunable parameters will appear after model selection'},
+  'term-title':     {zh:'🖥 运行输出',                   en:'🖥 Run Output'},
+  'btn-clear':      {zh:'清除',                          en:'Clear'},
+  'bfr-status':     {zh:'状态',                          en:'Status'},
+  'bfr-nlens':      {zh:'透镜组件数 <span style="color:var(--text3);font-weight:400">(可改)</span>',
+                     en:'Lens Components <span style="color:var(--text3);font-weight:400">(editable)</span>'},
+  'bfr-maintype':   {zh:'主透镜类型',                    en:'Main Lens Type'},
+  'bfr-nsers':      {zh:'Sersic 数量',                   en:'Sersic Count'},
+  'bfr-srcz':       {zh:'源 z',                          en:'Source z'},
+  'bfr-srcxy':      {zh:'源 (x, y) arcsec',              en:'Source (x, y) arcsec'},
+};
+
+// i18n runtime strings (used in JS code)
+const STR = {
+  'status-ready':   {zh:'就绪',        en:'Ready'},
+  'status-running': {zh:'运行中…',     en:'Running...'},
+  'status-done':    {zh:'完成',        en:'Done'},
+  'status-error':   {zh:'错误',        en:'Error'},
+  'status-failed':  {zh:'失败',        en:'Failed'},
+  'status-stopped': {zh:'已停止',      en:'Stopped'},
+  'status-disconn': {zh:'连接断开',    en:'Connection lost'},
+  'bfe-waiting':    {zh:'等待输入…',   en:'Waiting for input...'},
+  'bfe-valid':      {zh:'✓ 有效',      en:'✓ Valid'},
+  'bfe-invalid':    {zh:'✗ 无效',      en:'✗ Invalid'},
+  'bfr-valid':      {zh:'有效 ✓',      en:'Valid ✓'},
+  'bfr-invalid':    {zh:'无效 ✗',      en:'Invalid ✗'},
+  'save-saving':    {zh:'保存中…',     en:'Saving...'},
+  'save-ok':        {zh:'✅ 已保存',   en:'✅ Saved'},
+  'save-fail':      {zh:'❌ 保存失败', en:'❌ Save failed'},
+  'save-err':       {zh:'❌ 失败',     en:'❌ Failed'},
+  'fold':           {zh:'折叠',        en:'Collapse'},
+  'unfold':         {zh:'展开',        en:'Expand'},
+  'run-start':      {zh:'▶  启动模型: ', en:'▶  Starting model: '},
+  'run-submitting': {zh:'   参数已收集，正在提交…', en:'   Parameters collected, submitting...'},
+  'run-manual-bf':  {zh:'   使用手动输入的 bestfit.dat', en:'   Using manually entered bestfit.dat'},
+  'run-jobid':      {zh:'   任务 ID: ', en:'   Job ID: '},
+  'run-complete':   {zh:'\n✅  运行完成（退出码: 0）', en:'\n✅  Run complete (exit code: 0)'},
+  'run-finished':   {zh:'\n❌  运行结束（退出码: ', en:'\n❌  Run finished (exit code: '},
+  'stop-signal':    {zh:'\n⏹  已发送停止信号', en:'\n⏹  Stop signal sent'},
+  'save-def-pfx':   {zh:'[设为默认] ', en:'[Set Default] '},
+  'save-def-err':   {zh:'[设为默认] 错误: ', en:'[Set Default] Error: '},
+  'parse-fail':     {zh:'解析失败',   en:'Parse failed'},
+  'model-cfg':      {zh:'模型参数配置', en:'Model Parameter Configuration'},
+  'img-label':      {zh:'图像 ',      en:'Image '},
+  'subhalo-label':  {zh:'子晕',       en:'Subhalo'},
+  'image-label':    {zh:'图像',       en:'Image'},
+  'mag-label':      {zh:'放大率 μ',   en:'Magnification μ'},
+  'magerr-label':   {zh:'μ 误差',     en:'μ Error'},
+  'possig-label':   {zh:'位置 σ (mas)', en:'Position σ (mas)'},
+  'lens-label':     {zh:'透镜',       en:'Lens'},
+  'lo-ph':          {zh:'下限',       en:'Lower'},
+  'hi-ph':          {zh:'上限',       en:'Upper'},
+  'ref-bf-btn':     {zh:'🔄 从 bestfit.dat 刷新', en:'🔄 Refresh from bestfit.dat'},
+  'ref-bf-alert':   {zh:'请先在 bestfit.dat 编辑器中输入内容', en:'Please enter content in the bestfit.dat editor first'},
+  'parse-fail-alert':{zh:'解析失败', en:'Parse failed'},
+  'bf-badge-valid': {zh:'✓ 有效  ', en:'✓ Valid  '},
+  'lens-unit':      {zh:'透镜 + 1点源', en:' lens(es) + 1 point source'},
+};
+
+function S(key){ return (STR[key]||{})[lang] || (STR[key]||{}).zh || key; }
+
+// English labels for DEFS sections and params
+const EN_SEC = {
+  cst:     'Constraints',
+  srch:    'Subhalo Search',
+  loss:    'Loss Function',
+  de:      'Differential Evolution (DE)',
+  mcmc:    'MCMC Posterior Sampling',
+  out:     'Output Settings',
+  obsdata: 'Observation Data',
+  opt:     'Optimization Targets',
+};
+
+const EN_PARAM = {
+  CONSTRAINT_SIGMA:    'Position Constraint σ Multiplier',
+  PENALTY_COEFFICIENT: 'Constraint Penalty Coefficient',
+  active_subhalos:     'Active Subhalo Images',
+  fine_tuning:         'Fine-Tuning Mode',
+  SEARCH_RADIUS:       'Search Radius',
+  MASS_GUESS:          'Initial Mass Guess',
+  MASS_LOG_RANGE:      'Mass Search Range',
+  fine_tuning_configs: 'Per-Subhalo Config Table',
+  LOSS_COEF_A:         'Position χ² Weight',
+  LOSS_COEF_B:         'Magnification χ² Weight',
+  LOSS_PENALTY_PL:     'Position Penalty Coefficient',
+  source_modify:       'Optimize Source Position',
+  lens_modify:         'Optimize Lens Parameters',
+  modify_percentage:   'Parameter Change Range',
+  DE_MAXITER:          'Max Iterations',
+  DE_POPSIZE:          'Population Size',
+  DE_ATOL:             'Absolute Tolerance',
+  DE_TOL:              'Relative Tolerance',
+  DE_SEED:             'Random Seed',
+  DE_POLISH:           'Local Polish (L-BFGS-B)',
+  DE_WORKERS:          'Parallel Workers',
+  EARLY_STOPPING:      'Enable Early Stopping',
+  EARLY_STOP_PATIENCE: 'Early Stop Patience',
+  PRINT_INTERVAL:      'Print Interval',
+  MCMC_ENABLED:        'Enable MCMC',
+  MCMC_NWALKERS:       'Number of Walkers',
+  MCMC_NSTEPS:         'Sampling Steps',
+  MCMC_BURNIN:         'Burn-in Steps',
+  MCMC_THIN:           'Thinning Interval',
+  MCMC_PERTURBATION:   'Initial Perturbation Scale',
+  MCMC_PROGRESS:       'Show Progress Bar',
+  MCMC_WORKERS:        'MCMC Parallel Workers',
+  MCMC_CUSTOM_RANGE:   'Custom Prior Range',
+  MCMC_SEARCH_RADIUS:  'MCMC Position Radius',
+  MCMC_LOG_M_MIN:      'log₁₀M Prior Lower Bound',
+  MCMC_LOG_M_MAX:      'log₁₀M Prior Upper Bound',
+  OUTPUT_PREFIX:       'Output File Prefix',
+  SHOW_2SIGMA:         'Show 2σ Reference Line',
+  COMPARE_GRAPH:       'Generate Comparison Plot',
+  Draw_Graph:          'Iteration Plot Mode',
+  draw_interval:       'Plot Interval',
+  obs_data:            'Multi-Image Obs. Data (Pos / Mag / Err)',
+  center_offset_x:     'Center Offset x',
+  center_offset_y:     'Center Offset y',
+  obs_x_flip:          'Celestial Coordinate Input',
+  CONCENTRATION_GUESS: 'Concentration Guess',
+  CONCENTRATION_MIN:   'Concentration Min',
+  CONCENTRATION_MAX:   'Concentration Max',
+  MCMC_C_MIN:          'Concentration c Prior Lower',
+  MCMC_C_MAX:          'Concentration c Prior Upper',
+  PLOT_NFW_PROFILES:   'Plot NFW Density Profiles',
+  LOGM_MIN:            'log₁₀M Lower Bound',
+  LOGM_MAX:            'log₁₀M Upper Bound',
+  RC_MIN:              'Core Radius rc Lower',
+  RC_MAX:              'Core Radius rc Upper',
+  C_MIN:               'Concentration c Lower',
+  C_MAX:               'Concentration c Upper',
+  PLOT_KING_PROFILES:  'Plot King κ Profiles',
+  KING_PROFILE_RMAX:   'King Profile Max Radius',
+  SIG_GUESS:           'Velocity Dispersion σ Guess',
+  SIG_MIN:             'Velocity Dispersion σ Min',
+  SIG_MAX:             'Velocity Dispersion σ Max',
+  A_GUESS:             'Truncation Radius a Guess',
+  A_MIN:               'Truncation Radius a Min',
+  A_MAX:               'Truncation Radius a Max',
+  RCO_GUESS:           'Core Radius rco Guess',
+  RCO_MIN:             'Core Radius rco Min',
+  RCO_MAX:             'Core Radius rco Max',
+  MCMC_SIG_MIN:        'σ Prior Lower Bound',
+  MCMC_SIG_MAX:        'σ Prior Upper Bound',
+  MCMC_A_MIN:          'a Prior Lower Bound',
+  MCMC_A_MAX:          'a Prior Upper Bound',
+  MCMC_RCO_MIN:        'rco Prior Lower Bound',
+  MCMC_RCO_MAX:        'rco Prior Upper Bound',
+  TEMPER_ENABLED:      'Enable Tempering',
+  TEMPER_COUNT:        'Consecutive Temper Count',
+  source_x_delta:      'Source x Search Range',
+  source_y_delta:      'Source y Search Range',
+  source_x_bounds:     'Source x Explicit Bounds',
+  source_y_bounds:     'Source y Explicit Bounds',
+  lens_optimize_bounds:'Lens Param Explicit Bounds',
+};
+
+const EN_DESC = {
+  CONSTRAINT_SIGMA:    'σ multiplier for image position constraints',
+  PENALTY_COEFFICIENT: 'Penalty coefficient for constraint violations',
+  active_subhalos:     'Select which image positions to search subhalos near',
+  fine_tuning:         'False=percentage bounds; True=per-param explicit bounds',
+  SEARCH_RADIUS:       'Search radius around each image position',
+  MASS_GUESS:          'Initial mass guess for the subhalo',
+  MASS_LOG_RANGE:      'Search ±x dex around the mass guess',
+  LOSS_COEF_A:         'Weight for image position residuals',
+  LOSS_COEF_B:         'Weight for magnification residuals',
+  LOSS_PENALTY_PL:     'Penalty when position constraints are violated',
+  source_modify:       'Also optimize source plane (x,y) coordinates',
+  lens_modify:         'Also fine-tune main lens parameters',
+  modify_percentage:   'Allowed fractional change of source/lens params (0.1=±10%)',
+  DE_MAXITER:          'Maximum number of DE iteration rounds',
+  DE_POPSIZE:          'Population size (larger = more stable but slower)',
+  DE_ATOL:             'Absolute convergence tolerance',
+  DE_TOL:              'Relative convergence tolerance',
+  DE_SEED:             'Fix seed for reproducibility',
+  DE_POLISH:           'Refine with L-BFGS-B after convergence',
+  DE_WORKERS:          '-1=all CPUs; positive integer specifies worker count',
+  EARLY_STOPPING:      'Terminate early when no improvement detected',
+  EARLY_STOP_PATIENCE: 'Number of consecutive iterations without improvement before stopping',
+  PRINT_INTERVAL:      'Print status every N iterations (reduces I/O blocking)',
+  MCMC_ENABLED:        'Run MCMC posterior sampling after DE',
+  MCMC_NWALKERS:       'Number of walkers, must be ≥ 2×parameter dimensions',
+  MCMC_NSTEPS:         'Total number of MCMC sampling steps',
+  MCMC_BURNIN:         'Number of initial steps to discard',
+  MCMC_THIN:           'Keep 1 sample every N steps',
+  MCMC_PERTURBATION:   'Initial perturbation scale relative to parameter range',
+  MCMC_PROGRESS:       'Show tqdm progress bar during run',
+  MCMC_WORKERS:        '-1=all CPUs; use 1 for serial',
+  MCMC_CUSTOM_RANGE:   'Use custom prior bounds (otherwise inherit DE bounds)',
+  MCMC_SEARCH_RADIUS:  'Position search radius in MCMC prior',
+  CONCENTRATION_GUESS: 'c = r_vir/r_s initial guess',
+  PLOT_NFW_PROFILES:   'Plot NFW density profiles for each subhalo',
+  PLOT_KING_PROFILES:  'Plot King convergence profiles',
+  SIG_GUESS:           'Pseudo-Jaffe velocity dispersion initial guess',
+  A_GUESS:             'Truncation radius (must be > rco)',
+  TEMPER_ENABLED:      'Use temperature annealing in optimization (p-jaffe specific)',
+  TEMPER_COUNT:        'Number of consecutive tempering rounds',
+  center_offset_x:     'Same coordinate system as obs data: east=positive (RA) for celestial coords',
+  center_offset_y:     'y offset, north=positive (consistent for both coordinate systems)',
+  obs_x_flip:          'ON=obs data & offset in celestial coords (RA east=positive), program negates to math coords; OFF=already in math coords (right=positive)',
+  MCMC_ENABLED_PJ:     'Pseudo-Jaffe v2.0 enables MCMC by default',
+};
+
+const EN_FTCOLS = {
+  point_mass: ['Search Radius (")','Mass Guess (M☉)','Mass Range (dex)'],
+  nfw:        ['Search Radius (")','Mass Guess (M☉)','Mass Range (dex)','Conc. Guess','Conc. Min','Conc. Max'],
+  king:       ['Search Radius (")','logM_min','logM_max','rc_min (")','rc_max (")','c_min','c_max'],
+  'p-jaffe':  ['Search Radius','σ Guess (km/s)','σ_min','σ_max','a Guess (")','a_min','a_max','rco Guess (")','rco_min','rco_max'],
+};
+
+const EN_SELOPTS = {'不绘制':'Off','绘制':'On'};
+
+function Lsec(s){ return lang==='en' ? (EN_SEC[s.id] || s.title) : s.title; }
+function L(p){    return lang==='en' ? (EN_PARAM[p.k] || p.l)    : p.l; }
+function Ldesc(p){
+  if(lang!=='en') return p.desc||'';
+  return EN_DESC[p.k] || p.desc || '';
+}
+function Lopt(v){ return lang==='en' ? (EN_SELOPTS[v] || v) : v; }
+
+function applyStaticTrans(){
+  // text content
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k = el.getAttribute('data-i18n');
+    const t = TRANS[k];
+    if(!t) return;
+    // use innerHTML for entries that may contain nested HTML
+    el.innerHTML = t[lang] || t.zh;
+  });
+  // placeholder attributes
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    const k = el.getAttribute('data-i18n-ph');
+    if(k==='src-dir-ph'){
+      el.placeholder = lang==='en' ? 'e.g. work/SN_2Sersic_NFW' : '例：work/SN_2Sersic_NFW';
+    } else if(k==='bf-edit-ph'){
+      el.placeholder = lang==='en'
+        ? 'Paste bestfit.dat content, format:\nlens sers z p1..p7\nlens sie  z p1..p7\npoint z_s x_s y_s'
+        : '粘贴 bestfit.dat 内容，格式：\nlens sers z p1..p7\nlens sie  z p1..p7\npoint z_s x_s y_s';
+    }
+  });
+  // title attributes
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{
+    const k = el.getAttribute('data-i18n-title');
+    if(k==='btn-save-title'){
+      el.title = lang==='en'
+        ? 'Overwrite the original model script file with current form parameters as new defaults'
+        : '将当前表单参数覆写回原始模型脚本文件，作为新的默认值';
+    }
+  });
+  // fold button
+  const fb = document.getElementById('foldBtn');
+  if(fb) fb.textContent = termFolded ? S('unfold') : S('fold');
+  // lang button
+  const lb = document.getElementById('langBtn');
+  if(lb){
+    lb.textContent  = lang==='en' ? '中' : 'EN';
+    lb.classList.toggle('en-active', lang==='en');
+  }
+  // status text: only update if it shows a "ready" or idle status
+  const stxt = document.getElementById('stxt');
+  if(stxt){
+    const cur = stxt.textContent.trim();
+    const idleZh = ['就绪','完成','失败','已停止','连接断开','错误'];
+    const idleEn = ['Ready','Done','Failed','Stopped','Connection lost','Error'];
+    const allIdle = [...idleZh,...idleEn];
+    if(allIdle.includes(cur)){
+      // map to current lang
+      const zhMap = {
+        '就绪':'Ready','完成':'Done','失败':'Failed','已停止':'Stopped','连接断开':'Connection lost','错误':'Error',
+        'Ready':'就绪','Done':'完成','Failed':'失败','Stopped':'已停止','Connection lost':'连接断开','Error':'错误'
+      };
+      if(lang==='en'){ stxt.textContent = zhMap[cur]||cur; }
+      else           { stxt.textContent = zhMap[cur]||cur; }
+    }
+  }
+}
+
+function toggleLang(){
+  // save current model state before re-render
+  if(curModel) saveState();
+  lang = lang==='zh' ? 'en' : 'zh';
+  localStorage.setItem('glade_lang', lang);
+  document.body.classList.toggle('lang-en', lang==='en');
+  applyStaticTrans();
+  if(curModel){
+    renderModel(curModel);
+    restoreModelParams(curModel);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  Model Parameter Definitions
+// ══════════════════════════════════════════════════════════
+const DEFS = {
+
+// ── Point Mass ──────────────────────────────────────────
+point_mass:{
+  name:'Point Mass', color:'#3b82f6',
+  sections:[
+    {id:'cst',title:'约束条件',icon:'⚖️',params:[
+      {k:'CONSTRAINT_SIGMA',  l:'位置约束 σ 倍数', t:'num',  dft:1.0,  min:.1,  max:10,  step:.1, desc:'图像位置约束的σ倍数'},
+      {k:'PENALTY_COEFFICIENT',l:'约束惩罚系数',  t:'int',  dft:1000, min:1,                     desc:'违反约束的惩罚系数'},
+    ]},
+    {id:'srch',title:'子晕搜索配置',icon:'🔍',params:[
+      {k:'active_subhalos',l:'启用子晕图像',       t:'sub',  dft:[1,2,3,4], desc:'选择在哪些图像附近拟合子晕'},
+      {k:'fine_tuning',    l:'精细调试模式',        t:'bool', dft:false, tid:'fine', desc:'为每个子晕单独设置搜索参数'},
+      {k:'SEARCH_RADIUS',  l:'搜索半径',           t:'num',  dft:.075, min:.001,step:.001,unit:'arcsec', hf:true, desc:'图像位置周围搜索半径'},
+      {k:'MASS_GUESS',     l:'质量初始猜测',        t:'sci',  dft:1e6,  unit:'M☉', hf:true, desc:'点质量初始猜测值'},
+      {k:'MASS_LOG_RANGE', l:'质量搜索范围',        t:'num',  dft:3.0,  min:.5, max:15, step:.1, unit:'dex', hf:true, desc:'在猜测值±x dex范围内搜索'},
+      {k:'fine_tuning_configs', l:'各子晕独立配置', t:'ftbl', sf:true,
+        cols:['搜索半径(")','质量猜测(M☉)','质量范围(dex)'],
+        keys:['search_radius','mass_guess','mass_log_range'],
+        tps:['num','sci','num'],
+        defs:{1:{search_radius:.080,mass_guess:1e5,mass_log_range:4.5},
+              2:{search_radius:.070,mass_guess:5e4,mass_log_range:4.0},
+              3:{search_radius:.075,mass_guess:8e4,mass_log_range:4.2},
+              4:{search_radius:.065,mass_guess:3e4,mass_log_range:3.8}}},
+    ]},
+    {id:'loss',title:'损失函数配置',icon:'📉',params:[
+      {k:'LOSS_COEF_A',      l:'位置 χ² 权重',    t:'num', dft:4.0, min:0, step:.1,    desc:'图像位置残差的权重系数'},
+      {k:'LOSS_COEF_B',      l:'放大率 χ² 权重',  t:'num', dft:1.0, min:0, step:.1,    desc:'放大率残差的权重系数'},
+      {k:'LOSS_PENALTY_PL',  l:'位置惩罚系数',    t:'num', dft:10000, min:0, step:100, desc:'位置超约束时的惩罚系数'},
+      {k:'source_modify',    l:'优化源位置',       t:'bool',dft:false,                  desc:'同时优化源面 (x,y) 坐标'},
+      {k:'lens_modify',      l:'优化透镜参数',     t:'bool',dft:false,                  desc:'同时微调主透镜参数'},
+      {k:'modify_percentage',l:'参数变化范围',     t:'num', dft:.1, min:0,max:1,step:.01,desc:'源/透镜参数允许变化百分比（0.1=±10%）'},
+    ]},
+    {id:'de',title:'差分进化 (DE)',icon:'🧬',params:[
+      {k:'DE_MAXITER',        l:'最大迭代次数',   t:'int', dft:650,  min:1,           desc:'DE 最大迭代轮数'},
+      {k:'DE_POPSIZE',        l:'种群大小',        t:'int', dft:65,   min:2,           desc:'种群数量（越大越稳定但更慢）'},
+      {k:'DE_ATOL',           l:'绝对容差',        t:'sci', dft:1e-4,                  desc:'绝对收敛容差'},
+      {k:'DE_TOL',            l:'相对容差',        t:'sci', dft:1e-4,                  desc:'相对收敛容差'},
+      {k:'DE_SEED',           l:'随机种子',        t:'int', dft:42,   min:1,max:999999,desc:'固定种子以确保可重现'},
+      {k:'DE_POLISH',         l:'局部抛光优化',    t:'bool',dft:true,                  desc:'收敛后用 L-BFGS-B 精化'},
+      {k:'DE_WORKERS',        l:'并行核心数',      t:'int', dft:12,   min:-1,          desc:'-1=全部CPU；正整数指定核心数'},
+      {k:'EARLY_STOPPING',    l:'启用早停',        t:'bool',dft:true,                  desc:'无改善时提前终止优化'},
+      {k:'EARLY_STOP_PATIENCE',l:'早停容忍次数',   t:'int', dft:30,   min:1,           desc:'连续多少次无改善后早停'},
+    ]},
+    {id:'mcmc',title:'MCMC 后验采样',icon:'🔬',params:[
+      {k:'MCMC_ENABLED',     l:'启用 MCMC',          t:'bool',dft:false,tid:'mcmc',       desc:'DE 后启动 MCMC 后验采样'},
+      {k:'MCMC_NWALKERS',    l:'Walker 数量',         t:'int', dft:32,  min:2,   md:true, desc:'walker 数，≥ 2×参数维度'},
+      {k:'MCMC_NSTEPS',      l:'采样步数',            t:'int', dft:2000,min:100, md:true, desc:'MCMC 总采样步数'},
+      {k:'MCMC_BURNIN',      l:'Burn-in 步数',        t:'int', dft:300, min:0,   md:true, desc:'丢弃的前 N 步'},
+      {k:'MCMC_THIN',        l:'稀疏采样间隔',        t:'int', dft:2,   min:1,   md:true, desc:'每 N 步保留 1 个样本'},
+      {k:'MCMC_PERTURBATION',l:'初始扰动幅度',        t:'num', dft:.01, min:.0001,max:1,step:.001,md:true,desc:'相对参数范围的初始扰动'},
+      {k:'MCMC_PROGRESS',    l:'显示进度条',          t:'bool',dft:true,         md:true, desc:'运行时显示 tqdm 进度条'},
+      {k:'MCMC_WORKERS',     l:'MCMC 并行核心数',     t:'int', dft:-1,  min:-1,  md:true, desc:'-1=全部CPU；串行建议1'},
+      {k:'MCMC_CUSTOM_RANGE',l:'自定义先验范围',      t:'bool',dft:false,tid:'cr',md:true,desc:'使用自定义先验边界（否则沿用DE范围）'},
+      {k:'MCMC_SEARCH_RADIUS',l:'MCMC 位置半径',      t:'num', dft:.3,  min:.001,step:.01,unit:'arcsec',md:true,cr:true,desc:'MCMC 先验中的位置搜索半径'},
+      {k:'MCMC_LOG_M_MIN',   l:'log₁₀M 先验下限',    t:'num', dft:1.0, min:0,max:20,step:.1,unit:'dex',md:true,cr:true},
+      {k:'MCMC_LOG_M_MAX',   l:'log₁₀M 先验上限',    t:'num', dft:14.0,min:0,max:20,step:.1,unit:'dex',md:true,cr:true},
+    ]},
+    {id:'out',title:'输出配置',icon:'📊',params:[
+      {k:'OUTPUT_PREFIX',l:'输出文件前缀',     t:'str', dft:'v_pm_1_0',                    desc:'所有输出文件名的前缀'},
+      {k:'SHOW_2SIGMA',  l:'显示 2σ 参考线', t:'bool',dft:false,                          desc:'在图中绘制 2σ 横线'},
+      {k:'COMPARE_GRAPH',l:'生成对比图',      t:'bool',dft:true,                           desc:'baseline vs optimized 对比图'},
+      {k:'Draw_Graph',   l:'迭代绘图模式',    t:'sel', dft:1, opts:[{v:0,l:'不绘制'},{v:1,l:'绘制'}], desc:'优化过程中是否绘图'},
+      {k:'draw_interval',l:'绘图间隔',        t:'int', dft:5, min:1,                        desc:'每 N 次迭代绘制一次'},
+    ]},
+    {id:'obsdata',title:'观测数据配置',icon:'📡',params:[
+      {k:'obs_data',l:'多像观测数据（位置 / 放大率 / 误差）',t:'obs_data',
+       dft:{obs_positions_mas_list:[[-266.035,0.427],[118.835,-221.927],[238.324,227.270],[-126.157,319.719]],
+            obs_magnifications_list:[-35.6,15.7,-7.5,9.1],
+            obs_mag_errors_list:[2.1,1.3,1.0,1.1],
+            obs_pos_sigma_mas_list:[0.41,0.86,2.23,3.11]},
+       desc:'4 个图像的观测位置（mas）、放大率μ、μ误差、位置σ'},
+      {k:'center_offset_x',l:'中心偏移 x',t:'num',dft:0.01535,step:0.00001,unit:'arcsec',desc:'与观测数据同坐标系：天球坐标时东=正(RA)；数学坐标时右=正'},
+      {k:'center_offset_y',l:'中心偏移 y',t:'num',dft:0.03220, step:0.00001,unit:'arcsec',desc:'y 方向偏移，北=正（两种坐标系一致）'},
+      {k:'obs_x_flip',l:'天球坐标输入',t:'bool',dft:true,desc:'开=观测数据与offset均为天球坐标(RA东=正)，程序统一取负转数学坐标；关=已为数学坐标(右=正)，不翻转'},
+    ]},
+  ]
+},
+
+// ── NFW ──────────────────────────────────────────────────
+nfw:{
+  name:'NFW', color:'#a855f7',
+  sections:[
+    {id:'cst',title:'约束条件',icon:'⚖️',params:[
+      {k:'CONSTRAINT_SIGMA',   l:'位置约束 σ 倍数',t:'num',dft:1.0, min:.1,max:10,step:.1},
+      {k:'PENALTY_COEFFICIENT',l:'约束惩罚系数',   t:'int',dft:1000,min:1},
+    ]},
+    {id:'srch',title:'子晕搜索配置',icon:'🔍',params:[
+      {k:'active_subhalos', l:'启用子晕图像',   t:'sub',  dft:[1,2,3,4]},
+      {k:'fine_tuning',     l:'精细调试模式',    t:'bool', dft:false, tid:'fine'},
+      {k:'SEARCH_RADIUS',   l:'搜索半径',       t:'num', dft:.1,  min:.001,step:.001,unit:'arcsec',hf:true},
+      {k:'MASS_GUESS',      l:'质量初始猜测',    t:'sci', dft:1e6, unit:'M☉',hf:true,desc:'NFW 维里质量初始猜测'},
+      {k:'MASS_LOG_RANGE',  l:'质量搜索范围',    t:'num', dft:3.0, min:.5,max:15,step:.1,unit:'dex',hf:true},
+      {k:'CONCENTRATION_GUESS',l:'浓度参数猜测', t:'num', dft:20.0,min:.1,step:.5,hf:true,desc:'c = r_vir/r_s 初始猜测'},
+      {k:'CONCENTRATION_MIN',  l:'浓度参数下限', t:'num', dft:5.0, min:.1,step:.5,hf:true},
+      {k:'CONCENTRATION_MAX',  l:'浓度参数上限', t:'num', dft:45.0,min:1, step:1, hf:true},
+      {k:'fine_tuning_configs', l:'各子晕独立配置', t:'ftbl', sf:true,
+        cols:['搜索半径(")','质量猜测(M☉)','质量范围(dex)','浓度猜测','浓度min','浓度max'],
+        keys:['search_radius','mass_guess','mass_log_range','concentration_guess','concentration_min','concentration_max'],
+        tps:['num','sci','num','num','num','num'],
+        defs:{1:{search_radius:.1,  mass_guess:1e5,mass_log_range:4.5,concentration_guess:10,concentration_min:2,concentration_max:40},
+              2:{search_radius:.070,mass_guess:5e4,mass_log_range:4.0,concentration_guess:10,concentration_min:2,concentration_max:40},
+              3:{search_radius:.075,mass_guess:1e9,mass_log_range:5,  concentration_guess:10,concentration_min:2,concentration_max:30},
+              4:{search_radius:.065,mass_guess:1e5,mass_log_range:4,  concentration_guess:10,concentration_min:2,concentration_max:30}}},
+    ]},
+    {id:'loss',title:'损失函数配置',icon:'📉',params:[
+      {k:'LOSS_COEF_A',      l:'位置 χ² 权重',   t:'num', dft:4.0, min:0,step:.1},
+      {k:'LOSS_COEF_B',      l:'放大率 χ² 权重', t:'num', dft:1.0, min:0,step:.1},
+      {k:'LOSS_PENALTY_PL',  l:'位置惩罚系数',   t:'num', dft:10000,min:0,step:100},
+      {k:'source_modify',    l:'优化源位置',      t:'bool',dft:false},
+      {k:'lens_modify',      l:'优化透镜参数',    t:'bool',dft:false},
+      {k:'modify_percentage',l:'参数变化范围',    t:'num', dft:.1,  min:0,max:1,step:.01},
+    ]},
+    {id:'de',title:'差分进化 (DE)',icon:'🧬',params:[
+      {k:'DE_MAXITER',        l:'最大迭代次数', t:'int',dft:800, min:1},
+      {k:'DE_POPSIZE',        l:'种群大小',     t:'int',dft:60,  min:2},
+      {k:'DE_ATOL',           l:'绝对容差',     t:'sci',dft:1e-6},
+      {k:'DE_TOL',            l:'相对容差',     t:'sci',dft:1e-6},
+      {k:'DE_SEED',           l:'随机种子',     t:'int',dft:42,  min:1,max:999999},
+      {k:'DE_POLISH',         l:'局部抛光优化', t:'bool',dft:true},
+      {k:'DE_WORKERS',        l:'并行核心数',   t:'int',dft:-1,  min:-1},
+      {k:'EARLY_STOPPING',    l:'启用早停',     t:'bool',dft:true},
+      {k:'EARLY_STOP_PATIENCE',l:'早停容忍次数',t:'int',dft:60,  min:1},
+      {k:'PRINT_INTERVAL',    l:'打印间隔',     t:'int',dft:10,  min:1, desc:'每 N 次迭代打印状态（减少I/O阻塞）'},
+    ]},
+    {id:'mcmc',title:'MCMC 后验采样',icon:'🔬',params:[
+      {k:'MCMC_ENABLED',     l:'启用 MCMC',        t:'bool',dft:false,tid:'mcmc'},
+      {k:'MCMC_NWALKERS',    l:'Walker 数量',       t:'int', dft:32,  min:2,  md:true},
+      {k:'MCMC_NSTEPS',      l:'采样步数',          t:'int', dft:2000,min:100,md:true},
+      {k:'MCMC_BURNIN',      l:'Burn-in 步数',      t:'int', dft:300, min:0,  md:true},
+      {k:'MCMC_THIN',        l:'稀疏采样间隔',      t:'int', dft:2,   min:1,  md:true},
+      {k:'MCMC_PERTURBATION',l:'初始扰动幅度',      t:'num', dft:.01, min:.0001,step:.001,md:true},
+      {k:'MCMC_PROGRESS',    l:'显示进度条',        t:'bool',dft:true,         md:true},
+      {k:'MCMC_WORKERS',     l:'MCMC 并行核心数',   t:'int', dft:-1,  min:-1, md:true},
+      {k:'MCMC_CUSTOM_RANGE',l:'自定义先验范围',    t:'bool',dft:false,tid:'cr',md:true},
+      {k:'MCMC_SEARCH_RADIUS',l:'MCMC 位置半径',    t:'num', dft:.3,  min:.001,step:.01,unit:'arcsec',md:true,cr:true},
+      {k:'MCMC_LOG_M_MIN',   l:'log₁₀(M_vir) 下限',t:'num', dft:1.0, min:0,max:20,step:.1,unit:'dex',md:true,cr:true},
+      {k:'MCMC_LOG_M_MAX',   l:'log₁₀(M_vir) 上限',t:'num', dft:14.0,min:0,max:20,step:.1,unit:'dex',md:true,cr:true},
+      {k:'MCMC_C_MIN',       l:'浓度 c 先验下限',   t:'num', dft:1.0, min:0,step:.5,md:true,cr:true},
+      {k:'MCMC_C_MAX',       l:'浓度 c 先验上限',   t:'num', dft:200, min:1,step:1, md:true,cr:true},
+    ]},
+    {id:'out',title:'输出配置',icon:'📊',params:[
+      {k:'OUTPUT_PREFIX',    l:'输出文件前缀',   t:'str', dft:'v_nfw_2_0'},
+      {k:'SHOW_2SIGMA',      l:'显示 2σ 参考线',t:'bool',dft:false},
+      {k:'COMPARE_GRAPH',    l:'生成对比图',    t:'bool',dft:true},
+      {k:'Draw_Graph',       l:'迭代绘图模式',  t:'sel', dft:1,opts:[{v:0,l:'不绘制'},{v:1,l:'绘制'}]},
+      {k:'draw_interval',    l:'绘图间隔',      t:'int', dft:15,min:1},
+      {k:'PLOT_NFW_PROFILES',l:'绘制 NFW 密度剖面',t:'bool',dft:true,desc:'绘制各子晕的 NFW 密度剖面图'},
+    ]},
+    {id:'obsdata',title:'观测数据配置',icon:'📡',params:[
+      {k:'obs_data',l:'多像观测数据（位置 / 放大率 / 误差）',t:'obs_data',
+       dft:{obs_positions_mas_list:[[-266.035,0.427],[118.835,-221.927],[238.324,227.270],[-126.157,319.719]],
+            obs_magnifications_list:[-35.6,15.7,-7.5,9.1],
+            obs_mag_errors_list:[2.1,1.3,1.0,1.1],
+            obs_pos_sigma_mas_list:[0.41,0.86,2.23,3.11]}},
+      {k:'center_offset_x',l:'中心偏移 x',t:'num',dft:0.01535,step:0.00001,unit:'arcsec',desc:'与观测数据同坐标系：天球坐标时东=正(RA)；数学坐标时右=正'},
+      {k:'center_offset_y',l:'中心偏移 y',t:'num',dft:0.03220, step:0.00001,unit:'arcsec',desc:'y 方向偏移，北=正（两种坐标系一致）'},
+      {k:'obs_x_flip',l:'天球坐标输入',t:'bool',dft:true,desc:'开=观测数据与offset均为天球坐标(RA东=正)，程序统一取负转数学坐标；关=已为数学坐标(右=正)，不翻转'},
+    ]},
+  ]
+},
+
+// ── King ────────────────────────────────────────────────
+king:{
+  name:'King Profile', color:'#22c55e',
+  sections:[
+    {id:'cst',title:'约束条件',icon:'⚖️',params:[
+      {k:'CONSTRAINT_SIGMA',   l:'位置约束 σ 倍数',t:'num',dft:1.0,min:.1,max:10,step:.1},
+      {k:'PENALTY_COEFFICIENT',l:'约束惩罚系数',   t:'int',dft:1000,min:1},
+    ]},
+    {id:'srch',title:'子晕搜索配置',icon:'🔍',params:[
+      {k:'active_subhalos',l:'启用子晕图像', t:'sub', dft:[1,3,4]},
+      {k:'fine_tuning',    l:'精细调试模式', t:'bool',dft:false,tid:'fine'},
+      {k:'SEARCH_RADIUS',  l:'搜索半径',    t:'num', dft:.1,  min:.001,step:.001,unit:'arcsec',hf:true},
+      {k:'LOGM_MIN',       l:'log₁₀M 下限', t:'num', dft:3.5, min:0,max:20,step:.1,unit:'dex',hf:true,desc:'King 质量对数下限'},
+      {k:'LOGM_MAX',       l:'log₁₀M 上限', t:'num', dft:8.0, min:0,max:20,step:.1,unit:'dex',hf:true},
+      {k:'RC_MIN',         l:'核半径 rc 下限',t:'sci',dft:8e-5,unit:'arcsec',hf:true,desc:'King 核半径下限'},
+      {k:'RC_MAX',         l:'核半径 rc 上限',t:'sci',dft:8e-3,unit:'arcsec',hf:true},
+      {k:'C_MIN',          l:'集中度 c 下限', t:'num',dft:.5,  min:0,max:5,step:.1,hf:true,desc:'c = log₁₀(rt/rc) 下限'},
+      {k:'C_MAX',          l:'集中度 c 上限', t:'num',dft:2.5, min:0,max:5,step:.1,hf:true},
+      {k:'fine_tuning_configs',l:'各子晕独立配置',t:'ftbl',sf:true,
+        cols:['搜索半径(")','logM_min','logM_max','rc_min(")','rc_max(")','c_min','c_max'],
+        keys:['search_radius','logM_min','logM_max','rc_min','rc_max','c_min','c_max'],
+        tps:['num','num','num','sci','sci','num','num'],
+        defs:{1:{search_radius:.10,logM_min:5.5,logM_max:8.0,rc_min:.003,rc_max:.050,c_min:.8,c_max:2.2},
+              2:{search_radius:.40,logM_min:5.5,logM_max:8.0,rc_min:.003,rc_max:.060,c_min:.8,c_max:2.2},
+              3:{search_radius:.05,logM_min:5.0,logM_max:8.0,rc_min:.002,rc_max:.050,c_min:.8,c_max:2.2},
+              4:{search_radius:.05,logM_min:5.0,logM_max:8.0,rc_min:.002,rc_max:.050,c_min:.8,c_max:2.2}}},
+    ]},
+    {id:'loss',title:'损失函数配置',icon:'📉',params:[
+      {k:'LOSS_COEF_A',      l:'位置 χ² 权重',   t:'num', dft:4.0, min:0,step:.1},
+      {k:'LOSS_COEF_B',      l:'放大率 χ² 权重', t:'num', dft:1.0, min:0,step:.1},
+      {k:'LOSS_PENALTY_PL',  l:'位置惩罚系数',   t:'num', dft:1000,min:0,step:100},
+      {k:'source_modify',    l:'优化源位置',      t:'bool',dft:false},
+      {k:'lens_modify',      l:'优化透镜参数',    t:'bool',dft:false},
+      {k:'modify_percentage',l:'参数变化范围',    t:'num', dft:.01, min:0,max:1,step:.001},
+    ]},
+    {id:'de',title:'差分进化 (DE)',icon:'🧬',params:[
+      {k:'DE_MAXITER',        l:'最大迭代次数', t:'int',dft:800, min:1},
+      {k:'DE_POPSIZE',        l:'种群大小',     t:'int',dft:75,  min:2},
+      {k:'DE_ATOL',           l:'绝对容差',     t:'sci',dft:1e-5},
+      {k:'DE_TOL',            l:'相对容差',     t:'sci',dft:1e-5},
+      {k:'DE_SEED',           l:'随机种子',     t:'int',dft:42,  min:1,max:999999},
+      {k:'DE_POLISH',         l:'局部抛光优化', t:'bool',dft:true},
+      {k:'DE_WORKERS',        l:'并行核心数',   t:'int',dft:-1,  min:-1,desc:'glafic 非线程安全，建议设为1'},
+      {k:'EARLY_STOPPING',    l:'启用早停',     t:'bool',dft:true},
+      {k:'EARLY_STOP_PATIENCE',l:'早停容忍次数',t:'int',dft:55,  min:1},
+    ]},
+    {id:'mcmc',title:'MCMC 后验采样',icon:'🔬',params:[
+      {k:'MCMC_ENABLED',     l:'启用 MCMC',      t:'bool',dft:false,tid:'mcmc'},
+      {k:'MCMC_NWALKERS',    l:'Walker 数量',     t:'int', dft:32,  min:2,  md:true},
+      {k:'MCMC_NSTEPS',      l:'采样步数',        t:'int', dft:2000,min:100,md:true},
+      {k:'MCMC_BURNIN',      l:'Burn-in 步数',    t:'int', dft:300, min:0,  md:true},
+      {k:'MCMC_THIN',        l:'稀疏采样间隔',    t:'int', dft:2,   min:1,  md:true},
+      {k:'MCMC_PERTURBATION',l:'初始扰动幅度',    t:'num', dft:.01, min:.0001,step:.001,md:true},
+      {k:'MCMC_PROGRESS',    l:'显示进度条',      t:'bool',dft:true,         md:true},
+      {k:'MCMC_WORKERS',     l:'MCMC 并行核心数', t:'int', dft:1,   min:-1, md:true,desc:'King 建议串行（glafic全局状态不线程安全）'},
+    ]},
+    {id:'out',title:'输出配置',icon:'📊',params:[
+      {k:'OUTPUT_PREFIX',    l:'输出文件前缀',      t:'str', dft:'v_king_1_0'},
+      {k:'SHOW_2SIGMA',      l:'显示 2σ 参考线',   t:'bool',dft:false},
+      {k:'COMPARE_GRAPH',    l:'生成对比图',        t:'bool',dft:true},
+      {k:'Draw_Graph',       l:'迭代绘图模式',      t:'sel', dft:1,opts:[{v:0,l:'不绘制'},{v:1,l:'绘制'}]},
+      {k:'draw_interval',    l:'绘图间隔',          t:'int', dft:10, min:1},
+      {k:'PLOT_KING_PROFILES',l:'绘制 King κ 剖面', t:'bool',dft:true,  desc:'绘制 King 收敛度剖面图'},
+      {k:'KING_PROFILE_RMAX', l:'King 剖面最大半径',t:'num', dft:.5,min:.1,step:.1,unit:'arcsec'},
+    ]},
+    {id:'obsdata',title:'观测数据配置',icon:'📡',params:[
+      {k:'obs_data',l:'多像观测数据（位置 / 放大率 / 误差）',t:'obs_data',
+       dft:{obs_positions_mas_list:[[-266.035,0.427],[118.835,-221.927],[238.324,227.270],[-126.157,319.719]],
+            obs_magnifications_list:[-35.6,15.7,-7.5,9.1],
+            obs_mag_errors_list:[2.1,1.3,1.0,1.1],
+            obs_pos_sigma_mas_list:[0.41,0.86,2.23,3.11]}},
+      {k:'center_offset_x',l:'中心偏移 x',t:'num',dft:0.01535,step:0.00001,unit:'arcsec',desc:'与观测数据同坐标系：天球坐标时东=正(RA)；数学坐标时右=正'},
+      {k:'center_offset_y',l:'中心偏移 y',t:'num',dft:0.03220, step:0.00001,unit:'arcsec',desc:'y 方向偏移，北=正（两种坐标系一致）'},
+      {k:'obs_x_flip',l:'天球坐标输入',t:'bool',dft:true,desc:'开=观测数据与offset均为天球坐标(RA东=正)，程序统一取负转数学坐标；关=已为数学坐标(右=正)，不翻转'},
+    ]},
+  ]
+},
+
+// ── Pseudo-Jaffe ─────────────────────────────────────────
+'p-jaffe':{
+  name:'Pseudo-Jaffe', color:'#f97316',
+  sections:[
+    {id:'cst',title:'约束条件',icon:'⚖️',params:[
+      {k:'CONSTRAINT_SIGMA',   l:'位置约束 σ 倍数',t:'num',dft:1.0,min:.1,max:10,step:.1},
+      {k:'PENALTY_COEFFICIENT',l:'约束惩罚系数',   t:'int',dft:1000,min:1},
+    ]},
+    {id:'srch',title:'子晕搜索配置',icon:'🔍',params:[
+      {k:'active_subhalos',l:'启用子晕图像', t:'sub', dft:[1,3,4]},
+      {k:'fine_tuning',    l:'精细调试模式', t:'bool',dft:false,tid:'fine'},
+      {k:'SEARCH_RADIUS',  l:'搜索半径',    t:'num', dft:.2,  min:.001,step:.001,unit:'arcsec',hf:true},
+      {k:'SIG_GUESS',      l:'σ 初始猜测',  t:'num', dft:10.0,min:0,step:.1,unit:'km/s',hf:true,desc:'Pseudo-Jaffe 速度弥散初始猜测'},
+      {k:'SIG_MIN',        l:'σ 下限',      t:'num', dft:.01, min:0,step:.01,unit:'km/s',hf:true},
+      {k:'SIG_MAX',        l:'σ 上限',      t:'num', dft:30.0,min:0,step:1,  unit:'km/s',hf:true},
+      {k:'A_GUESS',        l:'截断半径 a 猜测',t:'num',dft:.050,min:.0001,step:.001,unit:'arcsec',hf:true,desc:'截断半径（必须 > rco）'},
+      {k:'A_MIN',          l:'截断半径 a 下限',t:'sci',dft:.0001,unit:'arcsec',hf:true},
+      {k:'A_MAX',          l:'截断半径 a 上限',t:'num',dft:.300,min:.001,step:.01,unit:'arcsec',hf:true},
+      {k:'RCO_GUESS',      l:'核心半径 rco 猜测',t:'num',dft:.005,min:0,step:.001,unit:'arcsec',hf:true},
+      {k:'RCO_MIN',        l:'核心半径 rco 下限',t:'num',dft:0,   min:0,step:.0001,unit:'arcsec',hf:true},
+      {k:'RCO_MAX',        l:'核心半径 rco 上限',t:'num',dft:.05, min:0,step:.001,unit:'arcsec',hf:true},
+      {k:'fine_tuning_configs',l:'各子晕独立配置',t:'ftbl',sf:true,
+        cols:['搜索半径','σ猜(km/s)','σ_min','σ_max','a猜(")','a_min','a_max','rco猜(")','rco_min','rco_max'],
+        keys:['search_radius','sig_guess','sig_min','sig_max','a_guess','a_min','a_max','rco_guess','rco_min','rco_max'],
+        tps:['num','num','num','num','num','sci','num','num','sci','num'],
+        defs:{1:{search_radius:.1, sig_guess:5.0, sig_min:.001,sig_max:10.0,a_guess:.050,a_min:.010,a_max:.200,rco_guess:.005,rco_min:.0001,rco_max:.050},
+              2:{search_radius:.4, sig_guess:8.0, sig_min:.01, sig_max:50.0,a_guess:.040,a_min:.005,a_max:.1,  rco_guess:.004,rco_min:.0001,rco_max:.02},
+              3:{search_radius:.1, sig_guess:5.0, sig_min:1.0, sig_max:25.0,a_guess:.045,a_min:.005,a_max:.100,rco_guess:.005,rco_min:.001, rco_max:.012},
+              4:{search_radius:.12,sig_guess:.01, sig_min:.1,  sig_max:20.0,a_guess:.035,a_min:.0001,a_max:.1, rco_guess:.003,rco_min:.00005,rco_max:.005}}},
+    ]},
+    {id:'loss',title:'损失函数配置',icon:'📉',params:[
+      {k:'LOSS_COEF_A',      l:'位置 χ² 权重',   t:'num', dft:4.0, min:0,step:.1},
+      {k:'LOSS_COEF_B',      l:'放大率 χ² 权重', t:'num', dft:1.0, min:0,step:.1},
+      {k:'LOSS_PENALTY_PL',  l:'位置惩罚系数',   t:'num', dft:1000,min:0,step:100},
+      {k:'source_modify',    l:'优化源位置',      t:'bool',dft:false},
+      {k:'lens_modify',      l:'优化透镜参数',    t:'bool',dft:false},
+      {k:'modify_percentage',l:'参数变化范围',    t:'num', dft:.01, min:0,max:1,step:.001},
+      {k:'TEMPER_ENABLED',   l:'启用回火机制',    t:'bool',dft:false,desc:'在优化中使用温度回火（p-jaffe 专用）'},
+      {k:'TEMPER_COUNT',     l:'连续回火次数',    t:'int', dft:3,   min:1,desc:'连续回火次数'},
+    ]},
+    {id:'de',title:'差分进化 (DE)',icon:'🧬',params:[
+      {k:'DE_MAXITER',        l:'最大迭代次数', t:'int',dft:800, min:1},
+      {k:'DE_POPSIZE',        l:'种群大小',     t:'int',dft:75,  min:2},
+      {k:'DE_ATOL',           l:'绝对容差',     t:'sci',dft:1e-5},
+      {k:'DE_TOL',            l:'相对容差',     t:'sci',dft:1e-5},
+      {k:'DE_SEED',           l:'随机种子',     t:'int',dft:42,  min:1,max:999999},
+      {k:'DE_POLISH',         l:'局部抛光优化', t:'bool',dft:true},
+      {k:'DE_WORKERS',        l:'并行核心数',   t:'int',dft:-1,  min:-1},
+      {k:'EARLY_STOPPING',    l:'启用早停',     t:'bool',dft:true},
+      {k:'EARLY_STOP_PATIENCE',l:'早停容忍次数',t:'int',dft:60,  min:1},
+    ]},
+    {id:'mcmc',title:'MCMC 后验采样',icon:'🔬',params:[
+      {k:'MCMC_ENABLED',     l:'启用 MCMC',        t:'bool',dft:true, tid:'mcmc',desc:'Pseudo-Jaffe v2.0 默认启用 MCMC'},
+      {k:'MCMC_NWALKERS',    l:'Walker 数量',       t:'int', dft:32,  min:2,  md:true},
+      {k:'MCMC_NSTEPS',      l:'采样步数',          t:'int', dft:3000,min:100,md:true},
+      {k:'MCMC_BURNIN',      l:'Burn-in 步数',      t:'int', dft:300, min:0,  md:true},
+      {k:'MCMC_THIN',        l:'稀疏采样间隔',      t:'int', dft:2,   min:1,  md:true},
+      {k:'MCMC_PERTURBATION',l:'初始扰动幅度',      t:'num', dft:.01, min:.0001,step:.001,md:true},
+      {k:'MCMC_PROGRESS',    l:'显示进度条',        t:'bool',dft:true,         md:true},
+      {k:'MCMC_WORKERS',     l:'MCMC 并行核心数',   t:'int', dft:-1,  min:-1, md:true},
+      {k:'MCMC_CUSTOM_RANGE',l:'自定义先验范围',    t:'bool',dft:false,tid:'cr',md:true},
+      {k:'MCMC_SEARCH_RADIUS',l:'MCMC 位置半径',    t:'num', dft:.2,  min:.001,step:.01,unit:'arcsec',md:true,cr:true},
+      {k:'MCMC_SIG_MIN',     l:'σ 先验下限',        t:'num', dft:.01, min:0,step:.01,unit:'km/s',md:true,cr:true},
+      {k:'MCMC_SIG_MAX',     l:'σ 先验上限',        t:'num', dft:100, min:0,step:1,  unit:'km/s',md:true,cr:true},
+      {k:'MCMC_A_MIN',       l:'a 先验下限',         t:'sci', dft:.0001,unit:'arcsec',md:true,cr:true},
+      {k:'MCMC_A_MAX',       l:'a 先验上限',         t:'num', dft:.5,  min:.001,step:.01,unit:'arcsec',md:true,cr:true},
+      {k:'MCMC_RCO_MIN',     l:'rco 先验下限',       t:'sci', dft:1e-6,unit:'arcsec',md:true,cr:true},
+      {k:'MCMC_RCO_MAX',     l:'rco 先验上限',       t:'num', dft:.1,  min:.001,step:.001,unit:'arcsec',md:true,cr:true},
+    ]},
+    {id:'out',title:'输出配置',icon:'📊',params:[
+      {k:'OUTPUT_PREFIX',l:'输出文件前缀',   t:'str', dft:'v_p_jaffe_2_0'},
+      {k:'SHOW_2SIGMA',  l:'显示 2σ 参考线',t:'bool',dft:false},
+      {k:'COMPARE_GRAPH',l:'生成对比图',    t:'bool',dft:true},
+      {k:'Draw_Graph',   l:'迭代绘图模式',  t:'sel', dft:1,opts:[{v:0,l:'不绘制'},{v:1,l:'绘制'}]},
+      {k:'draw_interval',l:'绘图间隔',      t:'int', dft:10,min:1},
+    ]},
+    {id:'obsdata',title:'观测数据配置',icon:'📡',params:[
+      {k:'obs_data',l:'多像观测数据（位置 / 放大率 / 误差）',t:'obs_data',
+       dft:{obs_positions_mas_list:[[-266.035,0.427],[118.835,-221.927],[238.324,227.270],[-126.157,319.719]],
+            obs_magnifications_list:[-35.6,15.7,-7.5,9.1],
+            obs_mag_errors_list:[2.1,1.3,1.0,1.1],
+            obs_pos_sigma_mas_list:[0.41,0.86,2.23,3.11]}},
+      {k:'center_offset_x',l:'中心偏移 x',t:'num',dft:0.01535,step:0.00001,unit:'arcsec',desc:'与观测数据同坐标系：天球坐标时东=正(RA)；数学坐标时右=正'},
+      {k:'center_offset_y',l:'中心偏移 y',t:'num',dft:0.03220, step:0.00001,unit:'arcsec',desc:'y 方向偏移，北=正（两种坐标系一致）'},
+      {k:'obs_x_flip',l:'天球坐标输入',t:'bool',dft:true,desc:'开=观测数据与offset均为天球坐标(RA东=正)，程序统一取负转数学坐标；关=已为数学坐标(右=正)，不翻转'},
+    ]},
+  ]
+}
+
+,
+
+// ── None (No Subhalo) ────────────────────────────────────
+none:{
+  name:'None (无子晕)', name_en:'None (No Subhalo)', color:'#64748b',
+  sections:[
+    {id:'cst',title:'约束条件',icon:'⚖️',params:[
+      {k:'CONSTRAINT_SIGMA',   l:'位置约束 σ 倍数',t:'num',dft:1.0,min:.1,max:10,step:.1},
+      {k:'PENALTY_COEFFICIENT',l:'约束惩罚系数',   t:'int',dft:1000,min:1},
+    ]},
+    {id:'opt',title:'优化目标配置',icon:'🎯',params:[
+      {k:'source_modify',   l:'优化源位置',      t:'bool',dft:true, tid:'srcmod', desc:'将源面 (x,y) 纳入优化变量'},
+      {k:'lens_modify',     l:'优化透镜参数',    t:'bool',dft:false,tid:'lensmod',desc:'将透镜参数纳入优化变量'},
+      {k:'fine_tuning',     l:'精细调试模式',    t:'bool',dft:false,tid:'fine',   desc:'False=百分比边界；True=每参数显式上下限'},
+      // fine_tuning=False 时
+      {k:'modify_percentage',l:'透镜参数变化范围',t:'num',dft:.1,min:0,max:1,step:.01,hf:true,
+       desc:'各非零透镜参数允许变化的百分比（0.1=±10%）'},
+      {k:'source_x_delta',  l:'源 x 搜索范围',  t:'num',dft:.01,min:0,step:.001,unit:'arcsec',hf:true},
+      {k:'source_y_delta',  l:'源 y 搜索范围',  t:'num',dft:.01,min:0,step:.001,unit:'arcsec',hf:true},
+      // fine_tuning=True 时
+      {k:'source_x_bounds', l:'源 x 显式边界',  t:'bounds2',dft:[-0.05,0.05],unit:'arcsec',sf:true,
+       desc:'相对当前源位置的绝对偏移范围 [下限, 上限]'},
+      {k:'source_y_bounds', l:'源 y 显式边界',  t:'bounds2',dft:[-0.05,0.05],unit:'arcsec',sf:true},
+      {k:'lens_optimize_bounds',l:'透镜参数显式上下限',t:'lens_bounds',sf:true,
+       desc:'每个透镜组件的每个参数的优化边界（None=不优化）',
+       dft:{}},
+    ]},
+    {id:'loss',title:'损失函数配置',icon:'📉',params:[
+      {k:'LOSS_COEF_A',    l:'位置 χ² 权重',  t:'num',dft:4.0,min:0,step:.1},
+      {k:'LOSS_COEF_B',    l:'放大率 χ² 权重',t:'num',dft:1.0,min:0,step:.1},
+      {k:'LOSS_PENALTY_PL',l:'位置惩罚系数',  t:'num',dft:10000,min:0,step:100},
+    ]},
+    {id:'de',title:'差分进化 (DE)',icon:'🧬',params:[
+      {k:'DE_MAXITER',        l:'最大迭代次数',t:'int',dft:500,min:1},
+      {k:'DE_POPSIZE',        l:'种群大小',    t:'int',dft:20, min:2},
+      {k:'DE_ATOL',           l:'绝对容差',    t:'sci',dft:1e-6},
+      {k:'DE_TOL',            l:'相对容差',    t:'sci',dft:1e-6},
+      {k:'DE_SEED',           l:'随机种子',    t:'int',dft:42,min:1,max:999999},
+      {k:'DE_POLISH',         l:'局部抛光优化',t:'bool',dft:true},
+      {k:'DE_WORKERS',        l:'并行核心数',  t:'int',dft:-1,min:-1,
+       desc:'-1=全部CPU；默认fork模式下多进程安全'},
+      {k:'EARLY_STOPPING',    l:'启用早停',    t:'bool',dft:true},
+      {k:'EARLY_STOP_PATIENCE',l:'早停容忍次数',t:'int',dft:50,min:1},
+    ]},
+    {id:'mcmc',title:'MCMC 后验采样',icon:'🔬',params:[
+      {k:'MCMC_ENABLED',    l:'启用 MCMC',    t:'bool',dft:false,tid:'mcmc'},
+      {k:'MCMC_NWALKERS',   l:'Walker 数量',  t:'int',dft:32,min:2,md:true},
+      {k:'MCMC_NSTEPS',     l:'采样步数',     t:'int',dft:1000,min:100,md:true},
+      {k:'MCMC_BURNIN',     l:'Burn-in 步数', t:'int',dft:200,min:0,md:true},
+      {k:'MCMC_THIN',       l:'稀疏采样间隔', t:'int',dft:2,min:1,md:true},
+      {k:'MCMC_PERTURBATION',l:'初始扰动幅度',t:'num',dft:.01,step:.001,md:true},
+      {k:'MCMC_PROGRESS',   l:'显示进度条',   t:'bool',dft:true,md:true},
+      {k:'MCMC_WORKERS',    l:'MCMC 并行核心',t:'int',dft:1,min:-1,md:true},
+    ]},
+    {id:'out',title:'输出配置',icon:'📊',params:[
+      {k:'OUTPUT_PREFIX',l:'输出文件前缀',   t:'str', dft:'v_none_1_0'},
+      {k:'SHOW_2SIGMA',  l:'显示 2σ 参考线',t:'bool',dft:false},
+      {k:'COMPARE_GRAPH',l:'生成对比图',    t:'bool',dft:true},
+      {k:'Draw_Graph',   l:'迭代绘图模式',  t:'sel', dft:1,opts:[{v:0,l:'不绘制'},{v:1,l:'绘制'}]},
+      {k:'draw_interval',l:'绘图间隔',      t:'int', dft:5,min:1},
+    ]},
+    {id:'obsdata',title:'观测数据配置',icon:'📡',params:[
+      {k:'obs_data',l:'多像观测数据（位置 / 放大率 / 误差）',t:'obs_data',
+       dft:{obs_positions_mas_list:[[-266.035,0.427],[118.835,-221.927],[238.324,227.270],[-126.157,319.719]],
+            obs_magnifications_list:[-35.6,15.7,-7.5,9.1],
+            obs_mag_errors_list:[2.1,1.3,1.0,1.1],
+            obs_pos_sigma_mas_list:[0.41,0.86,2.23,3.11]}},
+      {k:'center_offset_x',l:'中心偏移 x',t:'num',dft:1.0,step:0.00001,unit:'arcsec',desc:'与观测数据同坐标系：天球坐标时东=正(RA)；数学坐标时右=正'},
+      {k:'center_offset_y',l:'中心偏移 y',t:'num',dft:1.0, step:0.00001,unit:'arcsec',desc:'y 方向偏移，北=正（两种坐标系一致）'},
+      {k:'obs_x_flip',l:'天球坐标输入',t:'bool',dft:false,desc:'开=观测数据与offset均为天球坐标(RA东=正)，程序统一取负转数学坐标；关=已为数学坐标(右=正)，不翻转'},
+    ]},
+  ]
+}
+
+}; // end DEFS
+
+// ══════════════════════════════════════════════════════════
+//  State
+// ══════════════════════════════════════════════════════════
+let curModel = null;
+let jobId = null;
+let sse = null;
+let fineEnabled = false;
+let mcmcEnabled = false;
+let crEnabled   = false;
+
+// ══════════════════════════════════════════════════════════
+//  Model Selection
+// ══════════════════════════════════════════════════════════
+function selModel(mid){
+  if(curModel && curModel!==mid) saveState();   // 切换前保存当前模型参数
+  curModel = mid;
+  document.querySelectorAll('.model-card').forEach(c=>{
+    c.classList.remove('active','nfw','king','jaffe');
+  });
+  const card = document.querySelector(`[data-model="${mid}"]`);
+  card.classList.add('active');
+  if(mid==='nfw')    card.classList.add('nfw');
+  if(mid==='king')   card.classList.add('king');
+  if(mid==='p-jaffe')card.classList.add('jaffe');
+  if(mid==='none')   card.style.setProperty('--active-c','#64748b');
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('saveBtn').disabled = false;
+  renderModel(mid);
+  restoreModelParams(mid);                       // 渲染完后恢复已保存的参数值
+}
+
+// ══════════════════════════════════════════════════════════
+//  Rendering
+// ══════════════════════════════════════════════════════════
+function renderModel(mid){
+  const m = DEFS[mid];
+  fineEnabled  = false;
+  mcmcEnabled  = false;
+  crEnabled    = false;
+
+  let html = `<div class="model-heading">
+    <div class="mh-dot" style="background:${m.color}"></div>
+    <span class="mh-name">${lang==='en'&&m.name_en?m.name_en:m.name}</span>
+    <span class="mh-sub">${S('model-cfg')}</span>
+  </div>`;
+  m.sections.forEach(s => { html += renderSection(s); });
+  document.getElementById('paramsArea').innerHTML = html;
+
+  // init toggle states from defaults
+  const fineEl = document.getElementById('T_fine_tuning');
+  if(fineEl){ fineEnabled = fineEl.checked; }
+  const mcmcEl = document.getElementById('T_MCMC_ENABLED');
+  if(mcmcEl){ mcmcEnabled = mcmcEl.checked; }
+  const crEl = document.getElementById('T_MCMC_CUSTOM_RANGE');
+  if(crEl){ crEnabled = crEl.checked; }
+
+  refreshVis();
+}
+
+function renderSection(s){
+  const paramHTML = s.params.map(p=>renderParam(p)).join('');
+  return `<div class="section" id="sec_${s.id}">
+    <div class="sec-hdr" onclick="toggleSec('${s.id}')">
+      <span class="sec-icon">${s.icon}</span>
+      <span class="sec-title">${Lsec(s)}</span>
+      <span class="sec-chevron">▼</span>
+    </div>
+    <div class="sec-body">
+      <div class="p-grid">${paramHTML}</div>
+    </div>
+  </div>`;
+}
+
+function renderParam(p){
+  const cls = [
+    'p-item',
+    p.hf ? 'hf-item' : '',
+    p.sf ? 'sf-item full-w' : '',
+    p.md ? 'md-item' : '',
+    p.cr ? 'cr-item' : '',
+  ].filter(Boolean).join(' ');
+
+  const style = (p.sf || p.cr) ? 'display:none' : '';
+
+  if(p.t === 'bool'){
+    const chk = p.dft ? 'checked' : '';
+    const onch = p.tid==='fine' ? 'onFineChange(this)' :
+                 p.tid==='mcmc' ? 'onMcmcChange(this)' :
+                 p.tid==='cr'   ? 'onCrChange(this)'   : '';
+    const desc = Ldesc(p);
+    return `<div class="${cls}" style="${style}">
+      <div class="tog-row">
+        <div class="tog-left">
+          <div class="tog-name">${L(p)}</div>
+          ${desc?`<div class="tog-desc">${desc}</div>`:''}
+        </div>
+        <label class="tog">
+          <input type="checkbox" id="T_${p.k}" ${chk} ${onch?`onchange="${onch}"`:''}/>
+          <span class="tog-sl"></span>
+        </label>
+      </div>
+    </div>`;
+  }
+
+  if(p.t === 'sub'){
+    const dfSet = new Set(p.dft);
+    const checks = [1,2,3,4].map(i=>`
+      <label class="sub-chk ${dfSet.has(i)?'on':''}" id="SC_${i}">
+        <input type="checkbox" value="${i}" ${dfSet.has(i)?'checked':''}
+               onchange="syncSubChk(${i},this)"/>
+        <span>${S('img-label')}${i}</span>
+      </label>`).join('');
+    const desc = Ldesc(p);
+    return `<div class="${cls} full-w" style="${style}">
+      <div class="p-label">${L(p)}</div>
+      <div class="sub-checks" id="subChecks">${checks}</div>
+      ${desc?`<div class="p-desc">${desc}</div>`:''}
+    </div>`;
+  }
+
+  if(p.t === 'ftbl'){
+    return renderFtbl(p, cls, style);
+  }
+
+  if(p.t === 'obs_data'){
+    return renderObsData(p, cls, style);
+  }
+  if(p.t === 'bounds2'){
+    return renderBounds2(p, cls, style);
+  }
+  if(p.t === 'lens_bounds'){
+    return renderLensBounds(p, cls, style);
+  }
+
+  if(p.t === 'sel'){
+    const opts = p.opts.map(o=>`<option value="${o.v}" ${o.v===p.dft?'selected':''}>${Lopt(o.l)}</option>`).join('');
+    const desc = Ldesc(p);
+    return `<div class="${cls}" style="${style}">
+      <div class="p-label">${L(p)}${p.unit?` <span class="p-unit">[${p.unit}]</span>`:''}</div>
+      <select class="p-input" id="P_${p.k}">${opts}</select>
+      ${desc?`<div class="p-desc">${desc}</div>`:''}
+    </div>`;
+  }
+
+  // number / sci / int / str
+  const isStr = p.t==='str';
+  const itype = isStr ? 'text' : 'number';
+  const step = p.step!==undefined ? p.step : (p.t==='sci'?'any':'any');
+  const attrs = [
+    p.min!==undefined ? `min="${p.min}"` : '',
+    p.max!==undefined ? `max="${p.max}"` : '',
+    `step="${step}"`,
+  ].filter(Boolean).join(' ');
+  const desc = Ldesc(p);
+
+  return `<div class="${cls}" style="${style}">
+    <div class="p-label">${L(p)}${p.unit?` <span class="p-unit">[${p.unit}]</span>`:''}</div>
+    <input class="p-input" type="${itype}" id="P_${p.k}" value="${p.dft}" ${isStr?'':attrs}/>
+    ${desc?`<div class="p-desc">${desc}</div>`:''}
+  </div>`;
+}
+
+// ── bounds2: 两值范围输入 [lo, hi] ────────────────────────
+function renderBounds2(p, cls, style){
+  const [lo, hi] = p.dft;
+  const desc = Ldesc(p);
+  return `<div class="${cls}" style="${style}">
+    <div class="p-label">${L(p)} ${p.unit?`<span class="p-unit">[${p.unit}]</span>`:''}</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input class="p-input" type="number" id="B2_lo_${p.k}" value="${lo}" step="any" style="flex:1" placeholder="${S('lo-ph')}">
+      <span style="color:var(--text3);font-size:11px">~</span>
+      <input class="p-input" type="number" id="B2_hi_${p.k}" value="${hi}" step="any" style="flex:1" placeholder="${S('hi-ph')}">
+    </div>
+    ${desc?`<div class="p-desc">${desc}</div>`:''}
+  </div>`;
+}
+
+// ── lens_bounds: 透镜参数显式边界表 (fine_tuning=True, NONE模型专用) ──
+// 行 = 透镜组件 (从 bestfit.dat 或默认), 列 = p1..p7
+// 每格: 启用复选框 + [下限, 上限]
+let _lbKeys = ['sers1','sers2','sie'];  // 默认行键，随 bestfit 解析自动更新
+const P_LABELS = ['p1','p2','p3','p4','p5','p6','p7'];
+
+function updateLensBoundsKeys(keys){
+  _lbKeys = keys;
+  // 如果表已经渲染，重新渲染
+  const wrap = document.getElementById('lensBoundsWrap');
+  if(wrap) wrap.innerHTML = buildLensBoundsInner();
+}
+
+function buildLensBoundsInner(){
+  const rows = _lbKeys.map(key=>{
+    const cells = P_LABELS.map((_,pi)=>`
+      <td style="padding:3px 4px;border:1px solid var(--border);min-width:88px">
+        <label style="display:flex;align-items:center;gap:3px;font-size:10px;margin-bottom:2px">
+          <input type="checkbox" id="LB_${key}_p${pi+1}_en" onchange="lbToggle('${key}',${pi+1})">
+          <span style="color:var(--text3)">p${pi+1}</span>
+        </label>
+        <div id="LB_${key}_p${pi+1}_inputs" style="display:none;gap:3px;flex-direction:column">
+          <input type="number" id="LB_${key}_p${pi+1}_lo" placeholder="${S('lo-ph')}" step="any"
+            style="width:80px;background:var(--bg);border:1px solid var(--border);border-radius:3px;
+                   color:var(--text);padding:2px 4px;font-size:10px">
+          <input type="number" id="LB_${key}_p${pi+1}_hi" placeholder="${S('hi-ph')}" step="any"
+            style="width:80px;background:var(--bg);border:1px solid var(--border);border-radius:3px;
+                   color:var(--text);padding:2px 4px;font-size:10px">
+        </div>
+      </td>`).join('');
+    return `<tr>
+      <td style="padding:4px 8px;border:1px solid var(--border);
+                 font-weight:700;color:var(--accent2);font-size:11px;
+                 background:var(--bg2);white-space:nowrap">${key}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  return `<table style="border-collapse:collapse;font-size:11px;width:100%">
+    <thead><tr>
+      <th style="background:var(--bg2);padding:6px 8px;border:1px solid var(--border);color:var(--text3)">${S('lens-label')}</th>
+      ${P_LABELS.map(l=>`<th style="background:var(--bg2);padding:6px 4px;border:1px solid var(--border);
+                                   color:var(--text3);min-width:88px">${l}</th>`).join('')}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function lbToggle(key, pi){
+  const en = document.getElementById(`LB_${key}_p${pi}_en`);
+  const inp = document.getElementById(`LB_${key}_p${pi}_inputs`);
+  if(inp) inp.style.display = en.checked ? 'flex' : 'none';
+}
+
+function renderLensBounds(p, cls, style){
+  const desc = Ldesc(p);
+  return `<div class="${cls} full-w" style="${style}">
+    <div class="p-label" style="margin-bottom:6px">${L(p)}
+      <button class="btn-ghost" style="margin-left:8px;padding:2px 8px;font-size:10px"
+        onclick="refreshLensBoundsFromBf()">
+        ${S('ref-bf-btn')}
+      </button>
+    </div>
+    <div class="p-desc" style="margin-bottom:8px">${desc}</div>
+    <div class="ft-wrap"><div id="lensBoundsWrap">${buildLensBoundsInner()}</div></div>
+  </div>`;
+}
+
+function refreshLensBoundsFromBf(){
+  // 从 bfContent（sidebar textarea）或 bfeTA（overlay）读取并解析
+  const content = document.getElementById('bfeTA')?.value ||
+                  document.getElementById('bfContent')?.value || '';
+  if(!content.trim()){ alert(S('ref-bf-alert')); return; }
+  fetch('/api/parse_bestfit',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({content})})
+    .then(r=>r.json()).then(d=>{
+      if(d.lens_types && d.lens_types.length){
+        // Rebuild keys from lens_types
+        const counts={};
+        const keys=[];
+        d.lens_types.forEach(lt=>{
+          if(lt==='sers'){
+            counts[lt]=(counts[lt]||0)+1;
+            keys.push(`sers${counts[lt]}`);
+          } else {
+            counts[lt]=(counts[lt]||0)+1;
+            const n=counts[lt];
+            keys.push(n===1?lt:`${lt}${n}`);
+          }
+        });
+        updateLensBoundsKeys(keys);
+      }
+    }).catch(()=>alert(S('parse-fail-alert')));
+}
+
+function renderObsData(p, cls, style){
+  const d = p.dft;
+  const n = d.obs_positions_mas_list.length;
+  const desc = Ldesc(p);
+  const rows = d.obs_positions_mas_list.map(([x,y],i)=>`
+    <tr>
+      <td class="row-lbl">#${i+1}</td>
+      <td><input type="number" id="OD_x_${i}"     value="${x}"                      step="any" style="width:72px"></td>
+      <td><input type="number" id="OD_y_${i}"     value="${y}"                      step="any" style="width:72px"></td>
+      <td><input type="number" id="OD_mag_${i}"   value="${d.obs_magnifications_list[i]}"  step="any" style="width:62px"></td>
+      <td><input type="number" id="OD_magerr_${i}"value="${d.obs_mag_errors_list[i]}"     step="any" style="width:52px"></td>
+      <td><input type="number" id="OD_sigma_${i}" value="${d.obs_pos_sigma_mas_list[i]}"  step="any" style="width:52px"></td>
+    </tr>`).join('');
+  return `<div class="${cls} full-w" style="${style}">
+    <div class="p-label">${L(p)}</div>
+    ${desc?`<div class="p-desc">${desc}</div>`:''}
+    <div class="ft-wrap" style="margin-top:8px">
+      <table class="ft">
+        <thead><tr>
+          <th>${S('image-label')}</th>
+          <th>x (mas)</th><th>y (mas)</th>
+          <th>${S('mag-label')}</th><th>${S('magerr-label')}</th><th>${S('possig-label')}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderFtbl(p, cls, style){
+  const rows = [1,2,3,4].map(i=>{
+    const defs = p.defs[i];
+    const cells = p.keys.map((k,ki)=>{
+      const v = defs[k];
+      const tp = p.tps[ki];
+      const st = tp==='sci'?'any':(tp==='int'?'1':'any');
+      return `<td><input type="number" id="FT_${i}_${k}" value="${v}" step="${st}"/></td>`;
+    }).join('');
+    return `<tr><td class="row-lbl">#${i}</td>${cells}</tr>`;
+  }).join('');
+
+  // use English column headers if in EN mode
+  const colsEn = EN_FTCOLS[curModel];
+  const cols = (lang==='en' && colsEn && colsEn.length===p.cols.length) ? colsEn : p.cols;
+
+  return `<div class="${cls}" id="ftblWrap" style="${style}">
+    <div class="p-label" style="margin-top:6px">${L(p)}</div>
+    <div class="ft-wrap">
+      <table class="ft">
+        <thead><tr>
+          <th>${S('subhalo-label')}</th>
+          ${cols.map(c=>`<th>${c}</th>`).join('')}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  Visibility Refresh
+// ══════════════════════════════════════════════════════════
+function refreshVis(){
+  // fine tuning
+  document.querySelectorAll('.hf-item').forEach(el=>{
+    el.style.display = fineEnabled ? 'none' : '';
+  });
+  document.querySelectorAll('.sf-item').forEach(el=>{
+    el.style.display = fineEnabled ? '' : 'none';
+  });
+  // mcmc dependent
+  document.querySelectorAll('.md-item').forEach(el=>{
+    el.style.opacity = mcmcEnabled ? '1' : '0.38';
+    el.style.pointerEvents = mcmcEnabled ? 'auto' : 'none';
+  });
+  // custom range (needs both mcmc on AND cr on)
+  document.querySelectorAll('.cr-item').forEach(el=>{
+    el.style.display = (mcmcEnabled && crEnabled) ? '' : 'none';
+  });
+}
+
+function onFineChange(cb){ fineEnabled=cb.checked; refreshVis(); }
+function onMcmcChange(cb){ mcmcEnabled=cb.checked; refreshVis(); }
+function onCrChange(cb)  { crEnabled  =cb.checked; refreshVis(); }
+
+function syncSubChk(i, cb){
+  document.getElementById(`SC_${i}`).classList.toggle('on', cb.checked);
+}
+
+function toggleSec(id){
+  document.getElementById(`sec_${id}`).classList.toggle('collapsed');
+}
+
+// ══════════════════════════════════════════════════════════
+//  Collect Params
+// ══════════════════════════════════════════════════════════
+function collectParams(){
+  const m = DEFS[curModel];
+  const out = {};
+  m.sections.forEach(s=>{
+    s.params.forEach(p=>{
+      if(p.t==='sub'){
+        const vals=[];
+        document.querySelectorAll('#subChecks input:checked')
+          .forEach(cb=>vals.push(parseInt(cb.value)));
+        out[p.k]=vals; return;
+      }
+      if(p.t==='bounds2'){
+        const lo=parseFloat(document.getElementById(`B2_lo_${p.k}`)?.value??p.dft[0]);
+        const hi=parseFloat(document.getElementById(`B2_hi_${p.k}`)?.value??p.dft[1]);
+        out[p.k]=[lo,hi]; return;
+      }
+      if(p.t==='lens_bounds'){
+        const lb={};
+        _lbKeys.forEach(key=>{
+          const blist=[]; let anyActive=false;
+          for(let pi=1;pi<=7;pi++){
+            const en=document.getElementById(`LB_${key}_p${pi}_en`);
+            if(en&&en.checked){
+              const lo=parseFloat(document.getElementById(`LB_${key}_p${pi}_lo`)?.value??0);
+              const hi=parseFloat(document.getElementById(`LB_${key}_p${pi}_hi`)?.value??0);
+              blist.push([lo,hi]); anyActive=true;
+            } else { blist.push(null); }
+          }
+          if(anyActive) lb[key]=blist;
+        });
+        out[p.k]=lb; return;
+      }
+      if(p.t==='obs_data'){
+        const n=p.dft.obs_positions_mas_list.length;
+        const pos=[],mags=[],magErrs=[],sigmas=[];
+        for(let i=0;i<n;i++){
+          const x=parseFloat(document.getElementById(`OD_x_${i}`)?.value??p.dft.obs_positions_mas_list[i][0]);
+          const y=parseFloat(document.getElementById(`OD_y_${i}`)?.value??p.dft.obs_positions_mas_list[i][1]);
+          pos.push([x,y]);
+          mags.push(parseFloat(document.getElementById(`OD_mag_${i}`)?.value??p.dft.obs_magnifications_list[i]));
+          magErrs.push(parseFloat(document.getElementById(`OD_magerr_${i}`)?.value??p.dft.obs_mag_errors_list[i]));
+          sigmas.push(parseFloat(document.getElementById(`OD_sigma_${i}`)?.value??p.dft.obs_pos_sigma_mas_list[i]));
+        }
+        out['obs_positions_mas_list']=pos;
+        out['obs_magnifications_list']=mags;
+        out['obs_mag_errors_list']=magErrs;
+        out['obs_pos_sigma_mas_list']=sigmas;
+        return;
+      }
+      if(p.t==='ftbl'){
+        const ftc={};
+        [1,2,3,4].forEach(i=>{
+          ftc[i]={};
+          p.keys.forEach(k=>{
+            const el=document.getElementById(`FT_${i}_${k}`);
+            if(el) ftc[i][k]=parseFloat(el.value)||0;
+          });
+        });
+        out[p.k]=ftc; return;
+      }
+      if(p.t==='bool'){
+        const el=document.getElementById(`T_${p.k}`);
+        if(el) out[p.k]=el.checked; return;
+      }
+      if(p.t==='sel'){
+        const el=document.getElementById(`P_${p.k}`);
+        if(el) out[p.k]=parseInt(el.value); return;
+      }
+      if(p.t==='int'){
+        const el=document.getElementById(`P_${p.k}`);
+        if(el) out[p.k]=parseInt(el.value)||0; return;
+      }
+      if(p.t==='num'||p.t==='sci'){
+        const el=document.getElementById(`P_${p.k}`);
+        if(el) out[p.k]=parseFloat(el.value)||0; return;
+      }
+      if(p.t==='str'){
+        const el=document.getElementById(`P_${p.k}`);
+        if(el) out[p.k]=el.value; return;
+      }
+    });
+  });
+  return out;
+}
+
+// ══════════════════════════════════════════════════════════
+//  localStorage 持久化
+// ══════════════════════════════════════════════════════════
+const LS_MODEL   = 'glade_model';
+const LS_SRCDIR  = 'glade_srcDir';
+const LS_RESROOT = 'glade_resRoot';
+const LS_BFMODE  = 'glade_bfMode';
+const LS_BFCONT  = 'glade_bfContent';
+const lsKey = mid => `glade_params_${mid}`;
+
+function saveState(){
+  if(!curModel) return;
+  try{
+    localStorage.setItem(LS_MODEL,  curModel);
+    localStorage.setItem(LS_SRCDIR, document.getElementById('srcDir').value);
+    localStorage.setItem(LS_RESROOT,document.getElementById('resRoot').value);
+    localStorage.setItem(LS_BFMODE, bfMode);
+    localStorage.setItem(LS_BFCONT, document.getElementById('bfContent')?.value ?? '');
+    localStorage.setItem(lsKey(curModel), JSON.stringify(collectParams()));
+  }catch(_){}
+}
+
+function restoreModelParams(mid){
+  const raw = localStorage.getItem(lsKey(mid));
+  if(!raw) return;
+  let saved;
+  try{ saved=JSON.parse(raw); }catch(_){ return; }
+  const m = DEFS[mid];
+  m.sections.forEach(s=>{
+    s.params.forEach(p=>{
+      // obs_data 使用 4 个独立子键存储，必须在通用 v===undefined 检查之前处理
+      if(p.t==='obs_data'){
+        const pos  = saved['obs_positions_mas_list'];
+        const mags = saved['obs_magnifications_list'];
+        const errs = saved['obs_mag_errors_list'];
+        const sigs = saved['obs_pos_sigma_mas_list'];
+        if(pos) pos.forEach(([x,y],i)=>{
+          const ex=document.getElementById(`OD_x_${i}`);
+          const ey=document.getElementById(`OD_y_${i}`);
+          if(ex) ex.value=x; if(ey) ey.value=y;
+        });
+        if(mags) mags.forEach((v,i)=>{ const e=document.getElementById(`OD_mag_${i}`); if(e) e.value=v; });
+        if(errs) errs.forEach((v,i)=>{ const e=document.getElementById(`OD_magerr_${i}`); if(e) e.value=v; });
+        if(sigs) sigs.forEach((v,i)=>{ const e=document.getElementById(`OD_sigma_${i}`); if(e) e.value=v; });
+        return;
+      }
+      const v = saved[p.k];
+      if(v===undefined) return;
+      if(p.t==='bool'){
+        const el=document.getElementById(`T_${p.k}`);
+        if(el) el.checked=v;
+      } else if(p.t==='sub'){
+        const set=new Set(v);
+        [1,2,3,4].forEach(i=>{
+          const lbl=document.getElementById(`SC_${i}`);
+          const cb=lbl?.querySelector('input');
+          if(cb){ cb.checked=set.has(i); lbl.classList.toggle('on',set.has(i)); }
+        });
+      }
+      if(p.t==='ftbl'){
+        Object.entries(v).forEach(([i,vals])=>{
+          p.keys.forEach(k=>{
+            const el=document.getElementById(`FT_${i}_${k}`);
+            if(el&&vals[k]!==undefined) el.value=vals[k];
+          });
+        });
+      } else if(p.t==='sel'){
+        const el=document.getElementById(`P_${p.k}`);
+        if(el) el.value=v;
+      } else if(p.t==='bounds2'){
+        // bounds2: 存储为 [lo, hi]，恢复到两个独立 input
+        if(Array.isArray(v)&&v.length>=2){
+          const lo=document.getElementById(`B2_lo_${p.k}`);
+          const hi=document.getElementById(`B2_hi_${p.k}`);
+          if(lo) lo.value=v[0];
+          if(hi) hi.value=v[1];
+        }
+      } else if(p.t==='lens_bounds'){
+        // lens_bounds: 存储为 {key: [null|(lo,hi), ...], ...}
+        if(v && typeof v==='object'){
+          const keys=Object.keys(v);
+          if(keys.length) updateLensBoundsKeys(keys); // 重建表格行
+          keys.forEach(key=>{
+            (v[key]||[]).forEach((b,pi)=>{
+              const en=document.getElementById(`LB_${key}_p${pi+1}_en`);
+              if(!en) return;
+              const active=!!(b&&Array.isArray(b));
+              en.checked=active;
+              lbToggle(key,pi+1);
+              if(active){
+                const lo=document.getElementById(`LB_${key}_p${pi+1}_lo`);
+                const hi=document.getElementById(`LB_${key}_p${pi+1}_hi`);
+                if(lo) lo.value=b[0];
+                if(hi) hi.value=b[1];
+              }
+            });
+          });
+        }
+      } else {
+        const el=document.getElementById(`P_${p.k}`);
+        if(el) el.value=v;
+      }
+    });
+  });
+  // 根据恢复的 toggle 值刷新可见性
+  const fe=document.getElementById('T_fine_tuning');
+  if(fe) fineEnabled=fe.checked;
+  const me=document.getElementById('T_MCMC_ENABLED');
+  if(me) mcmcEnabled=me.checked;
+  const ce=document.getElementById('T_MCMC_CUSTOM_RANGE');
+  if(ce) crEnabled=ce.checked;
+  refreshVis();
+}
+
+function restoreGlobalState(){
+  const sd=localStorage.getItem(LS_SRCDIR);
+  if(sd!==null) document.getElementById('srcDir').value=sd;
+  const rr=localStorage.getItem(LS_RESROOT);
+  if(rr!==null) document.getElementById('resRoot').value=rr;
+  const bfm=localStorage.getItem(LS_BFMODE);
+  const bfc=localStorage.getItem(LS_BFCONT)||'';
+  if(bfc){ const el=document.getElementById('bfContent'); if(el) el.value=bfc; }
+  if(bfm && bfm!=='path'){
+    // 恢复为手动模式但不自动打开 overlay（只更新按钮状态）
+    bfMode=bfm;
+    document.getElementById('bfBtnPath')?.classList.remove('active');
+    document.getElementById('bfBtnEdit')?.classList.add('active');
+    document.getElementById('bfPathPane').style.display='none';
+    document.getElementById('bfEditPane').style.display='';
+  }
+  const mid=localStorage.getItem(LS_MODEL);
+  if(mid&&DEFS[mid]) selModel(mid);
+}
+
+// 任意参数变动时自动保存（500ms 防抖）
+let _saveTimer=null;
+function scheduleSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(saveState, 500);
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  // apply saved language on init
+  if(lang==='en'){
+    document.body.classList.add('lang-en');
+  }
+  applyStaticTrans();
+
+  document.getElementById('paramsArea').addEventListener('change', scheduleSave);
+  document.getElementById('paramsArea').addEventListener('input',  scheduleSave);
+  document.getElementById('srcDir').addEventListener('input',  scheduleSave);
+  document.getElementById('resRoot').addEventListener('input', scheduleSave);
+  restoreGlobalState();
+});
+
+// ══════════════════════════════════════════════════════════
+//  bestfit.dat 模式切换与解析
+// ══════════════════════════════════════════════════════════
+let bfMode = 'path';
+let _parseTimer = null;
+let _bfeParsing = false;
+
+function setBfMode(m){
+  bfMode = m;
+  document.getElementById('bfBtnPath').classList.toggle('active', m==='path');
+  document.getElementById('bfBtnEdit').classList.toggle('active', m==='manual');
+  document.getElementById('bfPathPane').style.display = m==='path' ? '' : 'none';
+  document.getElementById('bfEditPane').style.display = m==='manual' ? '' : 'none';
+  if(m==='manual') openBfeOv();
+  scheduleSave();
+}
+
+// ── bestfit overlay open / close ───────────────────────────────────────
+function openBfeOv(){
+  // 把 sidebar textarea 的内容同步到 overlay 编辑器
+  const sideTA = document.getElementById('bfContent');
+  const bfeTA  = document.getElementById('bfeTA');
+  bfeTA.value = sideTA?.value ?? '';
+  bfeLnumUpdate(bfeTA);
+  document.getElementById('bfeOv').classList.add('open');
+  setTimeout(()=>bfeTA.focus(), 280);
+  if(bfeTA.value.trim()) bfeParseFull(bfeTA.value);
+}
+
+function closeBfeOv(){
+  // 把 overlay 内容同步回 sidebar textarea
+  const sideTA = document.getElementById('bfContent');
+  const bfeTA  = document.getElementById('bfeTA');
+  if(sideTA) sideTA.value = bfeTA.value;
+  document.getElementById('bfeOv').classList.remove('open');
+  scheduleSave();
+}
+
+// ── overlay 编辑器交互 ─────────────────────────────────────────────────
+function bfeLnumUpdate(ta){
+  const lines = (ta.value.match(/\n/g)||[]).length + 1;
+  const lc = document.getElementById('bfeLnum');
+  if(lc) lc.textContent = Array.from({length:lines},(_,i)=>i+1).join('\n');
+}
+
+function bfeSyncLnum(ta){
+  const lc = document.getElementById('bfeLnum');
+  if(lc) lc.scrollTop = ta.scrollTop;
+}
+
+function bfeKeydown(e){
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const ta=e.target, s=ta.selectionStart, end=ta.selectionEnd;
+    ta.value = ta.value.substring(0,s)+'  '+ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = s+2;
+    bfeLnumUpdate(ta);
+  }
+}
+
+let _bfeTimer = null;
+function bfeInput(ta){
+  bfeLnumUpdate(ta);
+  clearTimeout(_bfeTimer);
+  _bfeTimer = setTimeout(()=>bfeParseFull(ta.value), 500);
+  // 同步到 sidebar textarea
+  const sideTA = document.getElementById('bfContent');
+  if(sideTA) sideTA.value = ta.value;
+  scheduleSave();
+}
+
+async function bfeParseFull(content){
+  if(!content.trim()){
+    _setBarIdle(); return;
+  }
+  try{
+    const r = await fetch('/api/parse_bestfit',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({content})
+    });
+    const d = await r.json();
+
+    // 更新 overlay 底部状态栏
+    const okCls = d.valid ? 'ok' : 'err';
+    document.getElementById('bfeBarSt').textContent    = d.valid ? S('bfe-valid') : S('bfe-invalid');
+    document.getElementById('bfeBarSt').parentElement.className = `bfe-bar-item ${okCls}`;
+    document.getElementById('bfeBarN').textContent     = d.n_lens ?? '—';
+    document.getElementById('bfeBarType').textContent  = d.main_lens_type ?? '—';
+    document.getElementById('bfeBarSrcZ').textContent  = d.source_z!=null ? d.source_z.toFixed(4) : '—';
+    document.getElementById('bfeBarSrcXY').textContent = (d.source_x!=null && d.source_y!=null)
+      ? `(${d.source_x.toExponential(3)}, ${d.source_y.toExponential(3)})` : '—';
+
+    // 顶部徽章
+    const badge = document.getElementById('bfeStatusBadge');
+    badge.className = `bf-tag ${d.valid?'ok':'err'}`;
+    badge.style.cssText = d.valid
+      ? 'background:rgba(20,184,166,.15);color:var(--teal);padding:3px 10px;font-size:11px;border-radius:10px'
+      : 'background:rgba(239,68,68,.15);color:var(--red);padding:3px 10px;font-size:11px;border-radius:10px';
+    badge.textContent = d.valid
+      ? S('bf-badge-valid') + d.n_lens + S('lens-unit')
+      : `✗ ${d.error||(lang==='en'?'Format error':'格式错误')}`;
+
+    // 同步 sidebar 小面板（如果可见）
+    _syncSidebarResult(d);
+  }catch(_){ _setBarIdle(S('parse-fail')); }
+}
+
+function _setBarIdle(msg){
+  if(!msg) msg = S('bfe-waiting');
+  document.getElementById('bfeBarSt').textContent = msg;
+  document.getElementById('bfeBarSt').parentElement.className = 'bfe-bar-item';
+  ['bfeBarN','bfeBarType','bfeBarSrcZ','bfeBarSrcXY'].forEach(id=>{
+    document.getElementById(id).textContent='—';
+  });
+  const b=document.getElementById('bfeStatusBadge');
+  b.textContent='—';
+  b.style.cssText='padding:3px 10px;font-size:11px;border-radius:10px;background:var(--bg4);color:var(--text3)';
+}
+
+function _syncSidebarResult(d){
+  const res=document.getElementById('bfResult');
+  if(!res) return;
+  res.style.display='';
+  res.className = 'bf-result '+(d.valid?'ok':'err');
+  const st=document.getElementById('bfStatus');
+  if(st){ st.className='bf-tag '+(d.valid?'ok':'err'); st.textContent=d.valid?S('bfr-valid'):S('bfr-invalid'); }
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v??'—'; };
+  set('bfMainType', d.main_lens_type);
+  set('bfNSers', d.n_sers);
+  set('bfSrcZ', d.source_z?.toFixed(6));
+  set('bfSrcXY', (d.source_x!=null&&d.source_y!=null)
+    ? `(${d.source_x.toExponential(4)}, ${d.source_y.toExponential(4)})` : null);
+  set('bfTypes', d.lens_types?.join(' → '));
+  const nlEl=document.getElementById('bfNLens');
+  if(nlEl) nlEl.value = d.n_lens ?? 3;
+}
+
+function scheduleParse(){
+  clearTimeout(_parseTimer);
+  _parseTimer = setTimeout(parseBestfit, 600);
+  scheduleSave();
+}
+
+async function parseBestfit(){
+  const content = document.getElementById('bfContent')?.value.trim() ?? '';
+  if(!content) return;
+  await bfeParseFull(content);
+}
+
+// ══════════════════════════════════════════════════════════
+//  设为默认
+// ══════════════════════════════════════════════════════════
+async function doSaveDefaults(){
+  if(!curModel) return;
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  document.querySelector('#saveBtn span[data-i18n]').textContent = S('save-saving');
+  try{
+    const resp = await fetch('/api/save_defaults',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:      curModel,
+        overrides:  collectParams(),
+        bf_mode:    bfMode,
+        bf_content: document.getElementById('bfeTA')?.value ||
+                    document.getElementById('bfContent')?.value || ''
+      })
+    });
+    const d = await resp.json();
+    if(d.ok){
+      document.querySelector('#saveBtn span[data-i18n]').textContent = S('save-ok');
+      tlog(S('save-def-pfx') + d.msg,'ok');
+    } else {
+      document.querySelector('#saveBtn span[data-i18n]').textContent = S('save-fail');
+      tlog(S('save-def-err') + d.error,'err');
+    }
+  }catch(e){
+    document.querySelector('#saveBtn span[data-i18n]').textContent = S('save-err');
+    tlog(S('save-def-pfx') + e.message,'err');
+  }
+  setTimeout(()=>{
+    btn.disabled=false;
+    applyStaticTrans(); // restore button text
+  }, 2500);
+}
+
+// ══════════════════════════════════════════════════════════
+//  Run / Stop
+// ══════════════════════════════════════════════════════════
+async function doRun(){
+  if(!curModel) return;
+  const srcDir   = document.getElementById('srcDir').value.trim();
+  const bfContent= document.getElementById('bfContent')?.value.trim() ?? '';
+  const resRoot  = document.getElementById('resRoot').value.trim()||'results';
+  const overrides= collectParams();
+
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('stopBtn').disabled= false;
+  setStatus('running', S('status-running'));
+  clearTerm();
+  tlog(S('run-start') + DEFS[curModel].name,'acc');
+  tlog(S('run-submitting'),'dim');
+  if(bfMode==='manual' && bfContent)
+    tlog(S('run-manual-bf'),'dim');
+
+  try{
+    const resp = await fetch('/api/run',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:curModel, source_dir:srcDir, results_root:resRoot,
+        overrides, bf_mode:bfMode, bf_content:bfContent
+      })
+    });
+    const data = await resp.json();
+    if(data.error){
+      tlog(`[ERROR] ${data.error}`,'err');
+      setStatus('idle', S('status-error')); resetBtns(); return;
+    }
+    jobId = data.job_id;
+    tlog(S('run-jobid') + jobId,'dim');
+    startSSE(jobId);
+  }catch(e){
+    tlog(`[ERROR] ${e.message}`,'err');
+    setStatus('idle', S('status-error')); resetBtns();
+  }
+}
+
+function startSSE(jid){
+  if(sse) sse.close();
+  sse = new EventSource(`/api/stream/${jid}`);
+  sse.onmessage = e=>{
+    const msg = JSON.parse(e.data);
+    if(msg.type==='output'){
+      const ln=msg.data;
+      let cls='inf';
+      if(/[Ee]rror|错误|Traceback/.test(ln))  cls='err';
+      else if(/[Ww]arning|警告/.test(ln))     cls='wrn';
+      else if(/^={3,}|^-{3,}/.test(ln))       cls='sep';
+      else if(/Best|最优|Iter |Iteration/.test(ln)) cls='acc';
+      else if(/^\[GLADE\]|^\[INFO\]/.test(ln))cls='dim';
+      tlog(ln,cls);
+    } else if(msg.type==='error'){
+      tlog(`[ERROR] ${msg.data}`,'err');
+    } else if(msg.type==='done'){
+      const rc=msg.returncode;
+      if(rc===0){ tlog(S('run-complete'),'ok'); setStatus('idle', S('status-done')); }
+      else       { tlog(S('run-finished')+rc+'）','err'); setStatus('idle', S('status-failed')); }
+      resetBtns(); sse.close();
+    }
+  };
+  sse.onerror = ()=>{
+    if(sse.readyState===EventSource.CLOSED){
+      setStatus('idle', S('status-disconn')); resetBtns();
+    }
+  };
+}
+
+async function doStop(){
+  if(!jobId) return;
+  try{ await fetch(`/api/stop/${jobId}`,{method:'POST'}); }catch(_){}
+  if(sse) sse.close();
+  tlog(S('stop-signal'),'wrn');
+  setStatus('idle', S('status-stopped')); resetBtns();
+}
+
+function resetBtns(){
+  document.getElementById('runBtn').disabled = !curModel;
+  document.getElementById('stopBtn').disabled= true;
+}
+
+// ══════════════════════════════════════════════════════════
+//  Terminal
+// ══════════════════════════════════════════════════════════
+function tlog(text, cls='inf'){
+  const o = document.getElementById('tOut');
+  const d = document.createElement('div');
+  d.className = `t-line ${cls}`;
+  d.textContent = text;
+  o.appendChild(d);
+  o.scrollTop = o.scrollHeight;
+}
+function clearTerm(){ document.getElementById('tOut').innerHTML=''; }
+
+let termFolded=false;
+function foldTerm(){
+  const tp=document.getElementById('termPanel');
+  const to=document.getElementById('tOut');
+  const fb=document.getElementById('foldBtn');
+  termFolded=!termFolded;
+  if(termFolded){ tp.style.height='34px'; to.style.display='none'; fb.textContent=S('unfold'); }
+  else          { tp.style.height='250px'; to.style.display=''; fb.textContent=S('fold'); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  Status
+// ══════════════════════════════════════════════════════════
+function setStatus(state,txt){
+  const d=document.getElementById('sdot');
+  const t=document.getElementById('stxt');
+  d.className='status-dot'+(state==='running'?' running':'');
+  t.textContent=txt;
+}
+
+// ══════════════════════════════════════════════════════════
+//  Terminal Drag Resize
+// ══════════════════════════════════════════════════════════
+(()=>{
+  const bar=document.getElementById('tResize');
+  const tp =document.getElementById('termPanel');
+  let drag=false, sy=0, sh=0;
+  bar.addEventListener('mousedown',e=>{
+    drag=true; sy=e.clientY; sh=tp.offsetHeight;
+    document.body.style.userSelect='none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag)return;
+    const nh=Math.max(60,Math.min(700,sh+(sy-e.clientY)));
+    tp.style.height=nh+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    drag=false; document.body.style.userSelect='';
+  });
+})();
+</script>
+</body>
+</html>

@@ -62,27 +62,31 @@ def load_baseline_lens_params(directory):
             elif parts[0] == 'point':
                 point_params = parts
 
-    if len(lens_lines) < 3:
+    if len(lens_lines) < 1:
         raise ValueError(
-            f"bestfit.dat 需要至少3行 lens 参数，实际找到 {len(lens_lines)} 行: {bestfit_path}")
+            f"bestfit.dat 需要至少1行 lens 参数，实际找到 {len(lens_lines)} 行: {bestfit_path}")
     if point_params is None:
         raise ValueError(f"bestfit.dat 缺少 point 行（源位置参数）: {bestfit_path}")
 
-    params_dict, sers_count, main_lens_key = {}, 0, None
+    params_dict, sers_count, type_counts, main_lens_key = {}, 0, {}, None
     for parts in lens_lines:
         lens_type = parts[1]
         z = float(parts[2])
-        vals = [float(v) for v in parts[3:]]
+        raw = [float(v) for v in parts[3:]]
+        vals = (raw + [0.0] * 7)[:7]
+        idx = len(params_dict) + 1
         if lens_type == 'sers':
             sers_count += 1
-            params_dict[f'sers{sers_count}'] = (sers_count, 'sers', z, *vals)
+            key = f'sers{sers_count}'
         else:
-            main_lens_key = lens_type
-            params_dict[lens_type] = (sers_count + 1, lens_type, z, *vals)
+            type_counts[lens_type] = type_counts.get(lens_type, 0) + 1
+            n = type_counts[lens_type]
+            key = lens_type if n == 1 else f'{lens_type}{n}'
+            main_lens_key = key
+        params_dict[key] = (idx, lens_type, z, *vals)
 
     if main_lens_key is None:
-        raise ValueError(
-            f"bestfit.dat 中未找到主透镜（非 sers 类型，如 sie/anfw）: {bestfit_path}")
+        main_lens_key = list(params_dict.keys())[-1]
 
     return params_dict, float(point_params[2]), float(point_params[3]), main_lens_key
 
@@ -389,24 +393,26 @@ JAFFE_PROFILE_RMAX = 0.2     # profile绘制的最大半径 [arcsec]
 # ║                         固定参数                                       ║
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
-# 观测数据 - iPTF16geu 四重像位置
-obs_positions_mas = np.array([     # [mas] 毫角秒
-    [-266.035, +0.427],
-    [+118.835, -221.927],
-    [+238.324, +227.270],
-    [-126.157, +319.719],
-])
+# ==================== 可注入的观测数据（WebUI / 注入器可覆盖）====================
+obs_positions_mas_list = [[-266.035, +0.427], [+118.835, -221.927], [+238.324, +227.270], [-126.157, +319.719]]
+obs_magnifications_list = [-35.6, 15.7, -7.5, 9.1]
+obs_mag_errors_list = [2.1, 1.3, 1.0, 1.1]
+obs_pos_sigma_mas_list = [0.41, 0.86, 2.23, 3.11]
+center_offset_x = +0.01535000   # 与观测数据同坐标系：天球坐标时填RA方向(东=正)，数学坐标时填向右为正
+center_offset_y = +0.03220000   # [arcsec]
+obs_x_flip = True   # True=输入为天球坐标(RA东向右输入，程序统一取负转数学坐标x向右); False=输入已为数学坐标
 
-obs_positions = np.zeros_like(obs_positions_mas)  # [arcsec] 角秒
-obs_positions[:, 0] = -obs_positions_mas[:, 0] / 1000.0
+# 坐标转换：统一取符号，同时作用于观测位置和中心偏移，确保两者始终在同一坐标系下
+_x_sign = -1 if obs_x_flip else 1
+obs_positions_mas = np.array(obs_positions_mas_list)
+obs_positions = np.zeros_like(obs_positions_mas)
+obs_positions[:, 0] = _x_sign * obs_positions_mas[:, 0] / 1000.0
 obs_positions[:, 1] = obs_positions_mas[:, 1] / 1000.0
+center_offset_x    = _x_sign * center_offset_x   # 输入坐标系 → 模型(数学)坐标
 
-obs_magnifications = np.array([-35.6, 15.7, -7.5, 9.1])  # [dimensionless] 放大率
-obs_mag_errors = np.array([2.1, 1.3, 1.0, 1.1])          # [dimensionless] 放大率误差
-obs_pos_sigma_mas = np.array([0.41, 0.86, 2.23, 3.11])   # [mas] 位置不确定度
-
-center_offset_x = -0.01535000   # [arcsec] 坐标系原点偏移
-center_offset_y = +0.03220000   # [arcsec] 坐标系原点偏移
+obs_magnifications = np.array(obs_magnifications_list)
+obs_mag_errors = np.array(obs_mag_errors_list)
+obs_pos_sigma_mas = np.array(obs_pos_sigma_mas_list)
 
 # 宇宙学参数
 omega = 0.3                      # Ωm [dimensionless] 物质密度参数
