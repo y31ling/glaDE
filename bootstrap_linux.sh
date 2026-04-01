@@ -10,6 +10,30 @@ info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err() { echo -e "${RED}[ERR ]${NC} $*"; }
 
+# ── Install mode (set by choose_install_mode) ─────────────
+USE_VENV=1   # 1 = virtual environment (default), 0 = global/system Python
+
+choose_install_mode() {
+  echo
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  GLADE Installation Mode / 安装模式选择"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  [1] Virtual environment"
+  echo    "      Isolated in .venv/ — does not affect system Python"
+  echo    "      隔离在 .venv/ 中，不影响系统 Python"
+  echo
+  echo    "  [2] Global / System Python"
+  echo    "      Installs packages into the system Python directly"
+  echo    "      直接安装到系统 Python，运行脚本时无需 source env.sh"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  read -rp "  Choose [1/2] (default: 1): " _choice
+  case "${_choice}" in
+    2) USE_VENV=0; info "Mode: global system Python install." ;;
+    *) USE_VENV=1; info "Mode: virtual environment (.venv/)." ;;
+  esac
+  echo
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
@@ -213,27 +237,73 @@ build_glafic() {
 }
 
 setup_python_env() {
-  info "创建 Python 虚拟环境..."
-  python3 -m venv "${VENV_DIR}"
-  # shellcheck disable=SC1091
-  source "${VENV_DIR}/bin/activate"
-  pip install --upgrade pip setuptools wheel
-  pip install -r "${SCRIPT_DIR}/requirements.txt"
+  if [[ "${USE_VENV}" -eq 1 ]]; then
+    info "创建 Python 虚拟环境 (.venv/)..."
+    python3 -m venv "${VENV_DIR}"
+    # shellcheck disable=SC1091
+    source "${VENV_DIR}/bin/activate"
+    pip install --upgrade pip setuptools wheel
+    pip install -r "${SCRIPT_DIR}/requirements.txt"
+  else
+    info "全局安装 Python 依赖 (system Python)..."
+    # Detect if pip needs --break-system-packages (PEP 668, Ubuntu 23.04+)
+    local bsp_flag=""
+    if pip3 install --help 2>&1 | grep -q -- "--break-system-packages"; then
+      bsp_flag="--break-system-packages"
+    fi
+    # shellcheck disable=SC2086
+    pip3 install ${bsp_flag} --upgrade pip setuptools wheel
+    # shellcheck disable=SC2086
+    pip3 install ${bsp_flag} -r "${SCRIPT_DIR}/requirements.txt"
+  fi
+}
+
+# ── Register glafic Python module path via .pth file ──────
+# This allows `import glafic` to work from ANY Python invocation
+# without needing to source env.sh first.
+install_glafic_to_python() {
+  local glafic_py_dir="${GLAFIC_SRC_DIR}/python"
+  local pth_name="glafic_glade.pth"
+  local site_pkgs
+
+  if [[ "${USE_VENV}" -eq 1 ]]; then
+    site_pkgs="$("${VENV_DIR}/bin/python3" -c \
+      "import site; print(site.getsitepackages()[0])")"
+  else
+    site_pkgs="$(python3 -c \
+      "import site; print(site.getsitepackages()[0])")"
+  fi
+
+  info "注册 glafic 模块路径到 site-packages..."
+  echo "${glafic_py_dir}" > "${site_pkgs}/${pth_name}"
+  info "  ${glafic_py_dir}"
+  info "  -> ${site_pkgs}/${pth_name}"
 }
 
 write_env_script() {
-  cat > "${SCRIPT_DIR}/env.sh" <<'EOF'
+  # Write the common header
+  {
+    cat <<'ENVEOF'
 #!/usr/bin/env bash
 set -e
 GLADE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GLAFIC_HOME="${GLADE_ROOT}/glafic2"
 GLAFIC_PYTHON_PATH="${GLAFIC_HOME}/python"
 GLAFIC_LIB_PATH="${GLADE_ROOT}/deps/install/lib"
+ENVEOF
+
+    # Conditionally activate venv
+    if [[ "${USE_VENV}" -eq 1 ]]; then
+      cat <<'VENVEOF'
 
 if [[ -f "${GLADE_ROOT}/.venv/bin/activate" ]]; then
   # shellcheck disable=SC1091
   source "${GLADE_ROOT}/.venv/bin/activate"
 fi
+VENVEOF
+    fi
+
+    cat <<'ENVEOF'
 
 export GLADE_ROOT
 export GLAFIC_HOME
@@ -242,7 +312,8 @@ export GLAFIC_LIB_PATH
 export PYTHONPATH="${GLAFIC_PYTHON_PATH}:${GLADE_ROOT}/tools:${PYTHONPATH:-}"
 export LD_LIBRARY_PATH="${GLAFIC_LIB_PATH}:${LD_LIBRARY_PATH:-}"
 export PATH="${GLAFIC_HOME}:${PATH}"
-EOF
+ENVEOF
+  } > "${SCRIPT_DIR}/env.sh"
   chmod +x "${SCRIPT_DIR}/env.sh"
 }
 
@@ -253,7 +324,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/env.sh"
-python "${SCRIPT_DIR}/main.py" "$@"
+python3 "${SCRIPT_DIR}/main.py" "$@"
 EOF
   chmod +x "${SCRIPT_DIR}/run_glade.sh"
 }
@@ -274,27 +345,50 @@ echo "  GLADE WebUI"
 echo "  Open in browser: http://localhost:${GLADE_PORT}"
 echo "  Press Ctrl+C to stop"
 echo "============================================================"
-python "${SCRIPT_DIR}/web/app.py"
+python3 "${SCRIPT_DIR}/web/app.py"
 EOF
   chmod +x "${SCRIPT_DIR}/run_webui.sh"
 }
 
 verify_installation() {
-  info "验证 glafic Python 模块导入..."
+  local python_bin
+  if [[ "${USE_VENV}" -eq 1 ]]; then
+    python_bin="${VENV_DIR}/bin/python3"
+  else
+    python_bin="python3"
+  fi
+
+  info "验证 glafic Python 模块（直接调用，不依赖 env.sh）..."
+  "${python_bin}" - <<'PY'
+import os, sys
+try:
+    import glafic
+    print("  [OK] glafic import succeeded")
+    print("       module:", glafic.__file__)
+except ImportError as e:
+    print("  [FAIL]", e)
+    sys.exit(1)
+PY
+
+  info "验证 LD_LIBRARY_PATH（通过 env.sh）..."
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/env.sh"
-  python - <<'PY'
-import os
-import glafic
-print("glafic import OK")
-print("module:", glafic.__file__)
-print("GLAFIC_HOME:", os.environ.get("GLAFIC_HOME"))
+  python3 - <<'PY'
+import os, sys
+try:
+    import glafic
+    print("  [OK] glafic import via env.sh succeeded")
+    print("       GLAFIC_HOME:", os.environ.get("GLAFIC_HOME"))
+except ImportError as e:
+    print("  [FAIL]", e)
+    sys.exit(1)
 PY
-  info "验证完成。"
+  info "全部验证通过。"
 }
 
 main() {
   info "开始为 Linux 自动搭建 GLADE 环境..."
+  choose_install_mode
   install_system_packages
 
   mkdir -p "${DEPS_SRC_DIR}" "${DEPS_PREFIX}/lib" "${DEPS_PREFIX}/include"
@@ -303,12 +397,25 @@ main() {
   build_gsl
   build_glafic
   setup_python_env
+  install_glafic_to_python   # register glafic in site-packages (.pth)
   write_env_script
   write_run_script
   write_webui_script
   verify_installation
 
   info "全部完成。"
+  echo
+  echo "================================================================"
+  if [[ "${USE_VENV}" -eq 1 ]]; then
+    echo "  Install mode: virtual environment (.venv/)"
+    echo "  To run scripts manually:  source ${SCRIPT_DIR}/env.sh"
+  else
+    echo "  Install mode: global system Python"
+    echo "  glafic is importable from any python3 invocation."
+    echo "  Still source env.sh to set LD_LIBRARY_PATH and PATH:"
+    echo "    source ${SCRIPT_DIR}/env.sh"
+  fi
+  echo "================================================================"
   echo
   echo "Next steps:"
   echo "  CLI mode:"
@@ -319,6 +426,9 @@ main() {
   echo "    1) Run: ${SCRIPT_DIR}/run_webui.sh"
   echo "    2) Open http://localhost:6017 in your browser"
   echo "    (Set GLADE_PORT=<port> to use a different port)"
+  echo
+  echo "  Run model scripts directly (global mode or after source env.sh):"
+  echo "    python3 legacy/v_pointmass_1_0/version_pointmass_1_0.py"
 }
 
 main "$@"
