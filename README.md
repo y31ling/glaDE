@@ -6,7 +6,9 @@
 
 ---------------It's quite a prototype right now, there are still many works and problems waiting to do and fix.---------------
 
-> **V0.2.0 Major Update**: Added a bilingual (Chinese / English) WebUI for browser-based parameter configuration and job launching; new **None** model for direct DE/MCMC optimization of source or lens parameters without subhalo search; fixed multiple hard-coded values for broader dataset compatibility.
+> **V0.2.0 Major Update**: Added a bilingual (Chinese / English) WebUI for browser-based parameter configuration and job launching;
+>  new **None** model for direct DE/MCMC optimization of source or lens parameters without subhalo search;
+> fixed multiple hard-coded values for broader dataset compatibility.
 
 
 
