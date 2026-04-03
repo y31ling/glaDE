@@ -13,6 +13,10 @@ Version Pseudo-Jaffe 2.0: Flexible Pseudo-Jaffe Sub-halos Search with MCMC
 
 import sys
 
+import multiprocessing
+if multiprocessing.get_start_method(allow_none=True) != 'fork':
+    multiprocessing.set_start_method('fork', force=True)
+
 import glafic
 import random
 import numpy as np
@@ -874,55 +878,20 @@ import scipy
 
 print(f"  Scipy版本: {scipy.__version__}")
 
-# 使用try-except处理不同scipy版本的参数兼容性
-# 不同scipy版本可能使用不同的随机种子参数名
-try:
-    # 尝试使用seed参数（scipy某些版本）
-    solver = DifferentialEvolutionSolver(
-        objective_function,
-        bounds,
-        maxiter=DE_MAXITER,
-        popsize=DE_POPSIZE,
-        atol=DE_ATOL,
-        tol=DE_TOL,
-        seed=DE_SEED,
-        polish=DE_POLISH,
-        disp=False,
-        workers=DE_WORKERS,
-        updating='deferred'
-    )
-    print(f"  使用seed参数初始化成功")
-except TypeError:
-    try:
-        solver = DifferentialEvolutionSolver(
-            objective_function,
-            bounds,
-            maxiter=DE_MAXITER,
-            popsize=DE_POPSIZE,
-            atol=DE_ATOL,
-            tol=DE_TOL,
-            random_state=DE_SEED,
-            polish=DE_POLISH,
-            disp=False,
-            workers=DE_WORKERS,
-            updating='deferred'
-        )
-        print(f"  使用random_state参数初始化成功")
-    except TypeError:
-        print(f"  scipy不支持seed/random_state参数，使用numpy.random.seed()替代")
-        np.random.seed(DE_SEED)
-        solver = DifferentialEvolutionSolver(
-            objective_function,
-            bounds,
-            maxiter=DE_MAXITER,
-            popsize=DE_POPSIZE,
-            atol=DE_ATOL,
-            tol=DE_TOL,
-            polish=DE_POLISH,
-            disp=False,
-            workers=DE_WORKERS,
-            updating='deferred'
-        )
+np.random.seed(DE_SEED)
+solver = DifferentialEvolutionSolver(
+    objective_function,
+    bounds,
+    maxiter=DE_MAXITER,
+    popsize=DE_POPSIZE,
+    atol=DE_ATOL,
+    tol=DE_TOL,
+    polish=DE_POLISH,
+    disp=False,
+    workers=DE_WORKERS,
+    updating='deferred',
+    rng=np.random.default_rng(DE_SEED),
+)
 
 # 记录初始种群
 if Draw_Graph:

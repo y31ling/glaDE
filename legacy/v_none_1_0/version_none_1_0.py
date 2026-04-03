@@ -24,6 +24,9 @@ lens_optimize_bounds 格式（fine_tuning=True 时生效）:
 """
 
 import sys
+import multiprocessing
+if multiprocessing.get_start_method(allow_none=True) != 'fork':
+    multiprocessing.set_start_method('fork', force=True)
 import random
 import glafic
 import numpy as np
@@ -34,6 +37,8 @@ from datetime import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import subprocess
+from plot_paper_style import plot_paper_style, plot_paper_style_compare, read_critical_curves
 
 # ══════════════════════════════════════════════════════════
 # §1  公共辅助函数（与其他版本保持一致）
@@ -170,6 +175,7 @@ OUTPUT_PREFIX = 'v_none_1_0'
 COMPARE_GRAPH = True
 Draw_Graph = 1
 draw_interval = 25
+PRINT_INTERVAL = 10
 
 # ── 可注入的观测数据 ────────────────────────────────────────
 obs_positions_mas_list = [[-330.461, 0], [330.461, 0], [0, -262.771], [0, 262.771]]
@@ -421,15 +427,6 @@ if base_missing > 0:
 # §7  目标函数
 # ══════════════════════════════════════════════════════════
 
-_iter_count = [0]
-_best_loss  = [float('inf')]
-_no_improve = [0]
-
-
-_best_loss  = [float('inf')]
-_no_improve = [0]
-
-
 def objective(x):
     sx = source_x_ref
     sy = source_y_ref
@@ -442,51 +439,72 @@ def objective(x):
 
     lp_t = {k: tuple(v) for k, v in cur_lp.items()}
     _, _, delta_mas, loss, _ = compute_model(sx, sy, lp_t)
-
-    # 仅单进程模式下全局计数有效；workers=-1 时更新发生在子进程，主进程看不到
-    if loss < _best_loss[0]:
-        _best_loss[0] = loss
-        _no_improve[0] = 0
-    else:
-        _no_improve[0] += 1
     return loss
 
 
 # ══════════════════════════════════════════════════════════
-# §8  DE 优化
+# §8  迭代绘图函数
 # ══════════════════════════════════════════════════════════
 
-_iter_count = [0]
+def plot_iteration_population(population, iteration_num, output_dir, bounds, pmap):
+    """绘制种群参数分布直方图"""
+    if Draw_Graph == 0 or ndim == 0:
+        return
+    if iteration_num % draw_interval != 0 and iteration_num != 0:
+        return
 
-_parallel_mode = (DE_WORKERS != 1)   # workers=-1 或 >1 时为并行模式
+    if population.max() <= 1.0 and population.min() >= 0.0:
+        population_denorm = np.zeros_like(population)
+        for i in range(population.shape[1]):
+            lower, upper = bounds[i]
+            population_denorm[:, i] = population[:, i] * (upper - lower) + lower
+        population = population_denorm
 
-def de_callback(xk, convergence):
-    """迭代回调。
-    - 单进程(workers=1): 直接读取全局 _best_loss/_no_improve。
-    - 多进程(workers!=1): 全局变量在子进程更新，主进程不可见；
-      re-evaluate 一次以获取当前最优 loss，早停依赖 convergence 值。
-    """
-    _iter_count[0] += 1
-    gen = _iter_count[0]
+    n_params = population.shape[1]
+    ncols = min(n_params, 4)
+    nrows = (n_params + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 3 * nrows))
+    if n_params == 1:
+        axes = np.array([[axes]])
+    axes = np.atleast_2d(axes)
 
-    if _parallel_mode:
-        # 并行模式：用 xk（当前最优参数）重新计算一次 loss，用于显示
-        cur_loss = objective(xk)
-        if cur_loss < _best_loss[0]:
-            _best_loss[0] = cur_loss
-            _no_improve[0] = 0
+    param_labels = []
+    for ptype, key, pi in pmap:
+        if ptype == 'src_x':
+            param_labels.append('src_x')
+        elif ptype == 'src_y':
+            param_labels.append('src_y')
         else:
-            _no_improve[0] += 1
+            param_labels.append(f'{key}_p{pi+1}')
 
-    if gen % draw_interval == 0:
-        print(f"  迭代 {gen:4d}: best={_best_loss[0]:.6f}, "
-              f"no_improve={_no_improve[0]}", flush=True)
+    for idx in range(n_params):
+        r, c = divmod(idx, ncols)
+        ax = axes[r][c]
+        ax.hist(population[:, idx], bins=20, alpha=0.6, color='steelblue')
+        ax.set_xlabel(param_labels[idx], fontsize=9)
+        ax.set_ylabel('Count', fontsize=8)
+        ax.grid(True, linestyle=':', alpha=0.3)
+        ax.set_xlim(bounds[idx])
 
-    if EARLY_STOPPING and _no_improve[0] >= EARLY_STOP_PATIENCE:
-        print(f"  [早停] 连续 {EARLY_STOP_PATIENCE} 次无改善，停止优化")
-        return True
-    return False
+    for idx in range(n_params, nrows * ncols):
+        r, c = divmod(idx, ncols)
+        axes[r][c].set_visible(False)
 
+    plt.suptitle(f'Iteration {iteration_num}: Parameter Distribution',
+                 fontsize=14, fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    output_file = os.path.join(output_dir, f'iteration_{iteration_num:04d}.png')
+    plt.savefig(output_file, dpi=120, bbox_inches='tight')
+    plt.close()
+    print(f"    保存迭代图: iteration_{iteration_num:04d}.png")
+
+
+# ══════════════════════════════════════════════════════════
+# §9  DE 优化（DifferentialEvolutionSolver）
+# ══════════════════════════════════════════════════════════
+
+if draw_interval < 1:
+    draw_interval = 1
 
 print("\n" + "=" * 70)
 if ndim == 0:
@@ -494,40 +512,75 @@ if ndim == 0:
     print("        直接输出基准模型结果。")
     print("=" * 70)
     best_x    = np.array([])
-    best_loss = objective(best_x) if ndim == 0 else float('inf')
-    # Recompute baseline
     best_sx, best_sy = source_x_ref, source_y_ref
     best_lp  = {k: tuple(v) for k, v in lens_params_ref.items()}
+    best_loss = base_loss
 else:
     print(f"步骤 2: 差分进化优化 (维度={ndim})")
     print("=" * 70)
 
-    try:
-        import scipy
-        scipy_ver = tuple(int(x) for x in scipy.__version__.split('.')[:2])
-        de_kwargs = dict(
-            func=objective, bounds=bounds,
-            maxiter=DE_MAXITER, popsize=DE_POPSIZE,
-            atol=DE_ATOL, tol=DE_TOL,
-            polish=DE_POLISH, workers=DE_WORKERS,
-            callback=de_callback,
-        )
-        if scipy_ver >= (1, 7):
-            import numpy as _np
-            _np.random.seed(DE_SEED)
+    from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
+    import scipy
+    print(f"  Scipy版本: {scipy.__version__}")
+
+    np.random.seed(DE_SEED)
+    solver = DifferentialEvolutionSolver(
+        objective, bounds,
+        maxiter=DE_MAXITER, popsize=DE_POPSIZE,
+        atol=DE_ATOL, tol=DE_TOL,
+        rng=np.random.default_rng(DE_SEED), polish=DE_POLISH,
+        disp=False, workers=DE_WORKERS, updating='deferred')
+
+    if Draw_Graph:
+        plot_iteration_population(solver.population.copy(), 0, output_dir, bounds, pmap)
+
+    iteration = 1
+    previous_best_energy = np.min(solver.population_energies)
+    best_ever_energy = previous_best_energy
+    converged_count = 0
+
+    print(f"\n迭代 0: 初始最佳 = {previous_best_energy:.6f}")
+
+    while True:
+        try:
+            next_gen = solver.__next__()
+        except StopIteration:
+            print(f"\n  优化收敛！")
+            break
+
+        current_best_energy = np.min(solver.population_energies)
+
+        if iteration % PRINT_INTERVAL == 0 or current_best_energy < best_ever_energy:
+            if current_best_energy < best_ever_energy:
+                print(f"迭代 {iteration}: 最佳 = {current_best_energy:.6f}  (改进)")
+                best_ever_energy = current_best_energy
+            else:
+                print(f"迭代 {iteration}: 最佳 = {current_best_energy:.6f}")
+
+        if Draw_Graph and iteration % draw_interval == 0:
+            plot_iteration_population(solver.population.copy(), iteration, output_dir, bounds, pmap)
+
+        abs_change = abs(current_best_energy - previous_best_energy)
+        if abs_change < DE_ATOL:
+            converged_count += 1
+            if EARLY_STOPPING and converged_count >= EARLY_STOP_PATIENCE:
+                print(f"\n  早停触发！连续 {converged_count} 次满足容差。")
+                break
         else:
-            de_kwargs['seed'] = DE_SEED
+            converged_count = 0
 
-        sys.stdout.flush()   # fork 前清空缓冲，防止子进程继承并重复输出
-        result = differential_evolution(**de_kwargs)
-    except Exception as e:
-        print(f"  [警告] DE 运行异常: {e}")
-        result = type('R', (), {'x': np.array([b[0] for b in bounds]), 'fun': 1e10})()
+        previous_best_energy = current_best_energy
+        iteration += 1
 
-    best_x    = result.x
-    best_loss = result.fun
+        if iteration > DE_MAXITER:
+            print(f"\n  达到最大迭代次数 {DE_MAXITER}。")
+            break
 
-    # Reconstruct best params
+    print(f"\n总迭代次数: {iteration}  最终最佳值: {best_ever_energy:.6f}")
+
+    best_x = solver.x
+    best_loss = np.min(solver.population_energies)
+
     best_sx, best_sy = source_x_ref, source_y_ref
     best_lp_list = {k: list(v) for k, v in lens_params_ref.items()}
     for i, (ptype, key, pi) in enumerate(pmap):
@@ -539,7 +592,7 @@ else:
     print(f"\n  最优 loss = {best_loss:.6f}")
 
 # ══════════════════════════════════════════════════════════
-# §9  最优结果评估
+# §10  最优结果评估
 # ══════════════════════════════════════════════════════════
 
 print("\n" + "=" * 70)
@@ -578,8 +631,11 @@ if lens_modify:
         if key in lens_keys_in_pmap:
             print(f"    {key}: {[f'{v:.4g}' for v in pv[3:]]}")
 
+max_pos_deviation_mas = CONSTRAINT_SIGMA * obs_pos_sigma_mas
+constraint_satisfied = all(opt_delta[i] <= max_pos_deviation_mas[i] for i in range(n_obs))
+
 # ══════════════════════════════════════════════════════════
-# §10  保存结果
+# §11  保存结果
 # ══════════════════════════════════════════════════════════
 
 best_params_file = os.path.join(output_dir, f"{OUTPUT_PREFIX}_best_params.txt")
@@ -613,93 +669,321 @@ with open(best_params_file, 'w') as f:
 print(f"\n  结果已保存: {best_params_file}")
 
 # ══════════════════════════════════════════════════════════
-# §11  结果对比图
-# ══════════════════════════════════════════════════════════
-
-def make_result_figure(positions, magnifications, delta_mas, title, filename):
-    """Plot image positions and magnification comparison (English labels)."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-    ax = axes[0]
-    ax.scatter(obs_positions[:, 0] * 1000, obs_positions[:, 1] * 1000,
-               s=120, c='black', marker='o', zorder=5, label='Observed')
-    ax.scatter(positions[:, 0] * 1000, positions[:, 1] * 1000,
-               s=80, c='red', marker='x', zorder=4, label='Predicted')
-    for i in range(n_obs):
-        ax.plot([obs_positions[i, 0] * 1000, positions[i, 0] * 1000],
-                [obs_positions[i, 1] * 1000, positions[i, 1] * 1000],
-                'r--', alpha=0.5, linewidth=0.8)
-    ax.set_xlabel('x (mas)')
-    ax.set_ylabel('y (mas)')
-    ax.set_title(f'{title} — Image Positions')
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[1]
-    x = np.arange(n_obs)
-    ax.bar(x - 0.2, obs_magnifications, 0.4, label='Obs. mu', alpha=0.8)
-    ax.bar(x + 0.2, magnifications,     0.4, label='Model mu', alpha=0.8)
-    ax.set_xticks(x)
-    ax.set_xticklabels([f'Img {i+1}' for i in range(n_obs)])
-    ax.set_ylabel('Magnification mu')
-    ax.set_title(f'{title} — Magnification')
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3, axis='y')
-
-    plt.tight_layout()
-    out = os.path.join(output_dir, filename)
-    plt.savefig(out, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  Figure: {out}")
-
-
-if Draw_Graph:
-    make_result_figure(base_pos, base_mag, base_delta,
-                       'Baseline', f'{OUTPUT_PREFIX}_baseline.png')
-    if COMPARE_GRAPH and ndim > 0:
-        make_result_figure(opt_pos, opt_mag, opt_delta,
-                           'Optimized', f'{OUTPUT_PREFIX}_optimized.png')
-
-# ══════════════════════════════════════════════════════════
-# §12  [可选] MCMC 后验采样
+# §12  MCMC 后验采样
 # ══════════════════════════════════════════════════════════
 
 if MCMC_ENABLED and ndim > 0:
     print("\n" + "=" * 70)
-    print("步骤 4: MCMC 后验采样")
+    print("步骤 4: MCMC 后验采样（基于DE最优解）")
     print("=" * 70)
+
     try:
         import emcee
+        import corner
+        from tqdm import tqdm
+        print(f"  emcee, corner, tqdm 已导入")
+    except ImportError as e:
+        print(f"  缺少依赖库: {e}")
+        print(f"    请运行: pip install emcee corner tqdm")
+        MCMC_ENABLED = False
 
-        def log_prob(x):
-            for i, (lo, hi) in enumerate(bounds):
-                if not (lo <= x[i] <= hi):
-                    return -np.inf
-            loss = objective(x)
-            return -0.5 * loss
+if MCMC_ENABLED and ndim > 0:
 
-        nw = max(MCMC_NWALKERS, 2 * ndim + 2)
-        rng = np.random.default_rng(DE_SEED)
-        p0  = best_x + rng.normal(0, MCMC_PERTURBATION, (nw, ndim))
-        # Clip to bounds
-        for i, (lo, hi) in enumerate(bounds):
-            p0[:, i] = np.clip(p0[:, i], lo, hi)
+    def log_probability(params):
+        for i, (low, high) in enumerate(bounds):
+            if not (low <= params[i] <= high):
+                return -np.inf
+        loss = objective(params)
+        if loss >= 1e10:
+            return -np.inf
+        return -0.5 * loss
 
-        sampler = emcee.EnsembleSampler(nw, ndim, log_prob)
-        sampler.run_mcmc(p0, MCMC_NSTEPS, progress=MCMC_PROGRESS)
+    nw = max(MCMC_NWALKERS, 2 * ndim + 2)
+    print(f"\n初始化MCMC采样器:")
+    print(f"  参数维度: {ndim}")
+    print(f"  Walkers: {nw}")
+    print(f"  采样步数: {MCMC_NSTEPS}")
+    print(f"  Burn-in: {MCMC_BURNIN}")
 
-        flat = sampler.get_chain(discard=MCMC_BURNIN, thin=MCMC_THIN, flat=True)
-        print(f"\n  有效样本: {len(flat)}")
-        for i, (ptype, key, pi) in enumerate(pmap):
-            name = f'src_{ptype[-1]}' if ptype.startswith('src') else f'{key}_p{pi+1}'
-            med, std = np.median(flat[:, i]), np.std(flat[:, i])
-            print(f"  {name}: {med:.4g} ± {std:.4g}")
+    initial_positions = []
+    rng = np.random.default_rng(DE_SEED)
+    for _ in range(nw):
+        perturbation = np.array([
+            rng.normal(0, MCMC_PERTURBATION * (bounds[i][1] - bounds[i][0]))
+            for i in range(ndim)
+        ])
+        new_pos = best_x + perturbation
+        new_pos = np.clip(new_pos, [b[0] for b in bounds], [b[1] for b in bounds])
+        initial_positions.append(new_pos)
+    initial_positions = np.array(initial_positions)
 
-        np.save(os.path.join(output_dir, f"{OUTPUT_PREFIX}_mcmc_chain.npy"), flat)
-    except ImportError:
-        print("  [跳过] emcee 未安装")
+    if MCMC_WORKERS == -1:
+        mcmc_workers_actual = os.cpu_count() or 1
+    else:
+        mcmc_workers_actual = MCMC_WORKERS
+
+    print(f"  并行核心数: {mcmc_workers_actual}" + (" (全部CPU)" if MCMC_WORKERS == -1 else ""))
+
+    if mcmc_workers_actual > 1:
+        from multiprocessing import Pool
+        with Pool(mcmc_workers_actual) as pool:
+            sampler = emcee.EnsembleSampler(nw, ndim, log_probability, pool=pool)
+            print(f"\n开始MCMC采样（{mcmc_workers_actual}核并行）...")
+            if MCMC_PROGRESS:
+                for sample in tqdm(sampler.sample(initial_positions, iterations=MCMC_NSTEPS),
+                                   total=MCMC_NSTEPS, desc="MCMC采样"):
+                    pass
+            else:
+                sampler.run_mcmc(initial_positions, MCMC_NSTEPS, progress=False)
+            samples = sampler.get_chain(discard=MCMC_BURNIN, thin=MCMC_THIN, flat=True)
+            chain   = sampler.get_chain()
+    else:
+        sampler = emcee.EnsembleSampler(nw, ndim, log_probability)
+        print(f"\n开始MCMC采样（串行模式）...")
+        if MCMC_PROGRESS:
+            for sample in tqdm(sampler.sample(initial_positions, iterations=MCMC_NSTEPS),
+                               total=MCMC_NSTEPS, desc="MCMC采样"):
+                pass
+        else:
+            sampler.run_mcmc(initial_positions, MCMC_NSTEPS, progress=False)
+        samples = sampler.get_chain(discard=MCMC_BURNIN, thin=MCMC_THIN, flat=True)
+        chain   = sampler.get_chain()
+
+    print(f"\n采样完成:")
+    print(f"  总样本数: {nw * MCMC_NSTEPS}")
+    print(f"  有效样本数（去除burn-in）: {len(samples)}")
+
+    param_names = []
+    for ptype, key, pi in pmap:
+        if ptype == 'src_x':
+            param_names.append('src_x')
+        elif ptype == 'src_y':
+            param_names.append('src_y')
+        else:
+            param_names.append(f'{key}_p{pi+1}')
+
+    mcmc_chain_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_mcmc_chain.dat')
+    np.savetxt(mcmc_chain_file, samples, header=' '.join(param_names))
+    print(f"  MCMC链已保存: {mcmc_chain_file}")
+
+    # 参数统计
+    print(f"\n" + "=" * 70)
+    print("MCMC 后验分布统计")
+    print("=" * 70)
+
+    posterior_stats = {}
+    print(f"\n参数后验分布 (median +upper_1σ -lower_1σ):")
+    for i, name in enumerate(param_names):
+        median = np.median(samples[:, i])
+        lower  = np.percentile(samples[:, i], 16)
+        upper  = np.percentile(samples[:, i], 84)
+        posterior_stats[name] = {
+            'median': median, 'lower_1sigma': lower, 'upper_1sigma': upper,
+            'error_plus': upper - median, 'error_minus': median - lower
+        }
+        if name.startswith('src_'):
+            print(f"  {name}: {median:.6e} +{(upper-median):.3e} -{(median-lower):.3e}")
+        else:
+            print(f"  {name}: {median:.6e} +{upper-median:.3e} -{median-lower:.3e}")
+
+    # Corner Plot
+    print(f"\n生成 Corner Plot...")
+    corner_labels = []
+    for ptype, key, pi in pmap:
+        if ptype == 'src_x':
+            corner_labels.append('$x_s$')
+        elif ptype == 'src_y':
+            corner_labels.append('$y_s$')
+        else:
+            corner_labels.append(f'${key}\\_p{pi+1}$')
+
+    fig = corner.corner(
+        samples,
+        labels=corner_labels,
+        quantiles=[0.16, 0.5, 0.84],
+        show_titles=True, title_fmt='.4f',
+        truths=best_x,
+        truth_color='red',
+        hist_kwargs={'alpha': 0.75},
+    )
+    _corner_grid = np.array(fig.axes).reshape((ndim, ndim))
+    for _ci in range(ndim):
+        _ax = _corner_grid[_ci, _ci]
+        from matplotlib.ticker import MaxNLocator as _MLoc
+        _ylo, _yhi = _ax.get_ylim()
+        _ax2 = _ax.twinx()
+        _N_corner = len(samples)
+        _ax2.set_ylim(_ylo / _N_corner * 100, _yhi / _N_corner * 100)
+        _ax2.yaxis.set_major_locator(_MLoc(nbins=4, prune='lower'))
+        _ax2.tick_params(axis='y', labelsize=7, length=3, width=0.8)
+        _ax2.set_ylabel('%', fontsize=8, rotation=0, labelpad=10, va='center')
+
+    corner_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_corner.png')
+    plt.savefig(corner_file, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"  Corner plot 已保存: {corner_file}")
+
+    # Trace Plot
+    print(f"\n生成 MCMC 链轨迹图...")
+    fig, axes = plt.subplots(ndim, figsize=(10, 2 * ndim), sharex=True)
+    if ndim == 1:
+        axes = [axes]
+    for i in range(ndim):
+        ax = axes[i]
+        ax.plot(chain[:, :, i], alpha=0.3)
+        ax.axvline(MCMC_BURNIN, color='red', linestyle='--', label='Burn-in')
+        ax.set_ylabel(corner_labels[i])
+        ax.yaxis.set_label_coords(-0.1, 0.5)
+    axes[-1].set_xlabel("Step")
+    axes[0].legend(loc='upper right')
+    trace_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_trace.png')
+    plt.savefig(trace_file, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"  轨迹图已保存: {trace_file}")
+
+    # 保存后验统计文件
+    posterior_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_posterior.txt')
+    with open(posterior_file, 'w') as f:
+        f.write("# ============================================================\n")
+        f.write("# MCMC Posterior Distribution Summary\n")
+        f.write("# Version None 1.0\n")
+        f.write("# ============================================================\n\n")
+        f.write(f"# Walkers: {nw}, Steps: {MCMC_NSTEPS}, "
+                f"Burn-in: {MCMC_BURNIN}, Thin: {MCMC_THIN}\n")
+        f.write(f"# Effective samples: {len(samples)}\n\n")
+        f.write("# parameter  median  16%_lower  84%_upper  error_plus  error_minus\n\n")
+        for i, name in enumerate(param_names):
+            st = posterior_stats[name]
+            f.write(f"{name}  {st['median']:.10e}  {st['lower_1sigma']:.10e}  "
+                    f"{st['upper_1sigma']:.10e}  {st['error_plus']:.10e}  {st['error_minus']:.10e}\n")
+    print(f"  后验统计已保存: {posterior_file}")
+
+# ══════════════════════════════════════════════════════════
+# §13  三联图（Critical Curves + Paper Style）
+# ══════════════════════════════════════════════════════════
+
+print("\n" + "=" * 70)
+print("步骤 5: 生成最终图表")
+print("=" * 70)
+
+glafic.init(omega, lambda_cosmo, weos, hubble, f'temp_{OUTPUT_PREFIX}_best',
+            xmin, ymin, xmax, ymax, pix_ext, pix_poi, maxlev, verb=0)
+glafic.startup_setnum(len(best_lp), 0, 1)
+for key, pv in best_lp.items():
+    glafic.set_lens(*pv)
+glafic.set_point(1, source_z, best_sx, best_sy)
+glafic.model_init(verb=0)
+glafic.writecrit(source_z)
+
+crit_file = f'temp_{OUTPUT_PREFIX}_best_crit.dat'
+crit_segments, caus_segments = read_critical_curves(crit_file)
+glafic.quit()
+
+output_plot_file = os.path.join(output_dir, f"result_{OUTPUT_PREFIX}.png")
+
+if COMPARE_GRAPH and ndim > 0:
+    output_plot_file_compare = os.path.join(output_dir, f"result_{OUTPUT_PREFIX}_compare.png")
+    plot_paper_style_compare(
+        img_numbers=np.arange(1, n_obs + 1),
+        delta_pos_mas_baseline=base_delta,
+        delta_pos_mas_optimized=opt_delta,
+        sigma_pos_mas=obs_pos_sigma_mas,
+        mu_obs=obs_magnifications,
+        mu_obs_err=obs_mag_errors,
+        mu_pred_baseline=base_mag,
+        mu_pred_optimized=opt_mag,
+        obs_positions_arcsec=obs_positions,
+        pred_positions_arcsec=opt_pos,
+        crit_segments=crit_segments,
+        caus_segments=caus_segments,
+        suptitle=f"No Subhalo: Baseline vs Optimized",
+        output_file=output_plot_file_compare,
+        title_left="Position Offset Comparison",
+        title_mid="Magnification Comparison",
+        title_right="Image Positions & Critical Curves",
+        subhalo_positions=None,
+        show_2sigma=SHOW_2SIGMA
+    )
+    print(f"  比较图已保存: {output_plot_file_compare}")
+
+plot_paper_style(
+    img_numbers=np.arange(1, n_obs + 1),
+    delta_pos_mas=opt_delta,
+    sigma_pos_mas=obs_pos_sigma_mas,
+    mu_obs=obs_magnifications,
+    mu_obs_err=obs_mag_errors,
+    mu_pred=opt_mag,
+    mu_at_obs_pred=opt_mag.copy(),
+    obs_positions_arcsec=obs_positions,
+    pred_positions_arcsec=opt_pos,
+    crit_segments=crit_segments,
+    caus_segments=caus_segments,
+    suptitle=f"No Subhalo: Optimized Model",
+    output_file=output_plot_file,
+    title_left="Position Offset",
+    title_mid="Magnification",
+    title_right="Image Positions & Critical Curves",
+    subhalo_positions=None,
+    show_2sigma=SHOW_2SIGMA
+)
+print(f"  标准图已保存: {output_plot_file}")
+
+# ══════════════════════════════════════════════════════════
+# §14  glafic 命令行验证
+# ══════════════════════════════════════════════════════════
+
+print("\n" + "=" * 70)
+print("步骤 6: 验证结果（glafic 命令行 vs Python 接口）")
+print("=" * 70)
+
+GLAFIC_BIN = find_glafic_bin()
+if GLAFIC_BIN:
+    print(f"  glafic 路径: {GLAFIC_BIN}")
+else:
+    print(f"  警告: 未找到 glafic 可执行文件，跳过验证")
+
+verify_input_file = os.path.join(output_dir, f'{OUTPUT_PREFIX}_verify_input.dat')
+with open(verify_input_file, 'w') as f:
+    f.write(f"omega      {omega}\n")
+    f.write(f"lambda     {lambda_cosmo}\n")
+    f.write(f"weos       {weos}\n")
+    f.write(f"hubble     {hubble}\n\n")
+    f.write(f"prefix     {OUTPUT_PREFIX}_verify\n\n")
+    f.write(f"xmin       {xmin}\n")
+    f.write(f"ymin       {ymin}\n")
+    f.write(f"xmax       {xmax}\n")
+    f.write(f"ymax       {ymax}\n")
+    f.write(f"pix_ext    {pix_ext}\n")
+    f.write(f"pix_poi    {pix_poi}\n")
+    f.write(f"maxlev     {maxlev}\n\n")
+    f.write(f"startup    {len(best_lp)} 0 1\n\n")
+    for _key, _pv in best_lp.items():
+        f.write(f"lens       {_pv[1]:<10} {_pv[2]}    ")
+        f.write("    ".join(f"{_pv[i]:.6e}" for i in range(3, len(_pv))) + "\n")
+    f.write(f"\npoint      {source_z}    {best_sx:.6e}    {best_sy:.6e}\n\n")
+    f.write("end_startup\n\nstart_command\n\nfindimg\n\nquit\n")
+
+if GLAFIC_BIN:
+    try:
+        result_verify = subprocess.run(
+            [GLAFIC_BIN, os.path.basename(verify_input_file)],
+            cwd=output_dir, capture_output=True, text=True, timeout=60)
+        if result_verify.returncode == 0:
+            print(f"  glafic 运行成功")
+        else:
+            print(f"  glafic 返回非零代码 {result_verify.returncode}")
+    except Exception as e:
+        print(f"  glafic 运行出错: {e}")
 
 sys.stdout.flush()
 print("\n" + "=" * 70, flush=True)
 print("Version None 1.0 完成", flush=True)
 print("=" * 70, flush=True)
+
+if MCMC_ENABLED and ndim > 0:
+    print(f"  MCMC链: {mcmc_chain_file}")
+    print(f"  后验统计: {posterior_file}")
+    print(f"  Corner图: {corner_file}")
+    print(f"  轨迹图: {trace_file}")
+print(f"  结果图: {output_plot_file}")
+print(f"  参数文件: {best_params_file}")

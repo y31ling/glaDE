@@ -54,10 +54,6 @@ def run_selected_model(
     model_cfg: dict[str, dict[str, Any]],
     results_root: str,
 ) -> int:
-    if model == "none":
-        print("model_use='none'：当前版本不执行子晕优化流程。请选择具体模型。")
-        return 0
-
     if model not in MODEL_TO_DIR:
         raise ValueError(f"不支持的 model_use: {model}")
 

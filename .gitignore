@@ -67,6 +67,7 @@ temp_*
 
 # 生成的脚本
 legacy/*/_glade_generated_run.py
+legacy/*/_glade_run_*.py
 
 # ==================== 系统文件 ====================
 # macOS

@@ -37,6 +37,9 @@ glafic 参数格式：
 """
 
 import sys
+import multiprocessing
+if multiprocessing.get_start_method(allow_none=True) != 'fork':
+    multiprocessing.set_start_method('fork', force=True)
 import random
 import glafic
 import numpy as np
@@ -719,20 +722,11 @@ _solver_kwargs = dict(
     workers=DE_WORKERS, updating='deferred',
 )
 
-try:
-    solver = DifferentialEvolutionSolver(
-        objective_function, bounds, seed=DE_SEED, **_solver_kwargs)
-    print("  使用 seed 参数初始化成功")
-except TypeError:
-    try:
-        solver = DifferentialEvolutionSolver(
-            objective_function, bounds, random_state=DE_SEED, **_solver_kwargs)
-        print("  使用 random_state 参数初始化成功")
-    except TypeError:
-        np.random.seed(DE_SEED)
-        solver = DifferentialEvolutionSolver(
-            objective_function, bounds, **_solver_kwargs)
-        print("  使用 numpy.random.seed() 替代")
+np.random.seed(DE_SEED)
+solver = DifferentialEvolutionSolver(
+    objective_function, bounds,
+    rng=np.random.default_rng(DE_SEED),
+    **_solver_kwargs)
 
 print(f"\n迭代 0 (初始种群):")
 plot_iteration_population(solver.population.copy(), 0, output_dir, bounds)

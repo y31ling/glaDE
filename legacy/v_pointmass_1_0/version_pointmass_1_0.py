@@ -9,6 +9,9 @@ Version Point Mass 1.0: Flexible Sub-halos Search
 
 import sys
 import random
+import multiprocessing
+if multiprocessing.get_start_method(allow_none=True) != 'fork':
+    multiprocessing.set_start_method('fork', force=True)
 import glafic
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -262,6 +265,7 @@ pix_poi = 0.2
 maxlev = 5
 
 source_z = 0.4090
+lens_z = 0.2160
 
 # 默认基准透镜参数（SIE 模型，来自 SN_2Sersic_SIE/bestfit.dat）
 source_x = 2.685497e-03
@@ -774,58 +778,20 @@ import scipy
 
 print(f"  Scipy版本: {scipy.__version__}")
 
-# 使用try-except处理不同scipy版本的参数兼容性
-# 不同scipy版本可能使用不同的随机种子参数名
-try:
-    # 尝试使用seed参数（scipy某些版本）
-    solver = DifferentialEvolutionSolver(
-        objective_function,
-        bounds,
-        maxiter=DE_MAXITER,
-        popsize=DE_POPSIZE,
-        atol=DE_ATOL,
-        tol=DE_TOL,
-        seed=DE_SEED,
-        polish=DE_POLISH,
-        disp=True,
-        workers=DE_WORKERS,
-        updating='deferred'
-    )
-    print(f"  使用seed参数初始化成功")
-except TypeError:
-    # 如果seed参数不支持，尝试其他方法
-    try:
-        # 尝试使用random_state参数（较新版本scipy）
-        solver = DifferentialEvolutionSolver(
-            objective_function,
-            bounds,
-            maxiter=DE_MAXITER,
-            popsize=DE_POPSIZE,
-            atol=DE_ATOL,
-            tol=DE_TOL,
-            random_state=DE_SEED,
-            polish=DE_POLISH,
-            disp=True,
-            workers=DE_WORKERS,
-            updating='deferred'
-        )
-        print(f"  使用random_state参数初始化成功")
-    except TypeError:
-        # 如果都不支持，使用numpy设置全局随机种子
-        print(f"  scipy不支持seed/random_state参数，使用numpy.random.seed()替代")
-        np.random.seed(DE_SEED)
-        solver = DifferentialEvolutionSolver(
-            objective_function,
-            bounds,
-            maxiter=DE_MAXITER,
-            popsize=DE_POPSIZE,
-            atol=DE_ATOL,
-            tol=DE_TOL,
-            polish=DE_POLISH,
-            disp=True,
-            workers=DE_WORKERS,
-            updating='deferred'
-        )
+np.random.seed(DE_SEED)
+solver = DifferentialEvolutionSolver(
+    objective_function,
+    bounds,
+    maxiter=DE_MAXITER,
+    popsize=DE_POPSIZE,
+    atol=DE_ATOL,
+    tol=DE_TOL,
+    rng=np.random.default_rng(DE_SEED),
+    polish=DE_POLISH,
+    disp=True,
+    workers=DE_WORKERS,
+    updating='deferred'
+)
 
 # 记录初始种群（迭代0）
 print(f"\n迭代 0 (初始种群):")

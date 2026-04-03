@@ -13,6 +13,10 @@ Version NFW 2.0: Optimized NFW Sub-halos Search
 
 import sys
 
+import multiprocessing
+if multiprocessing.get_start_method(allow_none=True) != 'fork':
+    multiprocessing.set_start_method('fork', force=True)
+
 import random
 import glafic
 import numpy as np
@@ -806,36 +810,15 @@ import scipy
 
 print(f"  Scipy版本: {scipy.__version__}")
 
-# 兼容不同scipy版本
-try:
-    solver = DifferentialEvolutionSolver(
-        objective_function, bounds,
-        maxiter=DE_MAXITER, popsize=DE_POPSIZE,
-        atol=DE_ATOL, tol=DE_TOL, seed=DE_SEED,
-        polish=DE_POLISH, disp=False,  # 关闭内置显示
-        workers=DE_WORKERS, updating='deferred'
-    )
-    print(f"  使用seed参数初始化成功")
-except TypeError:
-    try:
-        solver = DifferentialEvolutionSolver(
-            objective_function, bounds,
-            maxiter=DE_MAXITER, popsize=DE_POPSIZE,
-            atol=DE_ATOL, tol=DE_TOL, random_state=DE_SEED,
-            polish=DE_POLISH, disp=False,
-            workers=DE_WORKERS, updating='deferred'
-        )
-        print(f"  使用random_state参数初始化成功")
-    except TypeError:
-        np.random.seed(DE_SEED)
-        solver = DifferentialEvolutionSolver(
-            objective_function, bounds,
-            maxiter=DE_MAXITER, popsize=DE_POPSIZE,
-            atol=DE_ATOL, tol=DE_TOL,
-            polish=DE_POLISH, disp=False,
-            workers=DE_WORKERS, updating='deferred'
-        )
-        print(f"  使用numpy.random.seed()替代")
+np.random.seed(DE_SEED)
+solver = DifferentialEvolutionSolver(
+    objective_function, bounds,
+    maxiter=DE_MAXITER, popsize=DE_POPSIZE,
+    atol=DE_ATOL, tol=DE_TOL,
+    rng=np.random.default_rng(DE_SEED),
+    polish=DE_POLISH, disp=False,  # 关闭内置显示
+    workers=DE_WORKERS, updating='deferred'
+)
 
 # ╔═══════════════════════════════════════════════════════════════════════╗
 # ║              优化迭代循环（精简版 - 最大化CPU利用率）                   ║

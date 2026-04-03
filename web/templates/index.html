@@ -95,6 +95,58 @@ header{background:var(--bg2);border-bottom:1px solid var(--border);
 .btn-save{background:transparent;color:var(--teal);border:1px solid var(--teal);width:100%;justify-content:center;font-size:11px;padding:6px 0;}
 .btn-save:hover:not(:disabled){background:rgba(20,184,166,.1);}
 .btn-save:disabled{opacity:.3;cursor:not-allowed;}
+.btn-glafic{background:transparent;color:var(--orange);border:1px solid var(--orange);width:100%;justify-content:center;font-size:11px;padding:6px 0;}
+.btn-glafic:hover:not(:disabled){background:rgba(249,115,22,.1);}
+.btn-glafic:disabled{opacity:.3;cursor:not-allowed;}
+
+/* obs mode toggle (same as bf-modes) */
+.obs-modes{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:4px;margin-top:6px;}
+.obs-mode-btn{flex:1;padding:5px 0;font-size:11px;font-weight:600;border:none;cursor:pointer;
+              background:var(--bg3);color:var(--text3);transition:all .15s;text-align:center;}
+.obs-mode-btn.active{background:var(--accent);color:#fff;}
+.obs-preview{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+             padding:8px 10px;margin-top:5px;font-size:11px;}
+.obs-preview.ok{border-color:rgba(59,130,246,.4);}
+.obs-preview.err{border-color:rgba(239,68,68,.4);}
+.obs-preview-row{display:flex;justify-content:space-between;padding:2px 0;color:var(--text2);}
+.obs-preview-row span:first-child{color:var(--text3);}
+
+/* Obs editor overlay (reuses bestfit overlay styles) */
+.obs-ov{position:absolute;inset:0;z-index:25;background:var(--bg);
+        display:flex;flex-direction:column;
+        transform:translateX(102%);transition:transform .28s cubic-bezier(.4,0,.2,1);}
+.obs-ov.open{transform:translateX(0);}
+
+/* Glafic input modal */
+.glafic-modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.65);
+              display:none;align-items:center;justify-content:center;}
+.glafic-modal.open{display:flex;}
+.glafic-box{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;
+            width:min(92vw,940px);height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+.glafic-hdr{height:48px;flex-shrink:0;background:var(--bg3);border-bottom:1px solid var(--border);
+            display:flex;align-items:center;gap:10px;padding:0 16px;}
+.glafic-hdr-title{font-weight:700;font-size:14px;flex:1;color:var(--orange);}
+.glafic-close{background:transparent;border:1px solid var(--border);border-radius:6px;
+              color:var(--text2);padding:5px 10px;cursor:pointer;font-size:13px;font-weight:700;}
+.glafic-close:hover{background:var(--bg4);color:var(--text);}
+.glafic-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;}
+.glafic-tab{padding:8px 18px;font-size:12px;font-weight:700;border:none;cursor:pointer;
+            background:transparent;color:var(--text3);border-bottom:2px solid transparent;transition:all .15s;}
+.glafic-tab.active{color:var(--orange);border-bottom-color:var(--orange);}
+.glafic-tab:hover:not(.active){color:var(--text2);}
+.glafic-pane{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;}
+.glafic-ta{flex:1;width:100%;border:none;outline:none;padding:12px 16px;
+           background:var(--bg);color:var(--text2);min-height:0;
+           font-family:'Consolas','Courier New',monospace;font-size:12px;line-height:1.7;
+           resize:none;tab-size:2;white-space:pre;overflow-x:auto;}
+.glafic-footer{height:44px;flex-shrink:0;background:var(--bg3);border-top:1px solid var(--border);
+               display:flex;align-items:center;gap:8px;padding:0 16px;}
+.glafic-info{flex:1;font-size:10px;color:var(--text3);}
+.glafic-action{background:var(--bg4);color:var(--text2);border:1px solid var(--border);
+               border-radius:5px;padding:5px 12px;cursor:pointer;font-size:11px;font-weight:600;}
+.glafic-action:hover{background:var(--border2);color:var(--text);}
+.glafic-action.primary{background:var(--orange);color:#fff;border-color:var(--orange);}
+.glafic-action.primary:hover{background:#ea6c0f;}
 
 /* bestfit.dat mode toggle */
 .bf-modes{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:6px;}
@@ -266,6 +318,10 @@ table.ft input{width:84px;background:var(--bg);border:1px solid var(--border);bo
                color:var(--text);padding:3px 6px;font-size:11px;outline:none;text-align:right;}
 table.ft input:focus{border-color:var(--accent);}
 
+/* Sidebar resize bar */
+.sb-resize{width:4px;flex-shrink:0;background:var(--border);cursor:ew-resize;}
+.sb-resize:hover{background:var(--accent);}
+
 /* Terminal resize bar */
 .t-resize{height:4px;background:var(--border);cursor:ns-resize;flex-shrink:0;}
 .t-resize:hover{background:var(--accent);}
@@ -409,6 +465,10 @@ body.lang-en .bfe-guide.en-only{display:flex!important;flex-direction:column;}
     </div>
 
     <div class="run-row">
+      <button class="btn btn-glafic" id="glaficBtn" onclick="doGenerateGlafic()" disabled
+              title="将当前参数转换为 glafic 输入文件格式（含 optimize 命令）">
+        <span data-i18n="btn-glafic">⚡ 转换为 glafic 输入文件</span>
+      </button>
       <button class="btn btn-save" id="saveBtn" onclick="doSaveDefaults()" disabled
               data-i18n-title="btn-save-title" title="将当前表单参数覆写回原始模型脚本文件，作为新的默认值">
         <span data-i18n="btn-save">💾 设为默认（覆写脚本）</span>
@@ -419,6 +479,8 @@ body.lang-en .bfe-guide.en-only{display:flex!important;flex-direction:column;}
       </div>
     </div>
   </aside>
+
+  <div class="sb-resize" id="sbResize"></div>
 
   <!-- ── Main ── -->
   <main class="content">
@@ -803,6 +865,124 @@ point 0.4090  2.685e-03  2.444e-02</div>
       </div>
     </div>
     <!-- ══ /overlay ══ -->
+
+    <!-- ══ 观测数据文本编辑器 overlay ══ -->
+    <div class="obs-ov" id="obsOv">
+      <div class="bfe-hdr">
+        <button class="bfe-back" onclick="closeObsEditor()">← <span data-i18n="bfe-back">返回参数配置</span></button>
+        <span class="bfe-hdr-title">📡 <span data-i18n="obs-ed-title">观测数据编辑器（glafic readobs_point 格式）</span></span>
+        <div id="obsEdBadge" class="bf-tag" style="font-size:11px;padding:3px 10px;background:var(--bg4);color:var(--text3)">—</div>
+      </div>
+      <div class="bfe-body">
+        <div class="bfe-ep">
+          <div class="bfe-ph">
+            <span data-i18n="obs-ed-edit">编辑区</span>
+            <span style="font-size:10px;color:var(--text3)" data-i18n="obs-ed-realtime">实时解析 · Tab=缩进</span>
+          </div>
+          <div class="bfe-editor-wrap">
+            <div class="bfe-lnum" id="obsEdLnum">1</div>
+            <textarea class="bfe-ta" id="obsEdTA" spellcheck="false"
+              placeholder="# glafic readobs_point 格式&#10;# 行1: source_id  n_images  zs  zserr&#10;# 每图像行: x(arcsec)  y(arcsec)  mu  pos_sigma(arcsec)  mu_err  td  td_err  parity&#10;#&#10;# 示例（4 像系统）:&#10;1 4 0.4090 0.0&#10;  -0.330461  0.000000   2.92052  0.000500  0.200000  0.0  0.0   0&#10;   0.330461  0.000000   2.92052  0.000500  0.200000  0.0  0.0   0&#10;   0.000000 -0.262771  -1.52908  0.000691  0.200000  0.0  0.0  -1&#10;   0.000000  0.262771  -1.52908  0.000691  0.200000  0.0  0.0  -1"
+              oninput="obsEdInput(this)" onscroll="obsEdSyncLnum(this)"
+              onkeydown="obsEdKeydown(event)"></textarea>
+          </div>
+        </div>
+        <div class="bfe-gp">
+          <div class="bfe-ph"><span data-i18n="obs-ed-guide">格式说明</span></div>
+          <!-- Chinese Guide -->
+          <div class="bfe-guide zh-only" style="overflow-y:auto;padding:12px 14px">
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">📄 文件结构</div>
+              <div class="g-code">source_id  n_images  zs  zserr
+x  y  mu  pos_sigma  mu_err  td  td_err  parity
+... (共 n_images 行)</div>
+              <div style="font-size:10px;color:var(--text3);line-height:1.8;margin-top:4px">
+                · <b style="color:var(--teal)">首行</b>：source_id（通常为 1）、图像数量、源红移及误差<br>
+                · 每图像一行，共 7 个数 + 1 个整数（奇偶性）<br>
+                · 坐标单位：<b style="color:var(--accent2)">角秒 (arcsec)</b>，数学坐标（右=正，上=正）<br>
+                · 加载后自动将 obs_x_flip 设为 False（已是 math 坐标）<br>
+                · # 开头为注释行
+              </div>
+            </div>
+            <hr class="g-divider">
+            <div class="g-section">
+              <div class="g-type" style="color:var(--accent2)">📐 各列含义</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname" style="width:90px">x, y</span><span class="g-pdesc">图像位置 <span class="g-punit">[arcsec]，math 坐标</span></span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">mu</span><span class="g-pdesc">放大率 μ（正/负表示奇偶）</span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">pos_sigma</span><span class="g-pdesc">位置 σ <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">mu_err</span><span class="g-pdesc">放大率误差（0 = 不约束）</span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">td, td_err</span><span class="g-pdesc">时间延迟 <span class="g-punit">[days]</span>（通常填 0.0）</span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">parity</span><span class="g-pdesc">奇偶性 0=不约束，-1=负奇偶</span></div>
+              </div>
+            </div>
+            <hr class="g-divider">
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">✨ 示例（iPTF16geu，4 像）</div>
+              <div class="g-example">1 4 0.4090 0.0
+  -0.330461  0.000000   2.92052  0.000500  0.200000  0.0  0.0   0
+   0.330461  0.000000   2.92052  0.000500  0.200000  0.0  0.0   0
+   0.000000 -0.262771  -1.52908  0.000691  0.200000  0.0  0.0  -1
+   0.000000  0.262771  -1.52908  0.000691  0.200000  0.0  0.0  -1</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6">
+                注：obs_positions_mas_list 中的符号约定：<br>
+                x_mas = x_arcsec × 1000（math 坐标，不翻转）
+              </div>
+            </div>
+          </div>
+          <!-- English Guide -->
+          <div class="bfe-guide en-only" style="overflow-y:auto;padding:12px 14px">
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">📄 File Structure</div>
+              <div class="g-code">source_id  n_images  zs  zserr
+x  y  mu  pos_sigma  mu_err  td  td_err  parity
+... (n_images lines total)</div>
+              <div style="font-size:10px;color:var(--text3);line-height:1.8;margin-top:4px">
+                · <b style="color:var(--teal)">Header line</b>: source_id (usually 1), number of images, source redshift & error<br>
+                · One line per image: 7 floats + 1 integer (parity)<br>
+                · Coordinate units: <b style="color:var(--accent2)">arcsec</b>, math coordinates (right=+x, up=+y)<br>
+                · After loading, obs_x_flip is automatically set to False<br>
+                · Lines starting with # are comments
+              </div>
+            </div>
+            <hr class="g-divider">
+            <div class="g-section">
+              <div class="g-type" style="color:var(--accent2)">📐 Column Definitions</div>
+              <div class="g-params">
+                <div class="g-param"><span class="g-pname" style="width:90px">x, y</span><span class="g-pdesc">Image position <span class="g-punit">[arcsec], math coords</span></span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">mu</span><span class="g-pdesc">Magnification μ (+/− indicates parity)</span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">pos_sigma</span><span class="g-pdesc">Position σ <span class="g-punit">[arcsec]</span></span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">mu_err</span><span class="g-pdesc">Magnification error (0 = unconstrained)</span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">td, td_err</span><span class="g-pdesc">Time delay <span class="g-punit">[days]</span> (usually 0.0)</span></div>
+                <div class="g-param"><span class="g-pname" style="width:90px">parity</span><span class="g-pdesc">Parity: 0=unconstrained, −1=negative</span></div>
+              </div>
+            </div>
+            <hr class="g-divider">
+            <div class="g-section">
+              <div class="g-type" style="color:var(--text2)">✨ Example (iPTF16geu, 4 images)</div>
+              <div class="g-example">1 4 0.4090 0.0
+  -0.330461  0.000000   2.92052  0.000500  0.200000  0.0  0.0   0
+   0.330461  0.000000   2.92052  0.000500  0.200000  0.0  0.0   0
+   0.000000 -0.262771  -1.52908  0.000691  0.200000  0.0  0.0  -1
+   0.000000  0.262771  -1.52908  0.000691  0.200000  0.0  0.0  -1</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6">
+                Note: obs_positions_mas_list convention:<br>
+                x_mas = x_arcsec × 1000 (math coordinates, no flip)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bfe-bar" id="obsEdBar">
+        <div class="bfe-bar-item"><span data-i18n="obs-bar-status">状态：</span><b id="obsEdSt" style="color:var(--text3)">等待输入…</b></div>
+        <div class="bfe-bar-item"><span data-i18n="obs-bar-nimgs">图像数：</span><b id="obsEdN">—</b></div>
+        <div class="bfe-bar-item"><span data-i18n="obs-bar-zs">源 z：</span><b id="obsEdZ">—</b></div>
+        <div style="flex:1"></div>
+        <button class="glafic-action primary" onclick="applyObsContent()" data-i18n="obs-bar-apply" style="font-size:11px;padding:4px 14px">✅ 应用并关闭</button>
+      </div>
+    </div>
+    <!-- ══ /obs overlay ══ -->
+
     <div class="params-area" id="paramsArea">
       <div class="params-placeholder">
         <div class="ph-icon">🔭</div>
@@ -822,6 +1002,34 @@ point 0.4090  2.685e-03  2.444e-02</div>
       <div class="t-out" id="tOut"></div>
     </div>
   </main>
+</div>
+
+<!-- ══ glafic 输入文件显示 Modal ══ -->
+<div class="glafic-modal" id="glaficModal">
+  <div class="glafic-box">
+    <div class="glafic-hdr">
+      <span class="glafic-hdr-title">⚡ <span data-i18n="glafic-modal-title">glafic 输入文件生成结果</span></span>
+      <span style="font-size:10px;color:var(--text3);flex:1;margin-left:8px" data-i18n="glafic-modal-hint">将两个文件保存到同一目录，用 glafic 运行 .input 文件</span>
+      <button class="glafic-close" onclick="closeGlaficModal()">✕</button>
+    </div>
+    <div class="glafic-tabs">
+      <button class="glafic-tab active" id="gtab1" onclick="switchGlaficTab(1)" data-i18n="gtab-input">输入文件 (glade_opt.input)</button>
+      <button class="glafic-tab" id="gtab2" onclick="switchGlaficTab(2)" data-i18n="gtab-obs">观测文件 (obs_glade.dat)</button>
+    </div>
+    <div class="glafic-pane" id="glaficPane1">
+      <textarea id="glaficTA1" class="glafic-ta" readonly></textarea>
+    </div>
+    <div class="glafic-pane" id="glaficPane2" style="display:none">
+      <textarea id="glaficTA2" class="glafic-ta" readonly></textarea>
+    </div>
+    <div class="glafic-footer">
+      <span class="glafic-info" data-i18n="glafic-modal-footer">用法：glafic glade_opt.input</span>
+      <button class="glafic-action" onclick="copyGlaficContent()" data-i18n="glafic-copy">📋 复制</button>
+      <button class="glafic-action" onclick="downloadGlaficFile()" data-i18n="glafic-download">⬇ 下载当前文件</button>
+      <button class="glafic-action primary" onclick="downloadAllGlaficFiles()" data-i18n="glafic-download-all">⬇ 下载全部</button>
+      <button class="glafic-action" onclick="closeGlaficModal()" data-i18n="glafic-close">关闭</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -860,6 +1068,24 @@ const TRANS = {
   'bfe-bar-srcz':   {zh:'源 z：',                        en:'Source z:'},
   'bfe-bar-srcxy':  {zh:'源 (x,y)：',                   en:'Source (x,y):'},
   'bfe-auto-parse': {zh:'输入后自动解析',                 en:'Auto-parsed on input'},
+  'btn-glafic':     {zh:'⚡ 转换为 glafic 输入文件',      en:'⚡ Convert to glafic Input File'},
+  'obs-ed-title':   {zh:'观测数据编辑器（glafic readobs_point 格式）', en:'Obs Data Editor (glafic readobs_point format)'},
+  'obs-ed-edit':    {zh:'编辑区',                         en:'Editor'},
+  'obs-ed-realtime':{zh:'实时解析 · Tab=缩进',            en:'Live parse · Tab=indent'},
+  'obs-ed-guide':   {zh:'格式说明',                       en:'Format Guide'},
+  'obs-bar-status': {zh:'状态：',                         en:'Status: '},
+  'obs-bar-nimgs':  {zh:'图像数：',                       en:'Images: '},
+  'obs-bar-zs':     {zh:'源 z：',                         en:'Source z: '},
+  'obs-bar-apply':  {zh:'✅ 应用并关闭',                  en:'✅ Apply & Close'},
+  'glafic-modal-title':{zh:'glafic 输入文件生成结果',     en:'glafic Input File Generation Result'},
+  'glafic-modal-hint': {zh:'将两个文件保存到同一目录，用 glafic 运行 .input 文件', en:'Save both files in the same directory, run the .input file with glafic'},
+  'gtab-input':     {zh:'输入文件 (glade_opt.input)',      en:'Input File (glade_opt.input)'},
+  'gtab-obs':       {zh:'观测文件 (obs_glade.dat)',        en:'Obs File (obs_glade.dat)'},
+  'glafic-modal-footer':{zh:'用法：glafic glade_opt.input', en:'Usage: glafic glade_opt.input'},
+  'glafic-copy':    {zh:'📋 复制',                         en:'📋 Copy'},
+  'glafic-download':{zh:'⬇ 下载当前文件',                 en:'⬇ Download Current'},
+  'glafic-download-all':{zh:'⬇ 下载全部',                en:'⬇ Download All'},
+  'glafic-close':   {zh:'关闭',                           en:'Close'},
   'ph-title':       {zh:'请从左侧选择子晕模型',           en:'Select a subhalo model from the left'},
   'ph-sub':         {zh:'选择模型后将显示所有可调参数',   en:'All tunable parameters will appear after model selection'},
   'term-title':     {zh:'🖥 运行输出',                   en:'🖥 Run Output'},
@@ -897,6 +1123,13 @@ const STR = {
   'run-submitting': {zh:'   参数已收集，正在提交…', en:'   Parameters collected, submitting...'},
   'run-manual-bf':  {zh:'   使用手动输入的 bestfit.dat', en:'   Using manually entered bestfit.dat'},
   'run-jobid':      {zh:'   任务 ID: ', en:'   Job ID: '},
+  'obs-ed-waiting': {zh:'等待输入…',   en:'Waiting for input...'},
+  'obs-ed-valid':   {zh:'✓ 有效',      en:'✓ Valid'},
+  'obs-ed-invalid': {zh:'✗ 无效',      en:'✗ Invalid'},
+  'obs-load-ok':    {zh:'✓ 已加载',    en:'✓ Loaded'},
+  'obs-load-err':   {zh:'❌ 加载失败', en:'❌ Load failed'},
+  'glafic-gen-ok':  {zh:'⚡ 已生成 glafic 输入文件', en:'⚡ glafic input file generated'},
+  'glafic-gen-err': {zh:'❌ 生成失败', en:'❌ Generation failed'},
   'run-complete':   {zh:'\n✅  运行完成（退出码: 0）', en:'\n✅  Run complete (exit code: 0)'},
   'run-finished':   {zh:'\n❌  运行结束（退出码: ', en:'\n❌  Run finished (exit code: '},
   'stop-signal':    {zh:'\n⏹  已发送停止信号', en:'\n⏹  Stop signal sent'},
@@ -1587,6 +1820,7 @@ function selModel(mid){
   if(mid==='none')   card.style.setProperty('--active-c','#64748b');
   document.getElementById('runBtn').disabled = false;
   document.getElementById('saveBtn').disabled = false;
+  document.getElementById('glaficBtn').disabled = false;
   renderModel(mid);
   restoreModelParams(mid);                       // 渲染完后恢复已保存的参数值
 }
@@ -1832,31 +2066,58 @@ function refreshLensBoundsFromBf(){
     }).catch(()=>alert(S('parse-fail-alert')));
 }
 
+function obsPreviewHTML(){
+  if(!_obsData) return '';
+  const n = _obsData.obs_positions_mas_list.length;
+  const zs = _obsData.zs !== undefined ? _obsData.zs.toFixed(4) : '—';
+  let rows = '';
+  for(let i=0;i<n;i++){
+    const [x,y] = _obsData.obs_positions_mas_list[i];
+    const mu = _obsData.obs_magnifications_list[i];
+    const sig = _obsData.obs_pos_sigma_mas_list[i];
+    rows += `<div class="obs-preview-row" style="font-size:10px">
+      <span>#${i+1}</span>
+      <span>(${x.toFixed(2)}, ${y.toFixed(2)}) mas</span>
+      <span>μ=${mu.toFixed(3)}</span>
+      <span>σ=${sig.toFixed(3)} mas</span>
+    </div>`;
+  }
+  return `<div class="obs-preview-row"><span>图像数 / zs</span><span style="color:var(--accent2)">${n} / ${zs}</span></div>${rows}`;
+}
+
 function renderObsData(p, cls, style){
-  const d = p.dft;
-  const n = d.obs_positions_mas_list.length;
   const desc = Ldesc(p);
-  const rows = d.obs_positions_mas_list.map(([x,y],i)=>`
-    <tr>
-      <td class="row-lbl">#${i+1}</td>
-      <td><input type="number" id="OD_x_${i}"     value="${x}"                      step="any" style="width:72px"></td>
-      <td><input type="number" id="OD_y_${i}"     value="${y}"                      step="any" style="width:72px"></td>
-      <td><input type="number" id="OD_mag_${i}"   value="${d.obs_magnifications_list[i]}"  step="any" style="width:62px"></td>
-      <td><input type="number" id="OD_magerr_${i}"value="${d.obs_mag_errors_list[i]}"     step="any" style="width:52px"></td>
-      <td><input type="number" id="OD_sigma_${i}" value="${d.obs_pos_sigma_mas_list[i]}"  step="any" style="width:52px"></td>
-    </tr>`).join('');
+  const fileActive = _obsMode==='file';
+  const editActive = _obsMode==='manual';
   return `<div class="${cls} full-w" style="${style}">
     <div class="p-label">${L(p)}</div>
     ${desc?`<div class="p-desc">${desc}</div>`:''}
-    <div class="ft-wrap" style="margin-top:8px">
-      <table class="ft">
-        <thead><tr>
-          <th>${S('image-label')}</th>
-          <th>x (mas)</th><th>y (mas)</th>
-          <th>${S('mag-label')}</th><th>${S('magerr-label')}</th><th>${S('possig-label')}</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div class="obs-modes">
+      <button class="obs-mode-btn${fileActive?' active':''}" id="obsBtnFile" onclick="setObsMode('file')">${lang==='en'?'📁 File Path':'📁 文件路径'}</button>
+      <button class="obs-mode-btn${editActive?' active':''}" id="obsBtnEdit" onclick="setObsMode('manual')">${lang==='en'?'✏️ Text Editor':'✏️ 文本编辑器'}</button>
+    </div>
+    <div id="obsFilePane" style="${fileActive?'':'display:none'}">
+      <div style="display:flex;gap:6px;margin-top:2px;align-items:center">
+        <input class="sb-input" id="obsFilePath" type="text" style="flex:1;font-size:11px"
+          placeholder="${lang==='en'?'Path to obs_point.dat (relative or absolute)':'obs_point.dat 路径（相对或绝对）'}"
+          value="${_obsFilePath||''}">
+        <button class="btn-ghost" onclick="loadObsFromFile()" style="white-space:nowrap;font-size:11px;padding:5px 10px">${lang==='en'?'Load':'加载'}</button>
+      </div>
+      <div class="sb-hint" style="margin-top:3px">${lang==='en'?'glafic readobs_point format; leave empty to use script defaults':'glafic readobs_point 格式文件；留空则使用脚本默认值'}</div>
+    </div>
+    <div id="obsEditPane" style="${editActive?'':'display:none'}">
+      <button class="btn btn-ghost" onclick="openObsEditor()" style="width:100%;margin-top:4px;justify-content:center;font-size:11px;padding:6px 0">
+        📝 ${lang==='en'?'Open Obs Data Editor':'打开观测数据编辑器'}
+      </button>
+      ${_obsContent?`<div style="font-size:10px;color:var(--teal);margin-top:3px">✓ ${lang==='en'?'Content entered (click button to view/edit)':'已输入内容（点击按钮查看/修改）'}</div>`:''}
+    </div>
+    <div id="obsPreviewCard" class="obs-preview${_obsData?' ok':''}" style="${_obsData?'':'display:none'}">
+      ${_obsData?obsPreviewHTML():''}
+    </div>
+    <div class="sb-hint" style="margin-top:4px;color:var(--text3)">
+      ${lang==='en'
+        ?'Coordinates in arcsec, math system (right=+). Loading sets obs_x_flip=False.'
+        :'坐标单位 arcsec，math 坐标（右=正）。加载后自动设置 obs_x_flip=False。'}
     </div>
   </div>`;
 }
@@ -1961,20 +2222,15 @@ function collectParams(){
         out[p.k]=lb; return;
       }
       if(p.t==='obs_data'){
-        const n=p.dft.obs_positions_mas_list.length;
-        const pos=[],mags=[],magErrs=[],sigmas=[];
-        for(let i=0;i<n;i++){
-          const x=parseFloat(document.getElementById(`OD_x_${i}`)?.value??p.dft.obs_positions_mas_list[i][0]);
-          const y=parseFloat(document.getElementById(`OD_y_${i}`)?.value??p.dft.obs_positions_mas_list[i][1]);
-          pos.push([x,y]);
-          mags.push(parseFloat(document.getElementById(`OD_mag_${i}`)?.value??p.dft.obs_magnifications_list[i]));
-          magErrs.push(parseFloat(document.getElementById(`OD_magerr_${i}`)?.value??p.dft.obs_mag_errors_list[i]));
-          sigmas.push(parseFloat(document.getElementById(`OD_sigma_${i}`)?.value??p.dft.obs_pos_sigma_mas_list[i]));
+        // 新设计：若 _obsData 已解析则直接使用，否则使用脚本默认值（不包含在 overrides 中）
+        if(_obsData){
+          out['obs_positions_mas_list']  = _obsData.obs_positions_mas_list;
+          out['obs_magnifications_list'] = _obsData.obs_magnifications_list;
+          out['obs_mag_errors_list']     = _obsData.obs_mag_errors_list;
+          out['obs_pos_sigma_mas_list']  = _obsData.obs_pos_sigma_mas_list;
+          out['obs_x_flip'] = false;  // glafic 格式已是 math 坐标，无需翻转
         }
-        out['obs_positions_mas_list']=pos;
-        out['obs_magnifications_list']=mags;
-        out['obs_mag_errors_list']=magErrs;
-        out['obs_pos_sigma_mas_list']=sigmas;
+        // 若 _obsData 为 null，overrides 中不包含 obs 相关字段，脚本将使用自身默认值
         return;
       }
       if(p.t==='ftbl'){
@@ -2021,6 +2277,9 @@ const LS_SRCDIR  = 'glade_srcDir';
 const LS_RESROOT = 'glade_resRoot';
 const LS_BFMODE  = 'glade_bfMode';
 const LS_BFCONT  = 'glade_bfContent';
+const LS_OBSMODE = 'glade_obsMode';
+const LS_OBSCONT = 'glade_obsContent';
+const LS_OBSFILE = 'glade_obsFile';
 const lsKey = mid => `glade_params_${mid}`;
 
 function saveState(){
@@ -2031,6 +2290,9 @@ function saveState(){
     localStorage.setItem(LS_RESROOT,document.getElementById('resRoot').value);
     localStorage.setItem(LS_BFMODE, bfMode);
     localStorage.setItem(LS_BFCONT, document.getElementById('bfContent')?.value ?? '');
+    localStorage.setItem(LS_OBSMODE, _obsMode);
+    localStorage.setItem(LS_OBSCONT, _obsContent||'');
+    localStorage.setItem(LS_OBSFILE, _obsFilePath||'');
     localStorage.setItem(lsKey(curModel), JSON.stringify(collectParams()));
   }catch(_){}
 }
@@ -2043,20 +2305,21 @@ function restoreModelParams(mid){
   const m = DEFS[mid];
   m.sections.forEach(s=>{
     s.params.forEach(p=>{
-      // obs_data 使用 4 个独立子键存储，必须在通用 v===undefined 检查之前处理
+      // obs_data：从 localStorage 恢复到全局 _obsData（不操作 DOM 元素）
       if(p.t==='obs_data'){
         const pos  = saved['obs_positions_mas_list'];
         const mags = saved['obs_magnifications_list'];
         const errs = saved['obs_mag_errors_list'];
         const sigs = saved['obs_pos_sigma_mas_list'];
-        if(pos) pos.forEach(([x,y],i)=>{
-          const ex=document.getElementById(`OD_x_${i}`);
-          const ey=document.getElementById(`OD_y_${i}`);
-          if(ex) ex.value=x; if(ey) ey.value=y;
-        });
-        if(mags) mags.forEach((v,i)=>{ const e=document.getElementById(`OD_mag_${i}`); if(e) e.value=v; });
-        if(errs) errs.forEach((v,i)=>{ const e=document.getElementById(`OD_magerr_${i}`); if(e) e.value=v; });
-        if(sigs) sigs.forEach((v,i)=>{ const e=document.getElementById(`OD_sigma_${i}`); if(e) e.value=v; });
+        if(pos && mags && errs && sigs){
+          _obsData = {
+            obs_positions_mas_list:  pos,
+            obs_magnifications_list: mags,
+            obs_mag_errors_list:     errs,
+            obs_pos_sigma_mas_list:  sigs,
+          };
+          _updateObsPreview();
+        }
         return;
       }
       const v = saved[p.k];
@@ -2136,12 +2399,25 @@ function restoreGlobalState(){
   const bfc=localStorage.getItem(LS_BFCONT)||'';
   if(bfc){ const el=document.getElementById('bfContent'); if(el) el.value=bfc; }
   if(bfm && bfm!=='path'){
-    // 恢复为手动模式但不自动打开 overlay（只更新按钮状态）
     bfMode=bfm;
     document.getElementById('bfBtnPath')?.classList.remove('active');
     document.getElementById('bfBtnEdit')?.classList.add('active');
     document.getElementById('bfPathPane').style.display='none';
     document.getElementById('bfEditPane').style.display='';
+  }
+  // Restore obs state
+  const om=localStorage.getItem(LS_OBSMODE);
+  const oc=localStorage.getItem(LS_OBSCONT)||'';
+  const of_=localStorage.getItem(LS_OBSFILE)||'';
+  if(om) _obsMode=om;
+  if(oc) _obsContent=oc;
+  if(of_) _obsFilePath=of_;
+  // If obs content exists, re-parse to populate _obsData
+  if(oc && om==='manual'){
+    fetch('/api/parse_obs_point',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content:oc})}).then(r=>r.json()).then(d=>{
+        if(d.ok){ _obsData=d; }
+    }).catch(_=>{});
   }
   const mid=localStorage.getItem(LS_MODEL);
   if(mid&&DEFS[mid]) selModel(mid);
@@ -2332,7 +2608,10 @@ async function doSaveDefaults(){
         overrides:  collectParams(),
         bf_mode:    bfMode,
         bf_content: document.getElementById('bfeTA')?.value ||
-                    document.getElementById('bfContent')?.value || ''
+                    document.getElementById('bfContent')?.value || '',
+        obs_mode:    _obsMode,
+        obs_file:    (_obsMode==='file'?_obsFilePath:''),
+        obs_content: (_obsMode==='manual'?_obsContent:''),
       })
     });
     const d = await resp.json();
@@ -2378,7 +2657,10 @@ async function doRun(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:curModel, source_dir:srcDir, results_root:resRoot,
-        overrides, bf_mode:bfMode, bf_content:bfContent
+        overrides, bf_mode:bfMode, bf_content:bfContent,
+        obs_mode:_obsMode,
+        obs_file:(_obsMode==='file'?_obsFilePath:''),
+        obs_content:(_obsMode==='manual'?_obsContent:''),
       })
     });
     const data = await resp.json();
@@ -2470,6 +2752,268 @@ function setStatus(state,txt){
   d.className='status-dot'+(state==='running'?' running':'');
   t.textContent=txt;
 }
+
+// ══════════════════════════════════════════════════════════
+//  Obs Data — Global State
+// ══════════════════════════════════════════════════════════
+let _obsMode     = 'file';    // 'file' | 'manual'
+let _obsData     = null;      // parsed arrays or null
+let _obsContent  = '';        // text content for manual mode
+let _obsFilePath = '';        // file path for file mode
+
+// Update preview card in-place (after model render or after data load)
+function _updateObsPreview(){
+  const card = document.getElementById('obsPreviewCard');
+  if(!card) return;
+  if(_obsData){
+    card.className='obs-preview ok';
+    card.style.display='';
+    card.innerHTML=obsPreviewHTML();
+  } else {
+    card.style.display='none';
+    card.innerHTML='';
+  }
+  // Update the "content entered" hint in manual pane
+  const editPane=document.getElementById('obsEditPane');
+  if(editPane){
+    const hint=editPane.querySelector('.obs-hint');
+    if(hint) hint.textContent=_obsContent
+      ? (lang==='en'?'✓ Content entered (click button to view/edit)':'✓ 已输入内容（点击按钮查看/修改）')
+      : '';
+  }
+}
+
+function setObsMode(mode){
+  _obsMode=mode;
+  const fileBtn=document.getElementById('obsBtnFile');
+  const editBtn=document.getElementById('obsBtnEdit');
+  const filePane=document.getElementById('obsFilePane');
+  const editPane=document.getElementById('obsEditPane');
+  if(!filePane) return;
+  fileBtn?.classList.toggle('active', mode==='file');
+  editBtn?.classList.toggle('active', mode==='manual');
+  filePane.style.display = mode==='file' ? '' : 'none';
+  editPane.style.display = mode==='manual' ? '' : 'none';
+  scheduleSave();
+}
+
+async function loadObsFromFile(){
+  const pathEl=document.getElementById('obsFilePath');
+  const fpath=pathEl?.value.trim()||'';
+  _obsFilePath=fpath;
+  if(!fpath){ tlog('[Obs] 请填写文件路径','wrn'); return; }
+  try{
+    const r=await fetch('/api/parse_obs_point',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({filepath:fpath})});
+    const d=await r.json();
+    if(d.ok){
+      _obsData=d; _obsContent='';
+      _updateObsPreview();
+      tlog(`[Obs] ${S('obs-load-ok')}: ${d.n_images} ${lang==='en'?'images':'图像'}, zs=${d.zs?.toFixed(4)}`,'ok');
+      scheduleSave();
+    } else {
+      tlog(`[Obs] ${S('obs-load-err')}: ${d.error}`,'err');
+    }
+  }catch(e){ tlog(`[Obs] ${S('obs-load-err')}: ${e.message}`,'err'); }
+}
+
+// ── Obs Editor Overlay ─────────────────────────────────────────────────
+function openObsEditor(){
+  const bfeTA=document.getElementById('obsEdTA');
+  if(bfeTA){
+    bfeTA.value=_obsContent||'';
+    obsEdLnumUpdate(bfeTA);
+    if(bfeTA.value.trim()) _obsEdParseFull(bfeTA.value);
+  }
+  document.getElementById('obsOv').classList.add('open');
+  setTimeout(()=>bfeTA?.focus(),280);
+}
+
+function closeObsEditor(){
+  document.getElementById('obsOv').classList.remove('open');
+}
+
+function applyObsContent(){
+  const ta=document.getElementById('obsEdTA');
+  _obsContent=ta?.value||'';
+  if(_obsContent.trim()){
+    fetch('/api/parse_obs_point',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content:_obsContent})}).then(r=>r.json()).then(d=>{
+        if(d.ok){ _obsData=d; } else { _obsData=null; }
+        _updateObsPreview();
+        scheduleSave();
+    }).catch(_=>{ _obsData=null; _updateObsPreview(); });
+  } else { _obsData=null; _updateObsPreview(); }
+  closeObsEditor();
+}
+
+function obsEdLnumUpdate(ta){
+  const lines=(ta.value.match(/\n/g)||[]).length+1;
+  const lc=document.getElementById('obsEdLnum');
+  if(lc) lc.textContent=Array.from({length:lines},(_,i)=>i+1).join('\n');
+}
+function obsEdSyncLnum(ta){
+  const lc=document.getElementById('obsEdLnum');
+  if(lc) lc.scrollTop=ta.scrollTop;
+}
+function obsEdKeydown(e){
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const ta=e.target,s=ta.selectionStart,end=ta.selectionEnd;
+    ta.value=ta.value.substring(0,s)+'  '+ta.value.substring(end);
+    ta.selectionStart=ta.selectionEnd=s+2;
+    obsEdLnumUpdate(ta);
+  }
+}
+
+let _obsEdTimer=null;
+function obsEdInput(ta){
+  obsEdLnumUpdate(ta);
+  clearTimeout(_obsEdTimer);
+  _obsEdTimer=setTimeout(()=>_obsEdParseFull(ta.value),500);
+  scheduleSave();
+}
+
+async function _obsEdParseFull(content){
+  if(!content.trim()){
+    document.getElementById('obsEdSt').textContent=S('obs-ed-waiting');
+    document.getElementById('obsEdSt').parentElement.className='bfe-bar-item';
+    document.getElementById('obsEdN').textContent='—';
+    document.getElementById('obsEdZ').textContent='—';
+    document.getElementById('obsEdBadge').textContent='—';
+    document.getElementById('obsEdBadge').style.cssText='padding:3px 10px;font-size:11px;border-radius:10px;background:var(--bg4);color:var(--text3)';
+    return;
+  }
+  try{
+    const r=await fetch('/api/parse_obs_point',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content})});
+    const d=await r.json();
+    const ok=!!d.ok;
+    document.getElementById('obsEdSt').textContent=ok?S('obs-ed-valid'):S('obs-ed-invalid');
+    document.getElementById('obsEdSt').parentElement.className='bfe-bar-item'+(ok?' ok':' err');
+    document.getElementById('obsEdN').textContent=ok?d.n_images:'—';
+    document.getElementById('obsEdZ').textContent=ok?(d.zs?.toFixed(4)||'—'):'—';
+    const badge=document.getElementById('obsEdBadge');
+    if(ok){
+      badge.textContent=`✓ ${d.n_images} ${lang==='en'?'images':'图像'} zs=${d.zs?.toFixed(4)}`;
+      badge.style.cssText='background:rgba(59,130,246,.15);color:var(--accent2);padding:3px 10px;font-size:11px;border-radius:10px';
+    } else {
+      badge.textContent=`✗ ${d.error||'格式错误'}`;
+      badge.style.cssText='background:rgba(239,68,68,.15);color:var(--red);padding:3px 10px;font-size:11px;border-radius:10px';
+    }
+  }catch(_){}
+}
+
+// ══════════════════════════════════════════════════════════
+//  Generate glafic Input File
+// ══════════════════════════════════════════════════════════
+let _glaficInputFile='';
+let _glaficObsFile='';
+let _glaficCurTab=1;
+
+async function doGenerateGlafic(){
+  if(!curModel) return;
+  const srcDir   = document.getElementById('srcDir').value.trim();
+  const bfContent= document.getElementById('bfeTA')?.value||document.getElementById('bfContent')?.value||'';
+  const overrides= collectParams();
+  const obsArrays= _obsData ? {
+    obs_positions_mas_list:  _obsData.obs_positions_mas_list,
+    obs_magnifications_list: _obsData.obs_magnifications_list,
+    obs_mag_errors_list:     _obsData.obs_mag_errors_list,
+    obs_pos_sigma_mas_list:  _obsData.obs_pos_sigma_mas_list,
+    obs_x_flip: false,
+  } : {};
+
+  const btn=document.getElementById('glaficBtn');
+  btn.disabled=true;
+  btn.querySelector('span[data-i18n]').textContent=lang==='en'?'Generating…':'生成中…';
+  try{
+    const r=await fetch('/api/generate_glafic_input',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:curModel, overrides, source_dir:srcDir,
+        bf_mode:bfMode, bf_content:bfContent, obs_arrays:obsArrays
+      })});
+    const d=await r.json();
+    if(d.ok){
+      _glaficInputFile=d.input_file||'';
+      _glaficObsFile=d.obs_file||'';
+      document.getElementById('glaficTA1').value=_glaficInputFile;
+      document.getElementById('glaficTA2').value=_glaficObsFile;
+      switchGlaficTab(1);
+      document.getElementById('glaficModal').classList.add('open');
+      tlog(S('glafic-gen-ok'),'ok');
+    } else {
+      tlog(`${S('glafic-gen-err')}: ${d.error}`,'err');
+    }
+  }catch(e){
+    tlog(`${S('glafic-gen-err')}: ${e.message}`,'err');
+  }
+  btn.disabled=false;
+  applyStaticTrans();
+}
+
+function switchGlaficTab(n){
+  _glaficCurTab=n;
+  document.getElementById('gtab1').classList.toggle('active',n===1);
+  document.getElementById('gtab2').classList.toggle('active',n===2);
+  document.getElementById('glaficPane1').style.display=n===1?'':'none';
+  document.getElementById('glaficPane2').style.display=n===2?'':'none';
+}
+
+function closeGlaficModal(){
+  document.getElementById('glaficModal').classList.remove('open');
+}
+
+function copyGlaficContent(){
+  const ta=document.getElementById(_glaficCurTab===1?'glaficTA1':'glaficTA2');
+  if(!ta) return;
+  navigator.clipboard?.writeText(ta.value).then(()=>tlog('📋 已复制到剪贴板','ok'))
+    .catch(_=>{ ta.select(); document.execCommand('copy'); tlog('📋 已复制','ok'); });
+}
+
+function downloadGlaficFile(){
+  const isInput=_glaficCurTab===1;
+  const content=isInput?_glaficInputFile:_glaficObsFile;
+  const filename=isInput?'glade_opt.input':'obs_glade.dat';
+  _downloadText(content,filename);
+}
+
+function downloadAllGlaficFiles(){
+  _downloadText(_glaficInputFile,'glade_opt.input');
+  setTimeout(()=>_downloadText(_glaficObsFile,'obs_glade.dat'),300);
+}
+
+function _downloadText(content,filename){
+  const blob=new Blob([content],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ══════════════════════════════════════════════════════════
+//  Sidebar Drag Resize
+// ══════════════════════════════════════════════════════════
+(()=>{
+  const bar=document.getElementById('sbResize');
+  const sb =document.querySelector('.sidebar');
+  let drag=false, sx=0, sw=0;
+  bar.addEventListener('mousedown',e=>{
+    drag=true; sx=e.clientX; sw=sb.offsetWidth;
+    document.body.style.userSelect='none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag)return;
+    const nw=Math.max(180,Math.min(600,sw+(e.clientX-sx)));
+    sb.style.width=nw+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    drag=false; document.body.style.userSelect='';
+  });
+})();
 
 // ══════════════════════════════════════════════════════════
 //  Terminal Drag Resize
