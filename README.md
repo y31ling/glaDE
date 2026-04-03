@@ -72,7 +72,6 @@ Then open **[http://localhost:6017](http://localhost:6017)** in your browser.
 - Switch between **Chinese** and **English** interface using the toggle button in the top-right corner
 - Save the current parameter configuration back to the model script as new defaults ("Set as Default")
 
-> **⚠️ Known WebUI limitation**: Running with `DE_WORKERS > 1` (parallel workers) via the WebUI causes process race conditions. **Workaround**: set `DE_WORKERS = 1` in the WebUI, **or** use "Set as Default" to save parameters to the script, then run the script directly from the terminal.
 
 The bootstrap script automatically:
 
@@ -289,7 +288,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## !! Known Issues
 
-- **[Critical] WebUI parallel workers**: Launching the optimizer from the WebUI with `DE_WORKERS > 1` triggers severe process race conditions (glafic global state is not thread-safe). **Workaround**: keep `DE_WORKERS = 1` when using the WebUI, **or** click **"Set as Default"** to write your parameters back to the script and run the script directly from the terminal.
 - **[glafic]** The built-in Optimization-DE command in glafic does not work correctly — do not use it for now.
 - Glafic checking progress doesn't using absolute value to compare, plz compare the result manually for now.
 
