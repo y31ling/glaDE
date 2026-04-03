@@ -8,10 +8,10 @@ from runner import run_selected_model
 
 # ================= 用户在这里改参数 =================
 # 可选：'point_mass' | 'nfw' | 'king' | 'p-jaffe' | 'none'
-model_use = "none"
+model_use = "point_mass"
 
 # 含 bestfit.dat 的目录（相对项目根目录或绝对路径）
-source_dir = "work/SN_2Sersic_NFW"
+source_dir = "work/SN_2Sersic_SIE"
 
 # 统一输出目录（相对于 glade 目录）
 results_root = "results"

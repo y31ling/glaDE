@@ -1,0 +1,38 @@
+## glafic input file for iPTF16geu SN lensing system
+## Double Sersic + SIE model
+
+omega      0.3
+lambda     0.7
+weos       -1.0
+hubble     0.7
+
+prefix     work/SN_2Sersic_SIE/SN_glafic
+
+xmin       -1.0
+ymin       -1.0
+xmax        1.0
+ymax        1.0
+pix_ext     0.01
+pix_poi     0.5
+maxlev      5
+
+startup    2
+startup    1
+startup    0
+startup    1
+
+lens       sers    1    0.2160    9.896617e+06    2.656977e-03    2.758473e-02    2.986760e-01    1.124730e+02    3.939718e-01    1.057760e+00
+lens       sers    2    0.2160    2.555580e+07    2.656977e-03    2.758473e-02    4.242340e-01    5.396370e+01    1.538855e+00    1.000000e+00
+lens       sie    1    0.2160    1.183382e+02    2.656977e-03    2.758473e-02    1.571203e-01    2.920348e+01    0.000000e+00    0.000000e+00
+
+point      0.4090    2.685497e-03    2.443616e-02
+
+start_command
+
+# 寻找成像位置和放大率
+findimg
+
+# 写入临界曲线
+writecrit  0.4090
+
+quit

@@ -1,0 +1,21 @@
+V0.2.2
+- 新增了这个日志
+- 新增了可以将当前参数设置一键转换到glafic input file的功能
+- 重做了观测数据的填写窗口，使其与lens file保持一致且可以直接导入
+- 侧边栏现在可以通过拖拽来改变大小
+- "None"模型现在和其他模型的输出格式保持一致。
+- 修正了webui模式下的并发问题
+- Added this changelog
+- Added one-click conversion of current parameter settings to glafic input file format
+- Redesigned the observation data editor for consistency with lens file format; supports direct file import
+- Sidebar is now resizable via drag handle
+- "None" model output format is now consistent with other models
+- Fixed concurrency issues in WebUI mode
+
+V0.2.0 Major Update
+- 新增了Webui界面，可以方便快捷地进行编辑
+- Added WebUI for convenient parameter editing and model execution
+
+
+V0.1.0 
+- Glafic with DE

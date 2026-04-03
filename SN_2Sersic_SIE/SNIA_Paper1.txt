@@ -1,0 +1,3092 @@
+Draft version November 25, 2024
+Typeset using LATEX twocolumn style in AASTeX631
+Lensing Anomalies in the First Multiply-Lensed SN Ia iPTF16geu:
+I. A Barred Spiral Lensing Galaxy resolves Position Anomalies and alleviates Magniﬁcation Anomalies
+Jeremy Lim
+,1 Alex Chow
+,1 Amruth Alfred
+,1 Sung Kei Li
+,1 Jose M. Diego
+,2 Masamune Oguri
+,3, 4
+and Tom Broadhurst
+5, 6, 7
+1Department of Physics, The University of Hong Kong, Pokfulam Road, Hong Kong
+2IFCA, Instituto de F´ısica de Cantabria (UC-CSIC), Av. de Los Castros s/n, 39005 Santander, Spain
+3Center for Frontier Science, Chiba University, 1-33 Yayoi-cho, Inage-ku, Chiba 263-8522, Japan
+4Department of Physics, Graduate School of Science, Chiba University, 1-33 Yayoi-Cho, Inage-Ku, Chiba 263-8522, Japan
+5Department of Theoretical Physics, University of Basque Country UPV/EHU, Bilbao, Spain
+6IKERBASQUE, Basque Foundation for Science, Bilbao, Spain
+7Donostia International Physics Center, Paseo Manuel de Lardizabal, 4, San Sebasti´an, 20018, Spain
+ABSTRACT
+The ﬁrst multiply-lensed Supernova Type Ia (SN Ia) discovered, iPTF16geu, formed an Einstein cross
+displaying a broad range of image magniﬁcations. Constrained by its image positions, all previous
+lens models that employ a simple smoothly-varying mass distribution have failed to reproduce the
+broad range of image magniﬁcations; moreover, lens models that employ two smoothly-varying mass
+components (representing stars and Dark Matter separately) require oﬀset centres just to best ﬁt the
+image positions, while only modestly increasing the range of predicted image magniﬁcations. Here,
+by isolating and subtracting away the Einstein ring formed by the SN Ia host galaxy, the lensing
+galaxy is revealed as a barred spiral. Constrained again by the SN Ia image positions, lens models
+that incorporate a model stellar component that ﬁts the light morphology of the lensing galaxy, along
+with a simple power-law proﬁle for a DM halo sharing the same centre as the stellar component,
+leave no position anomalies and now predict a broader range of image magniﬁcations in better accord
+with observations. The best-matching lens model closely or satisfactorily reproduces the disparate
+magniﬁcations of the two brightest SN Ia images, albeit over-predicting (by a factor of ∼2.5) the
+comparable magniﬁcations of the two dimmest images. This work sets the stage for a more complete
+assessment of lensing anomalies left by smooth lens models for iPTF16geu – crucial for evaluating
+what additional ingredients are needed to resolve these anomalies, with corresponding implications for
+the nature of Dark Matter.
+1. INTRODUCTION
+iPTF16geu is the ﬁrst Supernova Type Ia (SN Ia) ver-
+iﬁed to be gravitationally lensed into multiple images
+(Goobar et al. 2017). Figure 1 shows images of this sys-
+tem taken at two diﬀerent epochs by the Hubble Space
+Telescope (HST). In the ﬁrst epoch (Fig. 1a), the SN Ia
+can be seen to be lensed into four unresolved images,
+which are labelled Img 1 to Img 4 clockwise from the
+brightest image. All four SN Ia images are superposed
+on an Einstein ring (ER) corresponding to the multiply-
+lensed images of the SN Ia host galaxy. The morphol-
+ogy of this ER can be seen at greater clarity in the im-
+age taken more than 2 years later (Fig. 1b), by which
+time the SN Ia had faded to obscurity. The ER encir-
+cles a visible lensing galaxy, which has a diﬀerent colour
+than both the SN Ia and the ER. Utilised as a stan-
+dard candle, this SN Ia permits, for the ﬁrst time, a
+determination of the magniﬁcation imposed upon each
+image of a multiply-lensed system, rather than just the
+relative magniﬁcations of multiply-lensed images when
+the luminosity of the lensed object is unknown. Lens
+models for iPTF16geu must therefore satisfy more strin-
+gent criteria than is normally the case for multiply-
+lensed systems – making it, along with the other reasons
+mentioned below, a particularly noteworthy system for
+studying lensing anomalies. The latter corresponds to
+diﬀerences left by lens models between the predicted and
+observed positions and (absolute or relative) magniﬁca-
+tions of multiply-lensed systems. The solution to lensing
+anomalies can have important implications for the na-
+ture of Dark Matter (DM), as has been demonstrated
+for multiply-lensed quasars (Amruth et al. 2023).
+Forming a conﬁguration referred to as an Einstein
+cross, the multiply-lensed SN Ia images in iPTF16geu
+2
+−0.6
+−0.4
+−0.2
+0.0
+0.2
+0.4
+0.6
+−0.6
+−0.4
+−0.2
+0.0
+0.2
+0.4
+0.6
+∆y [arcsec]
+Img 1
+Img 2
+Img 3
+Img 4
+(a) SN Ia (Oct 2016)
+−0.5
+0.0
+0.5
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.5
+0.0
+0.5
+−0.6
+−0.4
+−0.2
+0.0
+0.2
+0.4
+0.6
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.6
+−0.4
+−0.2
+0.0
+0.2
+0.4
+0.6
+∆y [arcsec]
+(b) Post SN Ia (Nov 2018)
+Figure 1. Colour (RGB) images of iPTF16geu constructed
+from broadband images taken by the HST in the F475W,
+F625W, and F814W ﬁlters.
+a) Taken in Oct 2016, the
+multiply-lensed SN Ia formed an Einstein cross, labelled
+Img 1–4 clockwise from the brightest image. b) Taken in Nov
+2018 after the SN Ia had faded away, this image more clearly
+shows an Einstein ring (ER), corresponding to the multiply-
+lensed image of the SN Ia host galaxy, encircling the visible
+inner region of the lensing galaxy.
+display a large range in brightnesses as can be seen in
+Figure 1a. The diﬀerence in brightnesses arise, in part,
+owing to diﬀerent amounts of dust extinction along dif-
+ferent sightlines through the foreground lensing galaxy:
+broadband images taken in the optical and near-infrared
+reveal diﬀerent colours for the four SN Ia images (Goo-
+bar et al. 2017). Even after correcting for dust extinc-
+tion, however, the SN Ia images still display large dif-
+ferences in magniﬁcations amounting to factor of ∼5 be-
+tween the brightest and dimmest lensed counterparts
+(Dhawan et al. 2020).
+Lens modelling of iPTF16geu began by adopting just
+a single smoothly-varying density proﬁle for the lens-
+ing galaxy1.
+Constrained solely by the SN Ia image
+positions, all such lens models are reportedly able to
+reproduce the SN Ia image positions2, but predict a
+smaller range in SN Ia image magniﬁcations – no larger
+than a factor of ∼2, and sometimes much less – com-
+pared to that observed. Speciﬁcally, adopting a singu-
+lar isothermal ellipsoid (power-law proﬁle with an index
+of α = 2, whereby the density, n, decreases with ra-
+dius, r, as n ∝ r−α), both Goobar et al. (2017) and
+More et al. (2017) ﬁnd that their lens models predict
+relatively small diﬀerences in magniﬁcations (within a
+factor of ∼2) among all four SN Ia images. Even when
+allowing the density proﬁle of the model ellipsoid to dif-
+fer from isothermal (α ≠ 2), More et al. (2017) still ﬁnd
+a best-ﬁt density proﬁle close to isothermal irrespective
+of whether external shear is imposed. Adopting instead
+cored power-law ellipsoids, M¨ortsell et al. (2020) ﬁnd
+a best-ﬁt lens model having a density proﬁle shallower
+than isothermal, and an oﬀset between the lens and light
+centres of ∼0.1 kpc (as can be seen in their Fig. 8, al-
+though the oﬀset value quoted is from Williams & Zeg-
+eye 2020). Even then, their lens model predicts quite
+comparable magniﬁcations (well within a factor of 2)
+for all four SN Ia images. Similarly, adopting a S´ersic
+proﬁle, Dhawan et al. (2020) ﬁnd that their lens mod-
+els (having S´ersic indices, nS, of nS ≈ 1) predicts quite
+comparable magniﬁcations (again within a factor of 2)
+for all four SN Ia images3.
+Subsequent lens models adopted multiple mass com-
+ponents for the lensing galaxy in iPTF16geu, with each
+component varying smoothly in density with radius.
+Once again, when constrained solely by the SN Ia im-
+age positions, all such lens models are reportedly able to
+reproduce the SN Ia image positions but not the SN Ia
+image magniﬁcations – albeit spanning a larger range
+of magniﬁcations than the aforementioned lens mod-
+els employing only a single mass component. Speciﬁ-
+cally, Williams & Zegeye (2020) considered the superpo-
+sition of two cored ellipsoids (forced to closely resemble
+spheroids) having diﬀerent scale sizes (the smaller rep-
+resenting stars and the larger representing a DM halo),
+1 We shall henceforth refer to such lens models as smooth lens mod-
+els, irrespective of the number of individual mass components
+employed so long as each component – representing a global as-
+pect of the lensing galaxy – is represented by a smooth-varying
+density proﬁle.
+2 We note that diﬀerences, if any, between the image positions
+predicted by a given lens model and those actually observed are
+not reported in any of the studies cited in this paper.
+3 There is not suﬃcient information provided in the studies by
+Goobar et al. (2017), More et al. (2017), and Dhawan et al. (2020)
+to determine how closely the centres of their lens models coincide
+with the light centre of the lensing galaxy.
+AASTeX v6.3.1 Sample article
+3
+each of which is allowed to have a density slope that
+varies with radius (mimicking, in this way, the Einasto
+proﬁle). Allowing these two mass components to have
+diﬀerent centres, Williams & Zegeye (2020) ﬁnd best-
+ﬁt lens models for which the centres of the two mass
+components do not coincide – giving rise to a combined
+mass proﬁle having a centroid coincident with the light
+proﬁle, but which is lopsided such that the iso-density
+contours are neither pure ellipses nor self-similar with
+radius.
+Even such complex lens models are far from
+being able to reproduce the observed SN Ia image mag-
+niﬁcations. More closely resembling the work reported
+in this paper, Diego et al. (2022) incorporated a stellar
+component based on a composite image of the lensing
+galaxy (after removing the ER) constructed from images
+taken in the F814W and F160W ﬁlters by the HST, to-
+gether with a cored ellipsoid having a power-law proﬁle
+to represent a DM halo. When constrained solely by the
+SN Ia image positions, the best-ﬁt lens model requires
+the orientation of the DM component (the cored ellip-
+soid) to closely match that of the stellar image (at its
+outer regions), but for the centre of the DM component
+to be oﬀset from the centre of the stellar component by
+∼0.23 kpc. This lens model predicts magniﬁcations that
+disagree with those observed for Img 1, Img 2, and Img 4,
+such that Img 1 (the brightest image) only has a slightly
+higher predicted magniﬁcation than Img 4 (formally the
+second-dimmest image). Using the magniﬁcations of se-
+lected images as additional constraints can help improve
+the overall match in magniﬁcations, but at predicted po-
+sitions diﬀerent from the observed positions.
+Failure in reproducing all four SN Ia image magniﬁ-
+cations have stimulated studies exploring whether the
+addition of stellar micro-lensing – by stars in the fore-
+ground lensing galaxy – can potentially resolve the mag-
+niﬁcation anomalies left by smooth lens models. Adopt-
+ing the smooth lens model constructed by More et al.
+(2017) as their macro-lens (an ellipsoid), Yahalomi et al.
+(2017) determine a probability of ≲ 3% for stellar micro-
+lensing to perturb the model-predicted magniﬁcations
+at the level necessary to match the observed magniﬁca-
+tions, even when allowing the ellipticity and shear of the
+macro-lens to vary. By contrast, utilising a single cored
+ellipsoid as the macro-lens, M¨ortsell et al. (2020) ﬁnd
+a maximal probability of ∼12% for stellar micro-lensing
+to perturb the magniﬁcations of the SN Ia images suf-
+ﬁciently to match the observed magniﬁcations. Based
+instead on their macro-lens employing a stellar compo-
+nent together with a cored ellipsoid, Diego et al. (2022)
+found a probability of ∼10% for stellar micro-lensing to
+reproduce the magniﬁcation of the SN Ia image that is
+most severely under-predicted by their macro-lens model
+(Img 1). Both M¨ortsell et al. (2020) and Diego et al.
+(2022) suggest that stellar micro-lensing is responsible
+for the magniﬁcation anomalies left by their smooth lens
+models for iPTF16geu.
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆x [arcsec]
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−0.5
+0.0
+0.5
+−0.5
+0.0
+0.5
+∆x [arcsec]
+Img 1
+Img 2
+Img 3
+Img 4
+Bar
+Disk
+Bar & Disk
+SIE + Stars
+Figure 2. Same as Fig.1b, but after subtracting the ER to
+reveal the lensing galaxy in iPTF16geu. In the right panel,
+the positions of the multiply-lensed SN Ia are indicated by ⋆
+symbols and labelled accordingly. The arc-like feature span-
+ning north to north-west from centre is an artefact left from
+subtracting the ER. The black × indicates the tied centres
+of the two model S´ersics ﬁtted to the light morphology of
+the lensing galaxy, comprising the model stellar component
+used (when incorporated) in our lens models. When their
+centres are not tied in the ﬁt, the red Y indicates the centre
+of the model S´ersic ﬁtted to the stellar bar and the blue +
+the model S´ersic ﬁtted to the stellar disk. Diﬀerences be-
+tween these positions and the black × provide a measure of
+the systematic uncertainty in the light centre. The yellow
+Y
+indicates the centre of the best-ﬁt lens model employing
+the model stellar component along with a SIE DM halo. See
+text for details.
+Unlike multiply-lensed systems involving quasi-stellar
+objects (QSOs) in which the lensing galaxy is often
+diﬃcult to discern against the glare of a multiply-
+lensed QSO, supernovae eventually fade to obscurity. In
+iPTF16geu, we demonstrate how a simple procedure to
+remove the ER in the post-SN Ia image of iPTF16geu
+(see Section 2) reveals the lensing galaxy in this sys-
+tem to be a barred spiral, as shown in Figure 2. The
+four SN Ia images form near the periphery of the stel-
+lar bar, as indicated in Figure 2b, which along with the
+stellar disk imposes a lensing potential that is highly
+asymmetric. We ﬁt two elliptical S´ersic proﬁles to the
+light morphology of the lensing galaxy to serve as a
+model stellar component for this galaxy. Employing this
+model stellar component along with diﬀerent choices of
+commonly-used density proﬁles for a DM halo, and con-
+strained by just the SN Ia image positions alone (like
+in previous studies), our lens models predict a broader
+range of SN Ia image magniﬁcations that more closely
+resemble those observed, while oftentimes reproducing
+near exactly the SN Ia image positions. Within the ER,
+4
+our lens models require the projected stellar mass to
+be comparable to the projected DM mass, so that the
+stellar component strongly inﬂuences the lensing deﬂec-
+tion ﬁeld at the ER. Unlike the lens models proposed by
+Williams & Zegeye (2020) and Diego et al. (2022), who
+also employed multiple mass components, our lens mod-
+els do not demand the stellar and DM components to
+be oﬀset from each other – thus requiring very complex
+total mass distributions of questionable physical reality
+– so as to match the SN Ia image positions. Our best-ﬁt
+lens model near-exactly reproduces the magniﬁcation of
+Img 2 (second-brightest image), comes quite close to re-
+producing the magniﬁcation of Img 1 (brightest image)
+by leaving just a 2.15σ tension, although over-predicting
+the magniﬁcations of Img 3–4 (the two dimmest images
+having comparable brightnesses) by factors of between
+2 and 3. This lens model therefore leaves no individ-
+ual position anomalies and alleviates, albeit still leaves,
+magniﬁcation anomalies.
+This paper is the ﬁrst of a series to carefully evalu-
+ate how closely smooth lens models are able to repro-
+duce the observed properties of multiply-lensed images
+in iPTF16geu, and the nature of additional ingredients
+needed to resolve any lensing anomalies left over by such
+lens models. For example, because the eﬀects of stellar
+micro-lensing depend on the macro-lens model adopted,
+our more exacting smooth lens models may signiﬁcantly
+alter the probability for stellar micro-lensing to perturb
+the magniﬁcations of the SN Ia images suﬃciently to re-
+produce their observed magniﬁcations.
+Alternatively,
+an entirely diﬀerent ingredient may be needed to re-
+solve lensing anomalies left over by smooth lens models
+for iPTF16geu, such as DM sub-halos as are predicted
+in abundance if DM comprises ultra-massive and cold
+particles (e.g., WIMPs), or pervasive density modula-
+tions in DM halos generated by quantum interference
+among ultra-light bosons in a Bose-Einstein condensate
+(e.g., ultra-light Axion-like particles). Both WIMPs and
+Axions have been advocated to address diﬀerent deﬁ-
+ciencies in the Standard Model of particle physics, and
+ultra-light Axion-like particles advocated by string the-
+ory; at the present time, these particles constitute the
+main contenders for DM. In lieu of a direct detection
+in laboratory experiments, the type (position or mag-
+niﬁcation, or both) and magnitude of lensing anomalies
+left by smooth lens models, and the resolution to such
+anomalies, oﬀer a promising approach to diﬀerentiate
+between the main contenders for DM (e.g., see Amruth
+et al. 2023).
+The remainder of this paper is organised as follows. In
+Section 2, we explain how we separate the ER from the
+lensing galaxy in iPTF16geu, thus revealing the lens-
+ing galaxy in this system as a barred spiral. We then
+provide details on the two elliptical S´ersic proﬁles ﬁtted
+to the light morphology of the lensing galaxy to serve
+as a model stellar component for this galaxy. In Sec-
+tion 3, we explain the ingredients incorporated into our
+lens models for iPTF16geu, both including and exclud-
+ing the model stellar component so as to assess its eﬀects
+on the predicted properties of the SN Ia images. Like in
+previous studies, we use only the SN Ia image positions
+as constraints, measured in the manner described also
+in Section 3.
+In Section 4, we point out how simply
+evaluating lensing anomalies alone may not provide an
+accurate assessment of how well lens models are able to
+reproduce the properties of multiply-lensed images; to
+remedy this problem, we advocate an additional diag-
+nostic that ought to be provided when reporting lens
+models. Then, in Section 5, we present the predictions
+of our lens models, and demonstrate the importance of
+the model stellar component, as well as the necessity of
+a DM halo, for signiﬁcantly improving upon the match
+in both the SN Ia image positions and magniﬁcations.
+Finally, in Section 6, we summarise the main points of
+this paper and forecast the issues to be tackled in fu-
+ture papers of this series. We adopt throughout a con-
+cordance ΛCDM cosmology with ΩM = 0.3, ΩΛ = 0.7,
+and H0 = 70 km s−1 Mpc−1; values quoted from other
+relevant studies have been converted to this cosmology
+where necessary. The lensing galaxy in iPTF16geu is lo-
+cated at a redshift of z = 0.216 (Goobar et al. 2017), for
+which 1′′ = 3.503 kpc. By contrast, the SN Ia is located
+at z = 0.409 (Goobar et al. 2017).
+2. MORPHOLOGY OF LENSING GALAXY
+The ﬁrst column of Figure 3 shows a larger ﬁeld of
+Figure 1b, taken after the SN Ia had faded to obscurity,
+that covers the detectable extent of the lensing galaxy
+in iPTF16geu. The top row show images in the F475W
+ﬁlter, the middle row the F814W ﬁlter, and the bottom
+row colour (RGB) images made by combining images in
+the F475W, F625W, and F814 ﬁlters – the same ﬁlters
+from which the colour images shown in Figure 1 were
+constructed. The second column of Figure 3 shows the
+model stellar component designed to ﬁt the light mor-
+phology of the lensing galaxy (more details below). The
+third column of this ﬁgure shows the image derived by
+subtracting the model stellar component (2nd column)
+from the original image (1st column), thus isolating the
+ER (together with residuals associated with ﬁne features
+in the lensing galaxy not accounted for in our model for
+this galaxy). The last column of Figure 3 shows images
+of the lensing galaxy derived by subtracting the ER (3rd
+column, after masking out residuals associated with the
+AASTeX v6.3.1 Sample article
+5
+lensing galaxy) from the original image (1st column).
+In the colour image (1st and 4th columns), faint blue
+features can be seen extending well beyond the ER. The
+same blue features can be seen in Figure 3a of Johansson
+et al. (2021), who referred to these features as a “faint
+extended blue halo (possibly spiral arms)” associated
+presumably with the lensing galaxy.
+To ﬁrst isolate and then subtract the ER so as to bet-
+ter reveal the lensing galaxy, we used the following pro-
+cedure.
+First, we masked the ER before ﬁtting two-
+dimensional elliptical S´ersic proﬁles (leaving all param-
+eters to be freely ﬁt) to images of the lensing galaxy
+in the F475W, F625W, and F814W ﬁlters separately.
+We found that the combination of two elliptical S´ersic
+proﬁles – set to have common centres – were necessary
+to provide a satisfactory ﬁt to the light morphology, in
+keeping with the diﬀerent colours of the lensing galaxy
+between its inner (more reddish) and outer (more bluish)
+regions. The morphology of the combined model S´ersics
+thus ﬁtted to the light morphology of the lensing galaxy
+(with minor reﬁnements as explained below) are shown
+in the second column of Figure 3. Subtracting the model
+S´ersics from the original image separates out the ER, as
+show in the third column of Figure 3.
+A faint point-
+like feature is visible near the centre of the ER, owing
+to the inability of the model S´ersics to exactly capture
+the light mophology of the lensing galaxy at or immedi-
+ately around its nucleus. Even fainter features are visi-
+ble beyond the ER, brighter in F475W than in F814W,
+corresponding (primarily) to spiral arms in the lensing
+galaxy. To isolate just the ER, we masked out both the
+central feature and an annular region somewhat beyond
+the ER containing visible spiral arms. Subtracting this
+ER image from the original image leaves only light from
+the lensing galaxy, as shown in the last column of Fig-
+ure 3. The lensing galaxy is thus revealed to possess an
+elongated bulge from which emerges two bluish spiral
+arms.
+Star formation in these spiral arms is presum-
+ably responsible for the emission lines that deﬁnes the
+redshift of the lensing galaxy (Goobar et al. 2017; Jo-
+hansson et al. 2021).
+2.1. Model Stellar Component
+Armed with an improved understanding of the mor-
+phology of the lensing galaxy, we repeated the procedure
+described above with one minor reﬁnement. Unlike be-
+fore, we ﬁxed the S´ersic index, n, of the outer (more
+extended) component at n = 1 as is appropriate for an
+exponential disk, while allowing (like before) its ellip-
+ticity and position angle to freely vary in the ﬁt. For
+the inner (more compact) component, we let its S´ersic
+index, along with its ellipticity and position angle, to be
+freely ﬁt, just like before. Once again, the centres of two
+S´ersics are tied and solved in the ﬁtting process. Based
+on the F814W image, for which the signal-to-noise ratio
+is the highest, we ﬁnd n = 1.06±0.01 for the inner S´ersic
+component. This S´ersic index is compatible with that of
+a galactic bar: in a study of twenty nearby barred spiral
+galaxies, Gadotti (2008) found that the S´ersic indices for
+bars range from about 0.5 to 1.1. For the F475W and
+F625W images, we ﬁxed n = 1.06 for the inner S´ersic
+component ﬁtted to the lensing galaxy; in this way, for
+all three ﬁlters, we ﬁnd closely similar values for all the
+other parameters of the two S´ersic components ﬁtted to
+the lensing galaxy.
+The parameters of the model S´ersics thus ﬁtted to
+the light morphology of the lensing galaxy (speciﬁcally,
+in the F814W image) are listed in Table 1. Their com-
+bined morphology is shown in the second column of Fig-
+ure 3. These model S´ersics constitute the model stellar
+component that we employed for the lensing galaxy in
+iPTF16geu, as explained in more detail in Section 3.1.2.
+2.2. Light Center
+When constructing a lens model, it would seem sensi-
+ble to localise the lens centre at the light centre of the
+lensing galaxy. To estimate the uncertainty in the com-
+mon centre of the two S´ersic proﬁles ﬁtted to the light
+morphology of the lensing galaxy (see Section 2.1), we
+performed Monte Carlo Markov Chain (MCMC) sim-
+ulations for which we marginalised over all the other
+free parameters of these two proﬁles. We found the un-
+certainties in Right Ascension and Declination of this
+common centre to both have approximately Gaussian
+distributions, yielding a root-mean-square (rms) uncer-
+tainty in this position of 3.3 mas (11.6 pc).
+Tying the lens centre to the light centre implies conﬁ-
+dence in relating the light centre to the dynamical cen-
+tre of the lensing galaxy.
+To determine whether the
+light centre as inferred in the manner described above
+likely coincides with the dynamical centre, we checked
+whether the two S´ersic proﬁles ﬁtted to the light mor-
+phology of the lensing galaxy indeed share the same cen-
+tre. We therefore repeated the ﬁtting procedure as de-
+scribed above (Section 2.1), but now freeing the centres
+of the two S´ersic proﬁles to be individually ﬁtted. We
+then performed MCMC simulations to evaluate the un-
+certainty in the centre of each individual S´ersic proﬁle,
+for which we marginalised over all the other free param-
+eters of both proﬁles. The diﬀerent centres thus derived,
+as well as the common centre derived previously when
+the centres of the two proﬁles are tied, are shown in
+Figure 2. The centre of the inner S´ersic component, rep-
+resenting the stellar bar, is now displaced by 6.3±3.9 mas
+6
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+(a) Original Image
+F475W
+(b) Two S´ersics Model
+(c) Image − Model
+(d) Image − ER
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+F814W
+(e)
+(f)
+(g)
+(h)
+−2
+0
+2
+−2
+−1
+0
+1
+2
+−2
+0
+2
+∆x [arcsec]
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+(i)
+F814W
+F625W
+F475W
+−2
+0
+2
+−2
+0
+2
+∆x [arcsec]
+(j)
+−2
+0
+2
+−2
+0
+2
+∆x [arcsec]
+(k)
+−2
+0
+2
+−2
+0
+2
+∆x [arcsec]
+(l)
+Figure 3.
+Images of iPTF16geu in F475W (top row), F814W (middle row), and colour (bottom row), the last made by
+combining individual images in F814W (for red), F625W (green), and F475W (blue).
+First column shows the post-SN Ia
+images, covering a larger area than Fig. 1b to show a relatively dim disk beyond the ER. Second column shows the combined
+morphology of two model S´ersics ﬁtted to the light morphology of the lensing galaxy after masking out the ER. Third column
+shows results after subtracting the two model S´ersics (second column) from the original images (ﬁrst column), leaving only the
+ER except for residuals at the central region of the lensing galaxy and (primarily) spiral arms in the disk beyond the ER. Last
+column shows results after subtracting the ER (omitting regions within and beyond) from the original images, leaving only the
+lensing galaxy that displays blue spiral arms extending from an elongated bulge (presumably bar).
+(22.1 ± 13.7 pc) from the common centre. The centre of
+the outer S´ersic component, representing the stellar disk,
+is displaced by 41.9±20.4 mas (146.8±71.5 pc) from that
+common centre. The centres of the two S´ersic compo-
+nents when derived individually diﬀer by 47.3±20.8 mas
+(165.7 ± 72.9 pc). For comparison, the pixel size of the
+HST images is 39.2 mas (137.3 pc) on a side, and so the
+maximal diﬀerence between the light centres thus de-
+rived is just somewhat larger than 1 pixel.
+The stellar bar is both more compact and has a much
+higher surface brightness than the stellar disk. It should
+therefore be possible to determine the centre of the stel-
+lar bar to a much higher precision than the stellar disk,
+as is indeed the case as demonstrated in our ﬁtting re-
+sults. On the other hand, dust in the stellar bar may in-
+duce asymmetric ﬂuctuations in surface brightness that
+aﬀect inferences of the true stellar centre: the four SN Ia
+images, formed near the periphery of the stellar bar (see
+Fig. 2), each suﬀer a diﬀerent degree of dust extinction
+imposed by the lensing galaxy.
+The presence of blue
+spiral arms suggests that the stellar disk also may be
+dusty, potentially compromising inferences of its true
+stellar centre. Perhaps most problematically, subtrac-
+tion of the ER leaves visible artefacts, as can be seen
+at the northern periphery of the stellar bar in Figure 2.
+Owing to all these issues, we regard the diﬀerences found
+AASTeX v6.3.1 Sample article
+7
+among the diﬀerent centres derived in the manner de-
+scribed above to provide a measure of the accuracy at
+which the light centre of the lensing galaxy can be deter-
+mined – with commensurate if not larger uncertainties
+on the location of the stellar and hence dynamical cen-
+tre.
+Table 1. Best-ﬁt parameters of model stellar com-
+ponent.
+Parameters
+Unit
+Bar
+Disk
+R.A.
+–
+21h04m15.s9114 ± 0.s00004
+Dec.
+–
+−6○20′25.′′4810 ± 0.′′00005
+e
+–
+0.299 ± 0.003
+0.424 ± 0.003
+PA
+deg
+112.4 ± 0.3
+54.0 ± 0.2
+n
+–
+1.06 ± 0.01
+1 (ﬁxed)
+Re
+kpc
+1.38 ± 0.01
+5.39 ± 0.04
+Note—Positions for common centres of bar and disk.
+Position angle (PA) measured east from north.
+3. LENS MODELLING
+We used the lensing algorithm glaﬁc (Oguri 2010,
+2021) to construct all of our lens models.
+This algo-
+rithm implements a MCMC approach to explore toler-
+ances in the lens model parameters given measurement
+uncertainties in the lensing constraints.
+Although we
+performed MCMC simulations for all of our lens models
+to explore tolerances in their parameters, in this paper
+we present only the lens models that best ﬁt the SN Ia
+image positions (i.e., leaving the lowest χ2), the sole con-
+straints imposed. In this context, our primarily purpose
+for performing MCMC simulations is to ensure that the
+best-ﬁt lens model thus determined is not one that is
+simply stuck at a local minimum in χ2.
+3.1. Ingredients
+To assess the extent to which including the model
+stellar component for the lensing galaxy (Section 2.1)
+improves upon the match in magniﬁcations if not also
+positions of the SN Ia images, we consider lens models
+that either exclude or include this model stellar com-
+ponent.
+Lens models that exclude the model stellar
+component employ only a single mass component (one-
+component lens model), whereas lens models that in-
+clude the model stellar component employ two mass
+components to explicitly represent stars and DM sep-
+arately (two-component lens model).
+For all the lens
+models constructed, the redshift of the lensing galaxy
+was set to z = 0.216 and that of the SN Ia to z = 0.409,
+both as inferred from spectroscopy (Goobar et al. 2017).
+The parameters that are ﬁxed or left free to be solved
+in these lens models are summarised in Table 2, and de-
+scribed in more detail next. Like nearly all previous lens
+models constructed for iPTF16geu, we do not consider
+any external shear in our lens modelling. A visual in-
+spection reveals no bright galaxy or apparent concentra-
+tion of faint galaxies in the immediate surroundings of
+iPTF16geu, as shown in Figure 4. Possible hypothetical
+complexities will be deferred to a future paper until we
+understand how well relatively simple lens models (hav-
+ing a minimal number of necessary ingredients) are able
+to reproduce the multiply-lensed images in this system.
+21h04m16s
+14s
+12s
+10s
+−6◦19′30′′
+20′00′′
+30′′
+21′00′′
+Right Ascension [J2000]
+Declination [J2000]
+Figure
+4.
+HST F110W image of the ﬁeld around
+iPTF16geu, which is indicated by an arrow. No bright galaxy
+or faint galaxies is apparent around iPTF16geu, thus pro-
+viding no motivation for imposing an external shear on lens
+models for the lensing galaxy in iPTF16geu.
+3.1.1. One-Component Lens
+For the one-component lens model, we consider four
+diﬀerent types of density proﬁles: (i) Navarro-Frenk-
+White (NFW), (ii) singular isothermal ellipsoid (SIE);
+(iii) cored isothermal ellipsoid (cSIE); and (iv) power-
+law (PL), which equates to isothermal when the den-
+sity, ρ, decreases with radius, r, as ρ ∝ 1/r2. All their
+parameters, including the position of their centres, were
+left to be freely ﬁt in the lens modelling.
+Isothermal
+or, in general, power-law density proﬁles are commonly
+adopted in lens modelling as representative of the com-
+8
+Table 2. Lens modelling priors.
+Component
+Centre
+e, PA
+M/L
+nS
+M200
+c200
+σv
+rc
+RE
+α
+(1)
+(2)
+(3)
+(4)
+(5)
+(6)
+(7)
+(8)
+(9)
+(10)
+(11)
+NFW
+Free
+Free
+—
+—
+Free
+Free
+—
+—
+—
+—
+SIE
+—
+—
+Free
+—
+—
+Fixed
+cSIE
+—
+—
+Free
+Free
+—
+Fixed
+PL
+—
+—
+—
+—
+Free
+Free
+Bar
+Free
+Fixed
+0.5–4
+Fixed
+—
+—
+—
+—
+—
+—
+Disk
+Note—(1) Lens model component.
+(2) Component centre, for which stellar (when in-
+cluded) and DM components are forced to share the same centre.
+(3) Ellipticity and
+position angle, which for stellar component are ﬁxed to the values in Table 1. (4) Mass-
+to-light ratio of stellar component. (5) S´ersic indices of stellar components, ﬁxed to the
+values in Table 1. (6) NFW virial mass. (7) NFW concentration parameter. (8) Velocity
+dispersion hence mass. (9) Core radius. (10) Einstein radius. (11) Power-law index.
+bined density proﬁles of stars and DM halo combined
+(e.g., Treu & Koopmans 2004).
+3.1.2. Two-Component Lens
+The two-component lens model has separate compo-
+nents representing stars and DM explicitly. For the stel-
+lar component, we used the two model S´ersics designed
+to ﬁt the light morphology of the lensing galaxy as de-
+scribed in Section 2.1.
+The parameters of this model
+stellar component are listed in Table 1. The masses of
+the individual S´ersic models were left to be freely ﬁt,
+although with a prior imposed on their mass-to-light ra-
+tio (M/L) over the range 0.5 ≤ M/L ≤ 4 as determined
+for nearby spiral galaxies (Yoshino & Ichikawa 2008).
+For the DM halo, we tried NFW, SIE, cSIE, or PL pro-
+ﬁles as in the one-component lens model; the diﬀerent
+DM halo proﬁles considered allow for deviations from a
+NFW proﬁle, induced for instance by gravitational in-
+teractions between the DM halo and the baryonic com-
+ponent of the galaxy. Like in the one-component lens
+model, the ellipsoidal shape and mass of the DM halo
+are left to be freely ﬁt.
+In the lens modelling, we tie the centres of the model
+stellar component and DM halo, but let this common
+centre be freely ﬁt. A close agreement with the light
+centre of the lensing galaxy, for which uncertainties in
+determining this centre is discussed in Section 2.2, would
+then provide conﬁdence on the validity of the lens model.
+As an instructive comparison, we also explore lens mod-
+els where we localise (within measurement uncertainties)
+the lens centre at the light centre inferred by tying the
+centres of the two S´ersic proﬁles ﬁtted to the light mor-
+phology of the lensing galaxy (see details in Section 2.2).
+We note that the two model S´ersics – capturing, re-
+spectively, light from the stellar bar and stellar disk – do
+not explicitly capture light from the bluish spiral arms.
+These arms appear to extend outwards from the stellar
+bar, ﬁrst appearing at radii beyond the SN Ia images and
+the ER. Likely represent slight enhancements in surface
+mass density over the inter-arm region, we do not antic-
+ipate these spiral arms to signiﬁcantly aﬀect the lensing
+potential at the locations of the SN Ia images.
+3.2. Constraints
+In this paper, we constrain our smooth lens models
+solely by the positions of the four SN Ia images, just
+like in all previous smooth lens models for iPTF16geu
+that reportedly are able reproduce these positions (see
+Section 1). Adopting this approach carries the implicit
+assumption that any ingredients not considered in lens
+models can leave discrepancies in magniﬁcations while
+not appreciably altering the positions of multiply-lensed
+images. The most obvious such ingredients left out of
+smooth lens models are discrete stars and sub-halos
+(which, when they contain stars, constitute satellite
+galaxies) associated with the lensing galaxy, both of
+which can induce additional lensing.
+Schechter & Wambsganss (2002); Keeton et al. (2003);
+Kochanek & Dalal (2003) have shown that the addition
+of small-scale structures (whether stars or sub-halos)
+to smooth lens models tend to suppress negative-parity
+images (located inside the critical curve) more often
+than they amplify positive-parity images (located out-
+side the critical curve).
+Furthermore, Palencia et al.
+(2024) also show that stellar micro-lensing is much more
+likely to suppress rather than amplify negative-parity
+AASTeX v6.3.1 Sample article
+9
+images, and to amplify rather than suppress positive-
+parity images.
+All lens models constructed thus far
+for iPTF16geu predict Img 1 (the brightest) and Img 3
+(formally the dimmest) to be located inside the critical
+curve and therefore have negative parity, and Img 2 and
+Img 4 to be located outside the critical curve and there-
+fore have positive parity – including those presented in
+this paper. Under the notion that magniﬁcation anoma-
+lies can be resolved by including stellar micro-lensing
+and/or DM sub-halos, lens modellers would therefore
+prefer smooth lens models to over-predict the magniﬁca-
+tions of Img 1 (the highest magniﬁcation) and img 3 (for-
+mally the lowest magniﬁcation) more dramatically than
+they under-predict the magniﬁcations of Img 2 (second
+highest magniﬁcation) and Img 4 (formally second low-
+est magniﬁcation); in the speciﬁc case of stellar micro-
+lensing, for smooth lens models to over- rather than
+under-predict the magniﬁcations of Img 1 and Img 3, and
+to under- rather than over-predict the magniﬁcations of
+Img 2 and Img 4.
+In our work, we deliberately choose to be agnostic
+about whether our smooth lens models over- or under-
+predict the magniﬁcations of the SN Ia images inside
+or outside the critical curve.
+In so doing, we are al-
+lowing for other potential causes of lensing anomalies
+apart from just stellar micro-lensing or sub-halos. For
+instance, if DM comprises ultra-light bosons in a Bose-
+Einstein condensate, then pervasive density modulations
+in DM generated by the quantum interference of such
+particles will inherently induce apparent lensing anoma-
+lies (Amruth et al. 2023). Although such density modu-
+lations also suppress negative-parity images more often
+than they amplify positive-parity images formed near
+critical curves, this skewness is expected to be less pro-
+nounced than for either stellar micro-lensing or sub-
+halos; the key diﬀerence being that quantum interfer-
+ence among ultra-light cold DM particles can just as
+frequently produce under- as over-dense ﬂuctuations in
+surface mass densities, whereas stars and DM sub-halos
+can only produce over-dense ﬂuctuations in surface mass
+densities. As a consequence, it is crucial that we do not
+pre-dispose ourselves to a particular smooth lens model
+so as to deliberately engineer a preferred solution to lens-
+ing anomalies.
+3.2.1. SN Ia Image Positions
+To accurately determine the positions of the SN Ia
+images for use as constraints on lens models, we ﬁrst
+subtracted the post-SN Ia image of Figure 1b from the
+SN Ia image of Figure 1a. The resulting image therefore
+contains the SN Ia images alone. We then ﬁt a Moﬀat
+proﬁle to each SN Ia image in the F814W ﬁlter using the
+package IMFIT (Erwin 2015), where the signal-to-noise
+ratio is the highest, to determine their individual po-
+sitions. To determine their positional uncertainties, we
+performed MCMC simulations (implemented in IMFIT)
+to sample values around the best-ﬁt Moﬀat parameters
+of the four SN Ia images.
+In this way, we found po-
+sitional uncertainties for each SN Ia image to have an
+approximately Gaussian distribution in both Right As-
+cension and Declination.
+Table 3 lists the positions and associated positional
+uncertainties of all four SN Ia images. Their rms posi-
+tional uncertainties range from ∼0.4 mas for the bright-
+est SN Ia image (Img 1) to ∼2.3 mas for the dimmest
+SN Ia images (both Img 3 and Img 4). These uncertain-
+ties are much smaller than that usually attainable for
+multiply-lensed QSOs – except for measurements at ra-
+dio wavelengths using Very Long Baseline Interferome-
+try (VLBI) – as we as can subtract both the ER and light
+from the lensing galaxy before determining the position
+of each SN Ia image.
+Such high positional precisions
+can potentially reveal position anomalies in lens mod-
+els, such as those found among multiply-lensed systems
+imaged using VLBI (Hartley et al. 2019; Biggs & et al.
+2004; Spingola & et al. 2018). The SN Ia image magniﬁ-
+cations listed in Table 3 are those determined by Dhawan
+et al. (2020) after correcting for dust extinction imposed
+by the foreground lensing galaxy.
+For the purpose of
+this paper, these magniﬁcations are used solely to check
+for magniﬁcation anomalies among the lens models con-
+structed.
+Table 3.
+SN Ia image positions and de-extincted
+magniﬁcations.
+Image
+∆α
+∆δ
+µ
+[mas]
+[mas]
+1
+−266.035+0.27
+−0.29
+0.427+0.28
+−0.32
+35.6 ± 2.1
+2
+118.835+0.59
+−0.55
+−221.927+0.65
+−0.65
+15.7 ± 1.3
+3
+238.324+1.47
+−1.55
+227.27+1.65
+−1.63
+7.5 ± 1.0
+4
+−126.157+2.02
+−2.00
+319.719+2.38
+−2.37
+9.1 ± 1.1
+Note—Positions relative to the light centre as deﬁned
+in Table 1. µ is the individual SN Ia image magniﬁ-
+cations after correcting for dust extinction as deter-
+mined by Dhawan et al. (2020).
+3.2.2. Velocity Dispersion of Lensing Galaxy
+A useful check on the mass of the lensing galaxy in
+iPTF16geu is provided by measurements of its stel-
+10
+lar velocity dispersion.
+Cano et al. (2018) observed
+iPTF16geu with the VLT+XSHOOTER at 18.6 days
+and 27.1 days after the SN Ia peaked in brightness. In
+both observations, they employed a slit having a width
+of 0.′′9 (at optical and near-IR wavelengths) placed at a
+position angle of +86○ across the centre of the system.
+Fortuitously, the slit placement is quite closely parallel
+to the stellar bar, which dominates the light of the lens-
+ing galaxy, and is wide enough to encompass the entire
+bar. Johansson et al. (2021) report an analysis of the
+spectra at rest-frame optical wavelengths, from which
+they determine a stellar (radial) velocity dispersion of
+σ = 129 ± 4kms−1.
+A direct comparison of the measured stellar veloc-
+ity dispersion with that implied by lens models would
+require computing, for a given lens model, what stel-
+lar velocity dispersion would be measured over the slit
+aperture given a spatial dependence in stellar velocity
+dispersion (which is determined by the gravitational po-
+tential of stars and DM combined) that is weighted by
+the spatial dependence in light intensity. Analytical cal-
+culations are tractable only by assuming spherical sym-
+metry, as performed by M¨ortsell et al. (2020) for their
+lens models of iPTF16geu. The procedure adopted in
+our work is described in Section 5.
+4. ASSESSING LENS MODELS VERSUS
+EVALUATING LENSING ANOMALIES
+Lens models are usually assessed by evaluating diﬀer-
+ences in both positions and (relative or absolute) magni-
+ﬁcations between the predicted and observed multiply-
+lensed images. Such diﬀerences, if any, provide clues to
+ingredients that can be added into lens models to alle-
+viate, if not resolve, lensing anomalies. In Figure 5, we
+depict the diﬀerent situations that can be encountered
+when constructing lens models, focussing on just one im-
+age counterpart among several belonging to a multiply-
+lensed system. The black × indicates the nominal po-
+sition of this image counterpart, with the dashed black
+circle indicating the 1σ measurement uncertainty in its
+position. The magniﬁcation of this image, and the 1σ
+measurement uncertainty in its magniﬁcation, is given
+by µobs. The position predicted by the lens model for
+this image counterpart is indicated by a red +, and its
+predicted magniﬁcation by µpred.
+In Figure 5a, both the predicted image position and
+magniﬁcation are in satisfactory agreement – deﬁned
+here to be within the 1σ measurement uncertainties –
+with the observed image. If repeated in the same man-
+ner for all image counterparts, this lens model would
+be assessed to leave no lensing anomalies. By contrast,
+in Figure 5b, while the predicted and observed image
+positions are in satisfactory agreement, the predicted
+and observed image magniﬁcations are not. This ﬁgure
+depicts the situation reported for all lens models con-
+structed thus far for iPTF16geu, leading both M¨ortsell
+et al. (2020) and Diego et al. (2022) to invoke stellar
+micro-lensing for resolving the magniﬁcation anomalies
+left by lens models for this system.
+As we shall now explain, evaluations of lensing anoma-
+lies do not necessarily provide accurate assessments of
+whether lens models are actually able to reproduce the
+observed properties of multiply-lensed images. Before
+concluding that magniﬁcation (or, for that matter, po-
+sition) anomalies imply an inherent deﬁciency in lens
+models, it should be kept in mind that the predicted im-
+age positions and therefore also magniﬁcations depend
+not only on the lens model but also on the assumed
+intrinsic sky position of the background lensed source.
+Altering the source position could, potentially, bring to
+satisfactory agreement the predicted image magniﬁca-
+tion at the newly-predicted image position: e.g., in Fig-
+ure 5b, to any position within the green contours where
+the magniﬁcation predicted by the lens model is in satis-
+factory agreement with the observed magniﬁcation. All
+viable lens models constructed thus far for iPTF16geu
+have been constrained solely by the SN Ia image posi-
+tions, and are therefore optimised to leave the smallest
+dispersion in positions between the predicted and ob-
+served images.
+As a consequence, simply by altering
+the assumed source position, it is possible that a bet-
+ter overall match in magniﬁcations can be achieved at
+the price of a larger dispersion in positions, yet leaving
+in satisfactory agreement all the predicted and observed
+image positions.
+By contrast to Figure 5a–b, the situations depicted in
+Figure 5c–d leave a position anomaly for the image coun-
+terpart depicted. Both these situations exemplify that
+found by Diego et al. (2022) when using the positions of
+all four SN Ia images and the magniﬁcations of just Img 2
+and Img 4 as constraints (the latter two images deemed
+to be less likely subjected to stellar micro-lensing), for
+which the lens model thus constructed leave position
+anomalies for both Img 1 and Img 3. Despite leaving dif-
+ferent types of lensing anomalies, the lens model in Fig-
+ure 5d (evaluated to leave a position anomaly) is identi-
+cal to that in Figure 5b (evaluated to leave a magniﬁca-
+tion anomaly), but not the assumed source position thus
+giving rise to a diﬀerent predicted position and magni-
+ﬁcation for the image counterpart depicted. Similarly,
+the lens model in Figure 5c (evaluated to leave a posi-
+tion anomaly) is identical to that in Figure 5a (evaluated
+to leave no lensing anomaly), except that the assumed
+source position is again diﬀerent in these two examples
+AASTeX v6.3.1 Sample article
+11
+ +
+obs = 35.6  2.1 
+pred = 35.1 
+(a) No Lensing Anomaly
+ +
+obs = 35.6  2.1 
+pred = 39.8 
+(b) Magnification Anomaly
+ 
++
+obs = 35.6  2.1 
+pred = 31.9 
+(c) Position Anomaly
+(d) Position Anomaly
+ 
++
+obs = 35.6  2.1 
+pred = 35.1 
+33.5 ≤ lens ≤ 37.7 
+33.5 ≤ lens ≤ 37.7 
+Figure 5. Diﬀerent situations encountered in lens modelling, focussing on just one image counterpart among a set of multiply-
+lensed images. In each panel, the black × marks the nominal position and the dashed circle the 1σ positional measurement
+uncertainty of this image counterpart; µobs (black label) indicates its magniﬁcation along with the ±1σ measurement uncertainty
+in magniﬁcation. Lens model predictions for the position of this image counterpart is indicated by a red + and the magniﬁcation
+by µpred (red label), both of which depend on the assumed intrinsic position of the source that gives rise to the multiply-lensed
+images. Lens model predictions for the range of magniﬁcations encompassed within the dashed circle is given by µlens (green
+label), for which green contours indicate locations over which the magniﬁcations predicted by a given lens model are in agreement
+with the observed magniﬁcations to within measurement uncertainties. Panels (a) and (c) are the same lens model but diﬀerent
+source positions, for which the positions and hence also magniﬁcations of the predicted images are diﬀerent. Similarly, panels
+(b) and (d) are the same lens model but diﬀerent source positions. The diﬀerent situations depicted highlight the interplay
+between lens models and source positions for the type and magnitude of lensing anomalies left by lens modelling.
+and hence also the predicted position and magniﬁcation
+of the image counterpart depicted. The diﬀerent situa-
+tions depicted in Figure 5 therefore illustrate the inter-
+play between lensing anomalies left by lens models and
+the assumed source position. As a consequence, diﬀerent
+ingredients might be invoked to resolve diﬀerent types
+of lensing anomalies that are left by the same lens model
+owing to diﬀerent assumed source positions – chosen to
+best reproduce diﬀerent sets of constraints. For exam-
+ple, whereas stellar micro-lensing can potentially resolve
+the magniﬁcation anomaly depicted in Figure 5b, only a
+relatively large density perturbation can potentially re-
+solve the position anomaly depicted in Figure 5d, despite
+both cases sharing the same lens model – but diﬀerent
+source positions.
+In our work, we wish to assess how well lens models
+are able to reproduce the positions and magniﬁcations of
+the SN Ia images, rather than simply evaluating lensing
+anomalies – which also depend on the assumed source
+position – left by lens models. In this regard, when lens
+models leave position anomalies, it is not meaningful –
+from the viewpoint of assessing lens models – to com-
+pare the magniﬁcation of the predicted image with that
+of the observed image, as we would then be comparing
+magniﬁcations at two diﬀerent positions. For example,
+in Figure 5d, the magniﬁcation of the predicted image
+is in satisfactory agreement with the magniﬁcation of
+the observed image, although not in Figure 5c. In nei-
+ther cases, however, do these evaluations assess whether
+the lens models correctly predict the magniﬁcation at
+the observed image position.
+Making this assessment
+requires evaluating the magniﬁcation at the observed
+rather than the predicted image position. To separate
+what lens models predict from the assumed source posi-
+tion, in the next section (Section 5) we present the range
+of magniﬁcations predicted by a given lens model within
+the 1σ positional error circle of each image counterpart.
+This diagnostic serves as a reminder that loosening the
+overall agreement in image positions can potentially al-
+leviate, if not resolve, magniﬁcation anomalies. Alterna-
+tively, allowing for an especially large position anomaly
+at one image counterpart, perhaps induced by a DM sub-
+halo, can potentially alleviate both position and magni-
+ﬁcation anomalies at other image counterparts.
+5. SMOOTH LENS MODELS PREDICTIONS
+Table 4 summarises the parameter values of the lens
+models constructed. As a reminder, the one-component
+lens models employ a single analytical function, of which
+there are four types (NFW, SIE, cSIE, or PL) as de-
+scribed in Section 3.1.1, to represent the mass distri-
+bution of the lensing galaxy. By comparison, the two-
+component lens models employ an analytical function to
+explicitly represent a DM halo (either NFW, SIE, cSIE,
+or PL, the same proﬁles as used in the one-component
+lens model), along with the model stellar component
+described in Section 2.1 comprising two S´ersic proﬁles
+(representing a stellar bar and stellar disk) ﬁtted to the
+light morphology of the lensing galaxy. In this way, we
+can directly assess whether, and by how much, including
+the model stellar component improves upon the match
+between the predicted and observed SN Ia image posi-
+12
+Table 4. Parameters for suite of lens models constructed.
+Model
+∆α
+∆δ
+M
+e
+P A
+c200
+rc
+α
+MBar
+MDisk
+[pc]
+[pc]
+[1010M⊙]
+[deg]
+[kpc]
+[1010M⊙]
+[1010M⊙]
+(1)
+(2)
+(3)
+(4)
+(5)
+(6)
+(7)
+(8)
+(9)
+NFW + Stars
+-32.28
+214.86
+1.77
+0.03
+65.6
+30.01
+–
+–
+SIE + Stars
+-33.52
+223.31
+1.72
+0.17
+65.6
+–
+–
+2.0
+cSIE + Stars
+-33.47
+223.22
+1.73
+0.16
+65.6
+–
+3.8
+2.0
+POW + Stars
+-32.04
+230.7
+1.76
+0.28
+65.7
+–
+–
+2.22
+Model
+∆α
+∆δ
+MDM
+e
+P A
+c200
+rc
+α
+MBar
+MDisk
+[pc]
+[pc]
+[1010M⊙]
+[deg]
+[kpc]
+[1010M⊙]
+[1010M⊙]
+(1)
+(2)
+(3)
+(4)
+(5)
+(6)
+(7)
+(8)
+(9)
+(10)
+(11)
+NFW + stars
+-63.9
+207.65
+0.58
+0.46
+26.6
+29.36
+–
+–
+1.09
+0.07
+SIE + stars
+-44.46
+209.47
+1.07
+0.16
+29.2
+–
+–
+–
+0.51
+0.16
+cSIE + stars
+-46.07
+208.29
+1.01
+0.17
+26.4
+–
+0.16
+–
+0.59
+0.14
+POW + stars
+-41.96
+207.39
+0.93
+0.2
+20.8
+–
+–
+2.48
+0.49
+0.25
+Note—(1) Lens model component(s). (2)–(3) Lens centre, for which lens models incorporating two components have both components sharing the
+same centre. (4) Mass within Einstein ring for single-component lens or DM mass within Einstein ring for two-component lens. (5)–(6) Ellipticity,
+e, and position angle, P A (measured east from north), of DM halo. (7) NFW concentration parameter. (8) core radius of cSIE DM halo. (9)
+Power-law index of the PL DM halo. (10) Mass of stellar bar within Einstein ring. (11) Mass of stellar disk within Einstein ring.
+tions and magniﬁcations. All utilise only the positions
+of the SN Ia images as constraints, and provide the best
+ﬁt to these constraints by minimising the dispersion in
+positions between the predicted and observed images.
+We found similar total masses within the ER for both
+the one- and two-component lens models.
+Further-
+more, among the two-component lens models, the de-
+rived masses of stars and DM within the ER are closely
+comparable (within a factor of 2). Except for the two-
+component lens that incorporates a NFW DM halo, the
+enclosed mass in DM exceeds that in stars in all the two-
+component lens models.
+For the one-component lens
+model that employs, or the two-component lens model
+that incorporates, a PL mass component, the best-ﬁt
+power-law index is signiﬁcantly steeper than isothermal
+(c.f. More et al. 2017).
+In the lens modelling, the centres of all the lens models
+are left to be freely ﬁt. Remarkably, all the one- and
+two-component lens models have closely similar centres.
+Their centres are all displaced from the light centre as
+inferred based on the two S´ersic proﬁles (forced to have
+the same centres) ﬁtted to the light morphology of the
+lensing galaxy, indicated by a black × in Figure 2. The
+magnitude of this displacement (∼220 pc) is comparable
+to the estimated uncertainty in relating the light centre
+to the stellar centre, and hence also dynamical centre, of
+the lensing galaxy (see Section 2.2). The similar centres
+of all these lens models provide conﬁdence in locating
+the true dynamical centre of the lensing galaxy. As a
+representative example, the centre of the two-component
+lens model that incorporates a SIE DM halo is indicated
+by a yellow
+in Figure 2, amounting to a shift of about
+1.5 pixels from the inferred light centre (black × in the
+same ﬁgure).
+All the one-component lens models have almost identi-
+cal best-ﬁt position angles of 65○.6–65○.7. This position
+angle is between that of the stellar disk (54○.1±0○.2) and
+stellar bar (112○.9 ± 0○.3), although much closer to the
+former than the latter. The closely similar orientations
+of all the one-component lens models may indicate that
+the lensing algorithm is trying to ﬁnd a suitable compro-
+mise between the diﬀerent position angles of the stellar
+bar and stellar disk. In the two-component lens models,
+for which the stellar bar and stellar disk are represented
+by the model stellar component, the position angle of
+the DM halo spans the range 20○.8−29○.2 (depending on
+the analytical proﬁle used for this halo). The projected
+mass distribution of the DM halo is neither aligned with
+the stellar bar nor stellar disk, being closely orthogonal
+to the stellar bar and hence more close aligned with the
+stellar disk.
+5.1. Match with SN Ia images
+AASTeX v6.3.1 Sample article
+13
+Figure 6 provides a simple visual assessment of how
+well the diﬀerent lens models are able to reproduce the
+SN Ia image positions and magniﬁcations. In the ﬁrst
+column, the solid bars indicate individual diﬀerences be-
+tween the predicted and observed SN Ia image positions
+– given an inferred intrinsic sky position for the SN Ia
+that minimises these positional diﬀerences. The horizon-
+tal dashed lines indicate the 1σ measurement uncertain-
+ties in the observed SN Ia image positions. Satisfactory
+agreement between the predicted and observed positions
+implies that the lens model has correctly captured –
+within observational uncertainties – the ﬁrst derivative
+of the true lensing potential at the location of a given
+SN Ia image.
+As can be easily seen from Figure 6, all the one-
+component lens models leave position anomalies for
+Img 2–4, deﬁned here as diﬀerences between the pre-
+dicted and observed SN Ia image positions larger than
+the 1σ positional measurement uncertainties. Previous
+lens models reported in the literature (see Section 1) do
+not specify how closely they reproduce the the SN Ia im-
+age positions, but our results suggest signiﬁcant discrep-
+ancies when measurement uncertainties for the SN Ia im-
+age positions are properly evaluated as described in Sec-
+tion 3.2. By contrast, all the two-component lens models
+that incorporate a power-law density proﬁle (i.e., SIE,
+cSIE, or PL) for the DM halo of the lensing galaxy repro-
+duce the positions of all the SN Ia images to near-perfect
+agreement.
+Even the two-component lens model that
+incorporates a NFW DM halo provides a far superior
+match in SN Ia image positions compared to the corre-
+sponding one-component lens model that employs just a
+single NFW proﬁle, leaving position anomalies for only a
+single image (Img 2) slightly larger than 1σ. In this sit-
+uation, simply altering the intrinsic sky position of the
+SN Ia could potentially resolve the position anomaly for
+Img 2 while leaving no position anomalies at the other
+images, at the price of a larger dispersion in positions
+between the predicted and observed images. Lens mod-
+els that incorporate the model stellar component along
+with a DM halo therefore alleviates, if not fully resolves,
+position anomalies left by all the one-component lens
+models constructed for iPTF16geu.
+The second (middle) column of Figure 6 depicts how
+closely the predicted image magniﬁcations agree with
+the observed SN Ia image magniﬁcations.
+The darker
+solid bars indicate the magniﬁcations of the individual
+SN Ia images, with error bars corresponding to the ±1σ
+measurement uncertainties in their magniﬁcations. The
+hatched bars indicate the predicted image magniﬁca-
+tions. Provided that the predicted and observed posi-
+tions of a given SN Ia image agree (to within the 1σ po-
+sitional measurement uncertainty), overlap between the
+predicted and observed magniﬁcations (to within mea-
+surements uncertainties in the observed magniﬁcation)
+indicates that the lens model correctly captures – within
+observational uncertainties – both the ﬁrst and second
+derivative of the true lensing potential at the location of
+that SN Ia image.
+All the one-component lens models, which leave posi-
+tion anomalies for three of the four SN Ia images, predict
+closely comparable image magniﬁcations that are well
+within a factor of 2. The same has been found in previ-
+ous studies employing only a single mass component in
+lens models for iPTF16geu (see Section 1). Furthermore,
+the predicted image magniﬁcations can be very diﬀerent
+from the observed SN Ia image magniﬁcations, especially
+for Img 1 (the most highly magniﬁed) whereby the pre-
+dicted image magniﬁcation is a factor of ≥ 3 either too
+low or too high. By contrast, the two-component lens
+models yield a larger range of predicted image magniﬁ-
+cations, diﬀering by at least a factor of 2. Furthermore,
+except for the two-component lens model incorporating
+a NFW DM halo, the remaining – all incorporating a
+power-law (either SIE, cSIE, or PL) DM halo – predict
+image magniﬁcations that are relatively close to those
+observed.
+The eﬀect of adding the model stellar component is
+shown in the third (last) column of Figure 6.
+In this
+column, the positions of the observed SN Ia images are
+indicated by �, superposed on an image that shows the
+SN Ia images only (i.e., after subtracting the post-SN Ia
+image), to be compared against the positions predicted
+by the lens model as indicated by ×.
+The centre of
+each lens model is located at the origin. The smaller
+of the two ellipses (sometimes so small as to appear as
+a dot) traces the predicted radial critical curve, whereas
+the larger ellipse traces the predicted tangential criti-
+cal curve.
+All the observed SN Ia images are located
+close to the tangential critical curve, such that small
+changes in the shape of the critical curve – and hence
+small changes in the displacement of the observed SN Ia
+images from this curve – can result in relatively large
+changes in their predicted magniﬁcations. Whereas the
+critical curves of the one-component lens model are pure
+ellipses, the critical curves of the two-component lens
+models (most noticeably their tangential critical curves)
+are quite boxy (shape that is between an ellipse and a
+rectangle). The model stellar component therefore in-
+troduces signiﬁcant changes to the shape of the critical
+curve, bringing the tangential critical curve closer to or
+away from the predicted SN Ia image positions thus al-
+tering also their predicted magniﬁcations.
+14
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+50
+100
+150
+200
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+NFW
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+100
+200
+300
+400
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+NFW Halo + Stellar Bar & Stellar Disk
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+µpred
+µ@obs
+pred
+µobs
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+SIE
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+SIE Halo + Stellar Bar & Stellar Disk
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+cSIE
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+40
+50
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+cSIE Halo + Stellar Bar & Stellar Disk
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+PL
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+−0.4
+−0.2
+0.0
+0.2
+0.4
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+PL Halo + Stellar Bar & Stellar Disk
+Figure 6. Predictions of one-component (left of dividing line) versus two-component (right of dividing line) lens models for
+iPTF16geu. For each lens model, ﬁrst panel shows diﬀerences between the predicted and observed positions of each SN Ia image
+(labelled according to Fig. 1a), with dashed horizontal lines indicating the 1σ measurement uncertainties in their positions. Some
+lens models match the observed SN Ia positions so well that no appreciable diﬀerences can be seen. For each lens model, second
+panel shows image magniﬁcations, whereby the dark ﬁlled bars indicate the observed magniﬁcations of the individual SN Ia images
+and their associated errors bars the ±1σ measurement uncertainties in magniﬁcations, the thatched bars the magniﬁcations of
+the predicted images, and the light ﬁlled bars the predicted magniﬁcations at the nominal positions of the individual SN Ia
+images and the associated vertical lines their predicted range of magniﬁcation over the 1σ measurement uncertainty in their
+positions. The third panel shows the observed (�) versus predicted (×) SN Ia image positions, superposed on the SN Ia images.
+The smaller (where present) of the two circles or ellipses corresponds to the radial critical curve, whereas the larger circle or
+ellipse to the tangential critical curve.
+Among the two-component lens models, that incorpo-
+rating a NFW DM halo yields magniﬁcations for the pre-
+dicted images in poorest agreement with those observed,
+in keeping with it also providing the poorest agreement
+between the predicted and observed SN Ia image posi-
+tions. On the other hand, the two-component lens mod-
+els that incorporate a power-law DM halo yield magni-
+ﬁcations for the predicted images that are impressively
+close to those observed – given that all these lens models
+are constrained by the SN Ia image positions only, with-
+out any consideration for their magniﬁcations. Nonethe-
+less, only the two-component lens model that incorpo-
+rates a SIE DM halo is able to satisfactorily reproduce
+the magniﬁcations of any of the SN Ia images, and even
+then for only a single image (Img 2). We consider this
+lens model, which leaves no position anomalies, to pro-
+vide the best overall agreement in predicted SN Ia image
+magniﬁcations. Figure 7 shows mass contours for the in-
+dividual mass components that make up this lens model,
+superposed on a colour image of the lensing galaxy.
+AASTeX v6.3.1 Sample article
+15
+−2
+0
+2
+−2
+0
+2
+∆x [arcsec]
+−2
+−1
+0
+1
+2
+∆y [arcsec]
+−2
+−1
+0
+1
+2
+Stellar Bar
+−2
+0
+2
+−2
+0
+2
+∆x [arcsec]
+Stellar Disk
+−2
+0
+2
+−2
+0
+2
+∆x [arcsec]
+DM Halo
+−0.5
+0.0
+0.5
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.6
+−0.4
+−0.2
+0.0
+0.2
+0.4
+0.6
+∆y [arcsec]
+−0.6
+−0.4
+−0.2
+0.0
+0.2
+0.4
+0.6
+Critical Curves
+−0.5
+0.0
+0.5
+−0.5
+0.0
+0.5
+∆x [arcsec]
+Caustics
+Figure 7. Upper row shows iso-mass contours of the model stellar bar (left panel), model stellar disk (middle panel), and
+model DM halo (right panel) that constitutes our best-ﬁt lens model for iPTF16geu. Lower row show critical curves predicted
+by this lens model on which the observed SN Ia image positions are indicated (left panel), and tangential caustics predicted by
+this lens model on which the predicted position of the SN Ia in the sky is indicated (right panel). All images are superposed on
+a colour image of the lensing galaxy.
+We note that all the lens models constructed are
+under-constrained
+(more
+free
+parameters
+than
+the
+number of constraints imposed), especially the two-
+component lens models with their much larger number
+of free parameters than the one-component lens mod-
+els. Not surprisingly therefore, the two-component lens
+models better match the constraints imposed, predicting
+image positions in much closer agreement with the ob-
+served SN Ia image positions than the one-component
+lens models.
+For those lens modes that predict im-
+age positions in near-perfect agreement with the ob-
+served SN Ia image positions, slight alterations to the
+(unknown) intrinsic sky position of the SN Ia could po-
+tentially bring to better agreement the predicted and
+observed image magniﬁcations while still retaining sat-
+isfactory agreement between their positions. We there-
+fore also plot, in the second (middle) column of Fig-
+ure 6, lighter solid bars indicating the predicted magni-
+ﬁcations at the nominal positions of the SN Ia images;
+the vertical line associated with each of these bars in-
+dicates the range of predicted magniﬁcations within the
+1σ measurement uncertainties of these nominal SN Ia
+image positions. By altering the intrinsic sky position
+of the SN Ia, the predicted magniﬁcation of any single
+image can vary over the range indicated by the vertical
+line while its position remain within measurement un-
+certainties of a given SN Ia image. As can be seen, even
+after altering the SN Ia sky position, none of the pre-
+dicted images having discrepant magniﬁcations can be
+brought into satisfactory agreement with the observed
+magniﬁcations of the SN Ia images. All the lens mod-
+els constructed therefore leave magniﬁcation anomalies
+when forced to leave no position anomalies.
+5.2. Lens and Light Centres
+16
+As mentioned at the start of Section 5, both the one-
+component and two-component lens models have cen-
+tres that are shifted by nearly the same distance and at
+the nearly the same position angle from the light cen-
+tre. The latter is inferred by ﬁtting two S´ersics proﬁles,
+sharing a common centre, to the light morphology of the
+lensing galaxy (see Section 2.2).
+We now check whether restricting the lens centre to
+the light centre (within measurement uncertainties) al-
+ters how well the SN Ia image positions and magniﬁca-
+tions can be reproduced. To make this check, we solved
+for a new two-component lens model in which the cen-
+tres of the model stellar component and SIE DM halo
+are tied together (like before), but for which a Gaus-
+sian prior having σ = 3.3mas (11.6 pc; the positional
+measurement of the ﬁtted light centre) is placed on the
+lens centre.
+The best-ﬁt lens model requires the lens
+centre to be oﬀset by just 4.6 mas (14.4 pc) from the
+nominal light centre. The image positions and magni-
+ﬁcations predicted by this lens model is shown in the
+upper row of Figure 8. As can be seen, this lens model
+leave position anomalies for all the SN Ia images, and
+predict image magniﬁcations very diﬀerent from those
+observed. The inability of this lens model to meet even
+the positional constraints imposed reinforces our argu-
+ment that the inferred light centre does not mark the
+dynamical centre of the lensing galaxy.
+For the sake of completeness, we also tested whether
+allowing the DM halo to have a diﬀerent centre from the
+model stellar component, itself restricted to positions
+within measurement uncertainties of the light centre,
+better reproduces the SN Ia image positions and mag-
+niﬁcations.
+The resulting best-ﬁt lens model requires
+the two centres to diﬀer by 86.5mas (301 pc). As shown
+in the lower row of Figure 8, this lens model leaves po-
+sition anomalies for Img 2-4 and predicts closely similar
+magniﬁcations for all the images – in clear contradiction
+with observations.
+5.3. Importance of Exacting Stellar Model
+We now check whether changing certain aspects of the
+model stellar component changes how well the SN Ia im-
+age positions and magniﬁcations can be reproduced –
+and hence whether a relatively exacting model stellar
+component is needed in lens models for iPTF16geu. For
+this exercise, we newly solved for lens models that in-
+corporate a modiﬁed stellar component along with a SIE
+DM halo, all constrained (like before) by the SN Ia im-
+age positions. Figure 9 shows how well these modiﬁed
+lens models are able to reproduce the SN Ia image posi-
+tions and magniﬁcations, presented in exactly the same
+format as in Figure 6.
+1
+2
+3
+4
+Img Number
+0
+20
+40
+60
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+50
+100
+150
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Lens centre constrained to within light centre
+1
+2
+3
+4
+Img Number
+0
+5
+10
+15
+20
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar centre constrained to within light centre, DM halo centre freed
+Figure 8.
+Same format as Fig. 6, with both rows corre-
+sponding to newly-solved two-component lens models incor-
+porating the model stellar component along with a SIE DM
+halo. Upper row is for lens model centre constrained to be
+within measurement uncertainties of the light centre (deter-
+mined in the manner described in Section 2.2). Lower row is
+for centre of model stellar component constrained to within
+measurement uncertainties of the light centre, but centre of
+DM halo allowed to be freely solved.
+The ﬁrst row of Figure 9 shows the eﬀects of rotat-
+ing the stellar bar anticlockwise (left panel) or clockwise
+(right panel) by 45○. In the modiﬁed lens model where
+the bar is rotated anticlockwise, the mass in stars now
+dominate over that in DM within the ER; whereas in
+the modiﬁed lens model where the bar is rotated clock-
+wise, the mass in stars and DM remain comparable, as
+in the original model. Both modiﬁed lens models leave
+no position anomalies, but clearly do not reproduce the
+SN Ia image magniﬁcations as well as the original lens
+model.
+The second row of Figure 9 shows the eﬀects of rotat-
+ing the stellar disk anticlockwise (left panel) or clockwise
+(right panel) by 45○. In these modiﬁed lens models, the
+mass in DM now dominate over that in stars within the
+ER. One of these lens models leaves position anomalies
+for Img 3–4, whereas the other leaves no position anoma-
+lies. Both these models yield a relatively narrow range
+of predicted image magniﬁcations (well within a factor
+of 2), contrary to what is observed.
+The third row of Figure 9 shows the eﬀects of either
+omitting the stellar disk (left panel) or stellar bar (right
+panel). In both these modiﬁed lens models, the mass
+in DM now dominate over that in stars within the ER.
+When omitting the stellar disk, the modiﬁed lens model
+leaves no position anomalies and predict image magni-
+ﬁcations comparable to those employing a SIE proﬁle
+only (not surprising as the DM mass now dominates
+AASTeX v6.3.1 Sample article
+17
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+20
+40
+60
+80
+100
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar bar rotated by +45◦
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar disk rotated by +45◦
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+to 10210 to 526
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar bar rotated by −45◦
+1
+2
+3
+4
+Img Number
+0
+2
+4
+6
+8
+10
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar disk rotated by −45◦
+1
+2
+3
+4
+Img Number
+0
+5
+10
+15
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+SIE Halo + Stellar Bar
+1
+2
+3
+4
+Img Number
+0
+5
+10
+15
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+50
+100
+150
+200
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.4
+−0.2
+0.0
+0.2
+0.4
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+SIE Halo + Stellar Disk
+Figure 9. Same format as Fig. 6, but for newly-solved lens models all incorporating a SIE DM halo but a modiﬁed model stellar
+component. Top row is for stellar bar rotated anti-clockwise (left of dividing line) or clockwise (right of dividing line) by 45○.
+Middle row is for stellar disk rotated anti-clockwise (left of dividing line) or clockwise (right of dividing line) by 45○. Bottom
+row is omitting stellar disk (left of dividing line) or omitting stellar bar (right of dividing line). These results demonstrate the
+importance of a stellar bar and stellar disk having parameters designed to ﬁt the light morphology of the lensing galaxy for
+providing a superior lens model for iPTF16geu.
+over the stellar mass within the ER), providing a poorer
+match to the observed magniﬁcations than the original
+lens model. When omitting the stellar bar, the mod-
+iﬁed lens model leaves position anomalies for Img 3–4,
+and predict image magniﬁcations far higher than those
+observed.
+In brief, changing the model stellar component results
+in larger discrepancies between the predicted and ob-
+served SN Ia image magniﬁcations, and sometimes also
+gives rise to position anomalies.
+These tests demon-
+strate the importance of a stellar bar and stellar disk
+having the inferred parameters – designed to ﬁt the light
+morphology of the lensing galaxy – for providing a su-
+perior lens model for iPTF16geu.
+5.4. Necessity of DM Halo
+Given the spatial complexity of the model stellar com-
+ponent and its importance for reproducing the SN Ia im-
+age positions and magniﬁcations (to the degree possible)
+in iPTF16geu, the reader may well wonder whether the
+inclusion of a DM halo is at all necessary in lens models
+for iPTF16geu. Retaining only the model stellar com-
+ponent, we newly solved for the masses of the stellar bar
+and stellar disk so as to construct lens models that min-
+imise, as before, the dispersion between the predicted
+and observed SN Ia image positions. Freeing the cen-
+tre of this modiﬁed lens model, we now ﬁnd its centre
+to be displaced by 0.′′112 (408 pc) from the light centre,
+signiﬁcantly larger than in all the two-component lens
+models. We also constructed a version of this modiﬁed
+lens model in which the lens centre is ﬁxed to the light
+centre. As shown in Figure 10, both these modiﬁed lens
+models predict image conﬁgurations that are completely
+diﬀerent than the observed SN Ia image conﬁgurations.
+Clearly, in addition to a stellar component, a DM halo
+is required in lens models for iPTF16geu.
+5.5. Stellar Radial Velocity Dispersion
+To compare the stellar radial velocity dispersion pre-
+dicted by our lens model with that measured by Jo-
+18
+1
+2
+3
+4
+Img Number
+100
+101
+102
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+40
+50
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.50
+−0.25
+0.00
+0.25
+0.50
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar Bar + Stellar Disk
+Center freed
+1
+2
+3
+4
+Img Number
+100
+101
+102
+∆Pos [mas]
+1 σ
+1
+2
+3
+4
+Img Number
+0
+10
+20
+30
+µ
+−0.5
+0.0
+0.5
+∆x [arcsec]
+−0.50
+−0.25
+0.00
+0.25
+0.50
+∆y [arcsec]
+Observed SN Pos
+Predicted SN Pos
+Stellar Bar + Stellar Disk
+Center constrained to Light Centre
+Figure 10. Same format as Fig. 6, but for lens model in-
+corporating the model stellar component only. Upper row
+is for lens model in which the lens centre is freed in the ﬁt,
+and lower row for lens model in which the lens centre is con-
+strained to the light centre within measurement uncertain-
+ties. These results demonstrate the necessity of a DM halo
+in lens models for iPTF16geu so as to reproduce both the
+positions and magniﬁcations of the observed SN Ia images.
+hansson et al. (2021) (see Section 3.2), we ﬁrst translate
+the projected mass distribution of a given lens model
+into a spherically-symmetric mass distribution.
+This
+translation, although of course not exactly reproduc-
+ing the 3-dimensional mass distribution of a stellar bar
+or stellar disk, makes tractable analytical computations
+of the stellar velocity dispersion. We deproject the 2-
+dimensional (2-D) S´ersic proﬁles ﬁtted to the light dis-
+tribution of the lensing galaxy (two diﬀerent proﬁles to
+match the bar and disk separately; see Section 2) us-
+ing the inverse Abel transform to infer its 3-dimensional
+(3-D) light distribution, L(r). Similarly, we deproject
+the 2-D (surface) mass density proﬁles inferred by a
+given lens model for the stellar component of the lensing
+galaxy to infer its 3-D mass density distribution. We add
+this 3-D stellar body to the 3-D version of the DM halo
+adopted in a given lens model to derive their combined
+gravitational potential, Φ(r).
+Using the spherical symmetric solution of the Jeans
+equation, we then compute the radial dependence in the
+stellar radial velocity dispersion, σrad(r), via the equa-
+tion:
+σ2
+rad(r) =
+1
+L(r)r2β ∫
+∞
+r
+L(r)r2βΦ′(r)dr,
+(1)
+where r is the radius from the centre, Φ′(r) the ﬁrst
+derivative of the gravitational potential, and β = 1 −
+σ2
+tan/σ2
+rad (where σtan is the stellar tangential velocity
+dispersion) the anisotropy parameter for stellar orbits.
+The top left panel of Figure 11 shows the enclosed mass
+as a function of radius for the idealised 3-D versions
+of each of the lens models that we constructed. The re-
+maining panels show the radial dependence in stellar ra-
+dial velocity dispersion computed according to Eq. 1 for
+each of these lens models. For comparison, the grey hor-
+izontal bar indicates the measured stellar radial velocity
+dispersion and its ±1σ uncertainty as determined from
+observations that employ a slit of width 0.′′9 (∼3.2 kpc;
+see Section 3.2).
+Irrespective of the value adopted for the anisotropy
+parameter β, we ﬁnd that the one-component lens model
+that employs a NFW proﬁle, or the two-component lens
+model that incorporates a NFW proﬁle for the DM halo
+of the lensing galaxy, over-predicts the stellar radial ve-
+locity dispersion. These are the lens models in which the
+enclosed lens mass increases most rapidly with radius,
+as can be seen in the ﬁrst panel of Figure 11. On the
+other hand, lens models that employ a power-law proﬁle
+(whether SIE, cSIE, or PL), or incorporate a power-law
+proﬁle for the DM halo of the lensing galaxy, are able to
+closely match the measured stellar radial velocity disper-
+sion over a relatively broad range of radii within ∼3.2 kpc
+for diﬀerent choces of anisotropy parameters. This check
+provides independent evidence that the two-component
+lens models incorporating a power-law proﬁle for the
+DM halo of the lensing galaxy, which come closest to si-
+multaneously reproducing the SN Ia image positions and
+magniﬁcations (see Figure 6), also come closest to cap-
+turing the actual lensing potential. We note that the
+consistency check with stellar velocity dispersion was
+not made until all the lens models presented were com-
+pleted, so as not to bias our assessment of which lens
+models best reproduce the observed properties of the
+SN Ia images.
+6. SUMMARY AND FUTURE CONSIDERATIONS
+The ﬁrst multiply-lensed SN Ia discovered, iPTF16geu
+(Fig. 1), formed an Einstein cross displaying a broad
+range of image magniﬁcations.
+The SN Ia images are
+superposed on an Einstein ring (ER) comprising the
+multiply-lensed images of the SN Ia host galaxy. Con-
+strained by just the four SN Ia image positions, all pre-
+vious lens models incorporating smoothly-varying mass
+distributions have failed to reproduce the broad range of
+SN Ia image magniﬁcations. Moreover, lens models that
+incorporate two mass components (representing stars
+and Dark Matter) require oﬀset centres just to best re-
+AASTeX v6.3.1 Sample article
+19
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+1.4
+Projected Radius [arcsec]
+0
+1
+2
+3
+4
+5
+Spherical Radius [kpc]
+0.0
+0.5
+1.0
+1.5
+2.0
+Total Mass [1011 M⊙]
+NFW Halo
+NFW Halo + Stars
+SIE Halo
+SIE Halo + Stars
+cSIE Halo
+cSIE Halo + Stars
+PL Halo
+PL Halo + Stars
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+1.4
+Projected Radius [arcsec]
+0
+1
+2
+3
+4
+5
+Spherical Radius [kpc]
+50
+100
+150
+200
+Radial Velocity Dispersion [km s−1]
+β = −0.8
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+1.4
+Projected Radius [arcsec]
+0
+1
+2
+3
+4
+5
+Spherical Radius [kpc]
+50
+100
+150
+200
+250
+Radial Velocity Dispersion [km s−1]
+β = −0.4
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+1.4
+Projected Radius [arcsec]
+0
+1
+2
+3
+4
+5
+Spherical Radius [kpc]
+100
+150
+200
+250
+300
+350
+Radial Velocity Dispersion [km s−1]
+β = 0
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+1.4
+Projected Radius [arcsec]
+0
+1
+2
+3
+4
+5
+Spherical Radius [kpc]
+200
+300
+400
+500
+600
+Radial Velocity Dispersion [km s−1]
+β = 0.4
+Figure 11. Comparison between predicted and measured stellar velocity dispersion of the lensing galaxy in iPTF16geu for the
+diﬀerent lens models constructed as depicted in Fig. 6. Top left panel shows the total enclosed mass as a function of radius
+from the lens centre (see text for how we deprojected the individual lens models components into three dimensions). Remaining
+panels show their predicted velocity dispersion as a function of radius from the lens centre, indicated by dashed lines for the
+one-component and solid lines for the two-component lens models; diﬀerent panels are for diﬀerent parameter values for the
+stellar orbital anisotropy ranging from β = 0.4 to −0.8. The horizontal grey bar indicates the stellar velocity dispersion derived by
+Johansson et al. (2021) for a slit encompassing and placed nearly parallel to the stellar bar, with a vertical width corresponding
+to ±1σ measurement uncertainties in the stellar velocity dispersion. The length of this bar corresponds to the slit width. See
+discussion in text.
+produce the SN Ia image positions, while only modestly
+increasing the range of predicted image magniﬁcations
+(Section 1).
+In this paper, through a simple procedure to subtract-
+ing the ER from the post-SN Ia image (Section 2), we
+reveal the lensing galaxy to be a barred spiral (Fig. 3).
+We ﬁt two elliptical S´ersic proﬁles (parameters listed in
+Table 1) to the light morphology of the lensing galaxy
+to serve as a model stellar component for this galaxy.
+For the Dark Matter (DM) halo, we employ commonly-
+used density proﬁles corresponding to (i) Navarro-Frenk-
+White (NFW), (ii) singular isothermal ellipsoid (SIE);
+(iii) cored isothermal ellipsoid (cSIE); and (iv) power-
+law (PL), which equates to isothermal when the density,
+ρ, decreases with radius, r, as ρ ∝ 1/r2. The diﬀerent
+choices considered for the DM halo allow for deviations
+from a NFW proﬁle, induced for instance by gravita-
+tional interactions between the DM halo and baryons
+– resulting in a radial density proﬁle diﬀerent from a
+NFW proﬁle at the locations of the SN Ia images. In
+this way, we also can directly compare how well the
+two-component lens models reproduce the positions and
+magniﬁcations of the SN Ia images with the types of lens
+models previously reported employing only a single mass
+component (SIE, cSIE, or PL). All the lens models thus
+constructed are constrained by the four SN Ia image po-
+sitions only, and are therefore optimised to minimise the
+dispersion between the predicted and observed images.
+The results for all the best-ﬁt lens models are shown
+in Figure 6. The single-component lens model, for which
+the model stellar component is omitted, all leave posi-
+tion anomalies for two or more images, and predict im-
+20
+age magniﬁcation spanning a relatively narrow range of
+less than a factor of 2 (as found for all such lens models
+previously reported). By contrast, the two-component
+lens models that incorporate both the model stellar com-
+ponent and a power-law density proﬁle for the DM halo
+(whether SIE, cSIE, or PL) near-perfectly reproduce the
+observed SN Ia image positions, and predict a broader
+range of image magniﬁcations in closer overall agreement
+with the observed SN Ia image magniﬁcations. Even the
+two component lens model that incorporate a NFW DM
+halo leave only a 1.0σ tension between the predicted and
+observed positions for just one SN Ia image, although
+predicting image magniﬁcations that are all very dif-
+ferent from those observed. The lens model that most
+closely reproduces the SN Ia image magniﬁcations is that
+incorporating the model stellar component along with a
+SIE DM halo (see Figure 7): this model near-perfectly
+reproduces the SN Ia image positions, satisfactorily re-
+produces the magniﬁcation of Img 2 (the second bright-
+est image), leaves only a 2.2σ tension between the pre-
+dicted and observed magniﬁcation of Img 1 (the bright-
+est image), but signiﬁcantly over-predicts the magniﬁca-
+tions of Img 3–4 (the two comparably dimmest images)
+by factors of ∼2–3.
+We emphasise that evaluations of lensing anomalies do
+not necessarily provide accurate assessments of whether
+lens models are actually able to reproduce the observed
+properties of multiply-lensed images – as the predicted
+image positions and hence also magniﬁcation depend not
+only on the lens model, but also on the (unknown) as-
+sumed intrinsic sky position of the lensed source.
+To
+separate the predictions of the lens model from the as-
+sumed source position, we advocate plotting the pre-
+dicted range of magniﬁcations over the 1σ positional er-
+ror circle of the individual image positions, as shown in
+Figure 6. In this way, we ﬁnd that, for our preferred lens
+model incorporating the model stellar component along
+with a SIE DM halo, altering the source position cannot
+bring any of the three images having discrepant mag-
+niﬁcations to satisfactory agreement with the observed
+SN Ia image magniﬁcations.
+Although closing the gap between model predictions
+and observations, the work described in this paper serves
+as just a starting point for future studies to better eval-
+uate what lensing anomalies, if any, are left by smooth
+lens models for iPTF16geu. In this paper, the lens mod-
+els constructed are constrained solely by the SN Ia image
+positions: this approach presupposes that any missing
+ingredients in lens models leave discrepancies in mag-
+niﬁcations while not appreciably altering the positions
+of multiply-lensed images. One such possible ingredient
+is stellar microlensing; as its eﬀect on image magniﬁca-
+tion depends on the underlying smooth lens model, all
+previous studies implementing stellar microlensing (Ya-
+halomi et al. 2017; M¨ortsell et al. 2020; Diego et al.
+2022) need to be re-evaluated by using more exacting
+smooth lens models for iPTF16geu. For instance, our
+preferred lens model over-predicts the magniﬁcations of
+Img 3–4, whereas lens models incorporating stellar mi-
+crolensing predict Img 4 to be much more likely to be
+further ampliﬁed rather than being suppressed (thus
+providing an even poorer match with observations) –
+although Img 3 is much more likely to be suppressed
+(bringing it to closer agreement with observations) – by
+stellar microlensing (see explanation in Section 3.2).
+Future studies should also implement constraints pro-
+vided by the SN Ia image magniﬁcations as well as the
+full morphology of the ER (comprising the multiply-
+lensed images of the SN Ia host galaxy), the subject of
+Paper II in this series. Such studies are necessary to fully
+assess the nature and magnitude of lensing anomalies
+left by smooth lens models for iPTF16geu – and, in turn,
+for evaluating what additional ingredients are needed to
+resolve these lensing anomalies. If stellar micro-lensing
+proves unable to fully resolve magniﬁcation anomalies
+left by smooth lens models, or a more detailed examina-
+tion of smooth lens models leave position anomalies, we
+would then need to explore other possibilities such as:
+(i) DM sub-halos, as are predicted in abundance around
+massive galaxies by cosmological simulations employing
+ultra-massive and cold DM particles; or (ii) pervasive
+density modulations in DM halos (along with a sup-
+pression of low-mass DM sub-halos), as predicted by
+cosmological simulations employing ultra-light bosons in
+a Bose-Einstein condensate. The type (position and/or
+magniﬁcation) of lensing anomalies, and the magnitude
+of such anomalies, can therefore have important implica-
+tions for the nature of DM: in lieu of a direct detection in
+laboratory experiments, the nature of and resolution to
+lensing anomalies oﬀers a promising approach to distin-
+guish between ultra-massive particles such as WIMPs
+and ultra-light particles such as Axions or Axions-like
+particles for DM (e.g., see Amruth et al. 2023) – all the
+leading contenders for DM. The issues raised are the
+subjects of future papers in this series.
+AASTeX v6.3.1 Sample article
+21
+J. L. acknowledges support from the Research Grants
+Council (RGC) of Hong Kong through the General
+Research Fund (GRF) 17312122 and the Collabora-
+tive Research Fund (CRF) C6017-20G. A. Chow and
+S. K. L. acknowledge support from the RGC of Hong
+Kong through the CRF C6017-20G, and A. A. the
+GRF 17312122 as well as a Dissertation Year Fellow-
+ship (DYF) from the University of Hong Kong. M. O.
+acknowledges support from the JSPS KAKENHI Grant
+Numbers JP23K22531 and JP20H05856.
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+REFERENCES
+Amruth, A., Broadhurst, T., Lim, J., et al. 2023, Nature
+Astronomy, 7, 736, doi: 10.1038/s41550-023-01943-9
+Biggs, A., & et al. 2004, MNRAS, 350, 949–961
+Cano, Z., Selsing, J., Hjorth, J., et al. 2018, MNRAS, 473,
+4257, doi: 10.1093/mnras/stx2624
+Dhawan, S., Johansson, J., Goobar, A., et al. 2020,
+MNRAS, 491, 2639, doi: 10.1093/mnras/stz2965
+Diego, J. M., Bernstein, G., Chen, W., et al. 2022, A&A,
+662, A34, doi: 10.1051/0004-6361/202143009
+Erwin, P. 2015, The Astrophysical Journal, 799, 226,
+doi: 10.1088/0004-637x/799/2/226
+Gadotti, D. A. 2008, MNRAS, 384, 420,
+doi: 10.1111/j.1365-2966.2007.12723.x
+Goobar, A., Amanullah, R., Kulkarni, S. R., et al. 2017,
+Science, 356, 291, doi: 10.1126/science.aal2729
+Hartley, P., Jackson, N., Sluse, D., Stacey, H. R., &
+Vives-Arias, H. 2019, MNRAS, 485, 3009,
+doi: 10.1093/mnras/stz510
+Johansson, J., Goobar, A., Price, S. H., et al. 2021,
+MNRAS, 502, 510, doi: 10.1093/mnras/staa3829
+Keeton, C. R., Gaudi, B. S., & Petters, A. O. 2003, ApJ,
+598, 138, doi: 10.1086/378934
+Kochanek, C. S., & Dalal, N. 2003, in American Institute of
+Physics Conference Series, Vol. 666, The Emergence of
+Cosmic Structure, ed. S. H. Holt & C. S. Reynolds
+(AIP), 103–112, doi: 10.1063/1.1581778
+More, A., Suyu, S. H., Oguri, M., More, S., & Lee, C.-H.
+2017, ApJL, 835, L25, doi: 10.3847/2041-8213/835/2/L25
+M¨ortsell, E., Johansson, J., Dhawan, S., et al. 2020,
+MNRAS, 496, 3270, doi: 10.1093/mnras/staa1600
+Oguri, M. 2010, PASJ, 62, 1017,
+doi: 10.1093/pasj/62.4.1017
+—. 2021, PASP, 133, 074504,
+doi: 10.1088/1538-3873/ac12db
+Palencia, J. M., Diego, J. M., Kavanagh, B. J., &
+Mart´ınez-Arrizabalaga, J. 2024, A&A, 687, A81,
+doi: 10.1051/0004-6361/202347492
+Schechter, P. L., & Wambsganss, J. 2002, ApJ, 580, 685,
+doi: 10.1086/343856
+Spingola, C., & et al. 2018, MNRAS, 478, 4816–4829
+Treu, T., & Koopmans, L. V. E. 2004, ApJ, 611, 739,
+doi: 10.1086/422245
+Williams, L. L. R., & Zegeye, D. 2020, The Open Journal
+of Astrophysics, 3, 10, doi: 10.21105/astro.2009.09391
+Yahalomi, D. A., Schechter, P. L., & Wambsganss, J. 2017,
+arXiv e-prints, arXiv:1711.07919,
+doi: 10.48550/arXiv.1711.07919
+Yoshino, A., & Ichikawa, T. 2008, PASJ, 60, 493,
+doi: 10.1093/pasj/60.3.493

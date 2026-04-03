@@ -83,6 +83,7 @@ legacy/*/_glade_run_*.py
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+*:Zone.Identifier
 
 # ==================== IDE ====================
 # VSCode

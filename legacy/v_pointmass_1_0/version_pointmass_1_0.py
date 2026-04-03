@@ -138,7 +138,7 @@ print("=" * 70)
 # 支持 sie（SIE 模型）和 anfw（轴对称 NFW）两种主透镜类型。
 # 留空字符串 "" 则使用下方内置的 SIE 默认参数。
 # 示例: BASELINE_LENS_DIR = "work/SN_2Sersic_NFW"
-BASELINE_LENS_DIR = ''
+BASELINE_LENS_DIR = '/home/luukiaun/glafic251018/work/glade/legacy/v_pointmass_1_0/bestfit_default'
 
 # ==================== 1. 约束条件配置 ====================
 CONSTRAINT_SIGMA = 1
@@ -149,7 +149,7 @@ PENALTY_COEFFICIENT = 1000
 # 例如: [1,2,3,4] 在所有4个图像附近拟合
 #      [1,3] 只在图像1和3附近拟合
 #      [2,4] 只在图像2和4附近拟合
-active_subhalos = []
+active_subhalos = [1, 2, 3, 4]
 
 # ==================== 3. 精细调试模式 (新功能) ====================
 # 如果为 True，每个 sub-halo 的搜索半径、初始质量、质量范围独立设置
@@ -174,14 +174,14 @@ LOSS_COEF_B = 1
 LOSS_PENALTY_PL = 10000
 
 # ==================== 4.1 透镜和源参数修改配置 ====================
-source_modify = True
-lens_modify = True
+source_modify = False
+lens_modify = False
 modify_percentage = 0.2
 # 注：两个都为True时，同时优化source和lens参数
 
 # ==================== 5. 优化算法配置 ====================
 DE_MAXITER = 650
-DE_POPSIZE = 32
+DE_POPSIZE = 64
 DE_ATOL = 0.0001
 DE_TOL = 0.0001
 DE_SEED = 42
@@ -232,13 +232,13 @@ draw_interval = 5
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
 # ==================== 可注入的观测数据（WebUI / 注入器可覆盖）====================
-obs_positions_mas_list = [[-330.461, 0], [330.461, 0], [0, -262.771], [0, 262.771]]
-obs_magnifications_list = [2.9205, 2.9205, -1.52908, -1.52908]
-obs_mag_errors_list = [0, 0, 0, 0]
-obs_pos_sigma_mas_list = [0.5, 0.5, 0.5, 0.5]
-center_offset_x = 0
-center_offset_y = 0
-obs_x_flip = False
+obs_positions_mas_list = [[-266.035, 0.427], [118.835, -221.927], [238.324, 227.27], [-126.157, 319.719]]
+obs_magnifications_list = [-35.6, 15.7, -7.5, 9.1]
+obs_mag_errors_list = [2.1, 1.3, 1, 1.1]
+obs_pos_sigma_mas_list = [0.41, 0.86, 2.23, 3.11]
+center_offset_x = 0.01535
+center_offset_y = 0.0322
+obs_x_flip = True
 
 # 坐标转换：统一取符号，同时作用于观测位置和中心偏移，确保两者始终在同一坐标系下
 _x_sign = -1 if obs_x_flip else 1
@@ -246,7 +246,7 @@ obs_positions_mas = np.array(obs_positions_mas_list)
 obs_positions = np.zeros_like(obs_positions_mas)
 obs_positions[:, 0] = _x_sign * obs_positions_mas[:, 0] / 1000.0
 obs_positions[:, 1] = obs_positions_mas[:, 1] / 1000.0
-center_offset_x = 0
+center_offset_x = 0.01535
 
 obs_magnifications = np.array(obs_magnifications_list)
 obs_mag_errors = np.array(obs_mag_errors_list)
@@ -298,7 +298,7 @@ else:
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
 # 验证 active_subhalos 参数
-active_subhalos = []
+active_subhalos = [1, 2, 3, 4]
 for idx in active_subhalos:
     if idx not in [1, 2, 3, 4]:
         raise ValueError(f"active_subhalos 包含无效的图像索引: {idx}，必须是 1-4 之间的整数")
