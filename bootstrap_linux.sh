@@ -91,13 +91,31 @@ install_system_packages() {
   sudo apt-get install -y "${packages[@]}"
 }
 
-download_if_missing() {
-  local url="$1"
-  local out="$2"
-  if [[ ! -f "${out}" ]]; then
-    info "下载 $(basename "${out}")"
-    wget -O "${out}" "${url}"
-  fi
+download_with_mirrors() {
+  local out="$1"; shift
+  local urls=("$@")
+
+  [[ -f "${out}" ]] && return 0
+
+  local name
+  name="$(basename "${out}")"
+  info "下载 ${name} ..."
+
+  for url in "${urls[@]}"; do
+    info "  尝试: ${url}"
+    if wget --timeout=20 --tries=2 -q --show-progress -O "${out}" "${url}" 2>&1; then
+      if [[ -s "${out}" ]]; then
+        info "  下载成功 ✓"
+        return 0
+      fi
+    fi
+    warn "  失败，尝试下一个镜像..."
+    rm -f "${out}"
+  done
+
+  err "所有镜像均下载失败: ${name}"
+  err "请手动下载并放置到: $(pwd)/${name}"
+  exit 1
 }
 
 build_cfitsio() {
@@ -105,9 +123,10 @@ build_cfitsio() {
   cd "${DEPS_SRC_DIR}"
   local dir="cfitsio-${CFITSIO_VERSION}"
   local tarball="${dir}.tar.gz"
-  download_if_missing \
+  download_with_mirrors "${tarball}" \
     "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/${tarball}" \
-    "${tarball}"
+    "https://distfiles.macports.org/cfitsio/${tarball}" \
+    "https://src.fedoraproject.org/repo/pkgs/cfitsio/${tarball}"
   [[ -d "${dir}" ]] || tar -xzf "${tarball}"
   cd "${dir}"
   if [[ ! -f "${LIB_DIR}/libcfitsio.so" && ! -f "${LIB_DIR}/libcfitsio.a" ]]; then
@@ -125,7 +144,11 @@ build_fftw() {
   cd "${DEPS_SRC_DIR}"
   local dir="fftw-${FFTW_VERSION}"
   local tarball="${dir}.tar.gz"
-  download_if_missing "http://www.fftw.org/${tarball}" "${tarball}"
+  download_with_mirrors "${tarball}" \
+    "https://www.fftw.org/${tarball}" \
+    "http://www.fftw.org/${tarball}" \
+    "https://fftw.org/pub/fftw/${tarball}" \
+    "https://distfiles.macports.org/fftw-3/${tarball}"
   [[ -d "${dir}" ]] || tar -xzf "${tarball}"
   cd "${dir}"
   if [[ ! -f "${LIB_DIR}/libfftw3.so" && ! -f "${LIB_DIR}/libfftw3.a" ]]; then
@@ -143,7 +166,13 @@ build_gsl() {
   cd "${DEPS_SRC_DIR}"
   local dir="gsl-${GSL_VERSION}"
   local tarball="${dir}.tar.gz"
-  download_if_missing "https://ftp.gnu.org/gnu/gsl/${tarball}" "${tarball}"
+  download_with_mirrors "${tarball}" \
+    "https://ftp.gnu.org/gnu/gsl/${tarball}" \
+    "https://ftpmirror.gnu.org/gnu/gsl/${tarball}" \
+    "https://mirrors.tuna.tsinghua.edu.cn/gnu/gsl/${tarball}" \
+    "https://mirrors.ustc.edu.cn/gnu/gsl/${tarball}" \
+    "https://mirrors.kernel.org/gnu/gsl/${tarball}" \
+    "https://mirrors.aliyun.com/gnu/gsl/${tarball}"
   [[ -d "${dir}" ]] || tar -xzf "${tarball}"
   cd "${dir}"
   if [[ ! -f "${LIB_DIR}/libgsl.so" && ! -f "${LIB_DIR}/libgsl.a" ]]; then
