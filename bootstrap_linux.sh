@@ -388,7 +388,7 @@ PY
   info "全部验证通过。"
 }
 
-main() {
+do_install() {
   info "开始为 Linux 自动搭建 GLADE 环境..."
   choose_install_mode
   install_system_packages
@@ -431,6 +431,298 @@ main() {
   echo
   echo "  Run model scripts directly (global mode or after source env.sh):"
   echo "    python3 legacy/v_pointmass_1_0/version_pointmass_1_0.py"
+}
+
+# ══════════════════════════════════════════════════════════════════
+# Uninstall
+# ══════════════════════════════════════════════════════════════════
+
+_remove_local_artifacts() {
+  if [[ -d "${SCRIPT_DIR}/deps" ]]; then
+    info "删除 deps/ (CFITSIO, FFTW, GSL 源码与编译文件)..."
+    rm -rf "${SCRIPT_DIR}/deps"
+  else
+    info "deps/ 不存在，跳过。"
+  fi
+
+  if [[ -d "${VENV_DIR}" ]]; then
+    info "删除 .venv/ (Python 虚拟环境)..."
+    rm -rf "${VENV_DIR}"
+  else
+    info ".venv/ 不存在，跳过。"
+  fi
+
+  if [[ -d "${GLAFIC_SRC_DIR}" ]]; then
+    info "清理 glafic2 编译产物..."
+    cd "${GLAFIC_SRC_DIR}"
+    if [[ -f Makefile ]]; then
+      make clean 2>/dev/null || true
+    fi
+    if [[ -f Makefile.original ]]; then
+      mv Makefile.original Makefile
+      info "  已恢复 Makefile.original → Makefile"
+    fi
+  fi
+
+  for f in env.sh run_glade.sh run_webui.sh; do
+    if [[ -f "${SCRIPT_DIR}/${f}" ]]; then
+      info "删除 ${f}"
+      rm -f "${SCRIPT_DIR}/${f}"
+    fi
+  done
+}
+
+_remove_pth_files() {
+  info "搜索并删除 glafic_glade.pth 文件..."
+  local found=0
+
+  local search_dirs=()
+  for py in python3 python; do
+    if ! command -v "$py" >/dev/null 2>&1; then continue; fi
+    local sp_list
+    sp_list="$($py -c "import site; print('\n'.join(site.getsitepackages()))" 2>/dev/null)" || continue
+    while IFS= read -r d; do
+      [[ -n "$d" ]] && search_dirs+=("$d")
+    done <<< "$sp_list"
+    local usp
+    usp="$($py -c "import site; print(site.getusersitepackages())" 2>/dev/null)" || true
+    [[ -n "$usp" ]] && search_dirs+=("$usp")
+  done
+
+  local -A seen=()
+  for d in "${search_dirs[@]}"; do
+    [[ -n "${seen[$d]+_}" ]] && continue
+    seen[$d]=1
+    local pth="${d}/glafic_glade.pth"
+    if [[ -f "$pth" ]]; then
+      info "  删除: $pth"
+      rm -f "$pth"
+      found=$((found + 1))
+    fi
+  done
+
+  while IFS= read -r pth; do
+    [[ -f "$pth" ]] || continue
+    local pdir
+    pdir="$(dirname "$pth")"
+    [[ -n "${seen[$pdir]+_}" ]] && continue
+    seen[$pdir]=1
+    if grep -q "glafic" "$pth" 2>/dev/null; then
+      info "  删除额外的 .pth: $pth"
+      rm -f "$pth"
+      found=$((found + 1))
+    fi
+  done < <(find /usr/lib/python3* /usr/local/lib/python3* \
+                "$HOME"/.local/lib/python3* \
+                -name "glafic*.pth" 2>/dev/null || true)
+
+  if [[ "$found" -eq 0 ]]; then
+    info "  未找到 glafic_glade.pth 文件。"
+  fi
+}
+
+_line_has_stale_libpath() {
+  local line="$1"
+  echo "$line" | grep -qE '(LD_LIBRARY_PATH|PYTHONPATH|PATH)' || return 1
+  echo "$line" | grep -qE '(fftw|cfitsio|gsl-|glafic|glade)'  || return 1
+
+  local any_lib=0 all_missing=1
+  local token
+  while IFS=: read -ra segs; do
+    for token in "${segs[@]}"; do
+      [[ "$token" == *'$'* || "$token" == *'{'* ]] && continue
+      echo "$token" | grep -qE '(fftw|cfitsio|gsl-|glafic|glade)' || continue
+      any_lib=1
+      [[ -d "$token" ]] && all_missing=0
+    done
+  done <<< "$(echo "$line" | grep -oP '(?<=")[^"]*|(?<='"'"')[^'"'"']*|/[^ :"'"'"']*')"
+
+  [[ $any_lib -eq 1 && $all_missing -eq 1 ]]
+}
+
+_clean_shell_configs() {
+  info "扫描 shell 配置文件中的残留路径..."
+
+  local rc_files=()
+  for f in "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile" \
+           "$HOME/.zshrc" "$HOME/.zshenv"; do
+    [[ -f "$f" ]] && rc_files+=("$f")
+  done
+
+  if [[ ${#rc_files[@]} -eq 0 ]]; then
+    info "  未找到 shell 配置文件。"
+    return
+  fi
+
+  local total_stale=0
+
+  for rc in "${rc_files[@]}"; do
+    local stale_lines=() stale_nums=()
+    local lnum=0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      lnum=$((lnum + 1))
+      [[ -z "$line" ]] && continue
+
+      local flagged=0
+
+      # 1) Line references our SCRIPT_DIR (current installation)
+      if [[ "$line" == *"${SCRIPT_DIR}"* ]]; then
+        flagged=1
+      fi
+
+      # 2) source/. of any glade/glafic env.sh
+      if [[ $flagged -eq 0 ]] && \
+         echo "$line" | grep -qE '^\s*(source|\.)\s+.*gl(ade|afic).*env\.sh'; then
+        flagged=1
+      fi
+
+      # 3) PATH-like export containing library names whose dirs are gone
+      if [[ $flagged -eq 0 ]] && _line_has_stale_libpath "$line"; then
+        flagged=1
+      fi
+
+      if [[ $flagged -eq 1 ]]; then
+        stale_lines+=("$line")
+        stale_nums+=("$lnum")
+      fi
+    done < "$rc"
+
+    [[ ${#stale_lines[@]} -eq 0 ]] && continue
+    total_stale=$((total_stale + ${#stale_lines[@]}))
+
+    echo
+    warn "在 ${rc} 中发现 ${#stale_lines[@]} 行相关配置："
+    for i in "${!stale_lines[@]}"; do
+      echo -e "  ${YELLOW}行 ${stale_nums[$i]}:${NC} ${stale_lines[$i]}"
+    done
+
+    read -rp "  是否删除这些行？[y/N]: " _del
+    if [[ "$_del" == "y" || "$_del" == "Y" ]]; then
+      cp "$rc" "${rc}.glade_uninstall_backup"
+      info "  备份: ${rc}.glade_uninstall_backup"
+
+      local -A drop=()
+      for n in "${stale_nums[@]}"; do drop[$n]=1; done
+
+      local tmpfile
+      tmpfile="$(mktemp)"
+      lnum=0
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        lnum=$((lnum + 1))
+        [[ -z "${drop[$lnum]+_}" ]] && printf '%s\n' "$line" >> "$tmpfile"
+      done < "$rc"
+      mv "$tmpfile" "$rc"
+      info "  已清理 ${#stale_lines[@]} 行。"
+    fi
+  done
+
+  if [[ $total_stale -eq 0 ]]; then
+    info "  shell 配置文件中未发现残留路径。"
+  fi
+}
+
+_report_env_status() {
+  echo
+  info "检查当前环境变量中的残留路径..."
+  local stale_found=0
+
+  for var in LD_LIBRARY_PATH PATH PYTHONPATH; do
+    local val="${!var:-}"
+    [[ -z "$val" ]] && continue
+
+    local stale_entries=()
+    local IFS_BAK="$IFS"
+    IFS=':'
+    for p in $val; do
+      echo "$p" | grep -qE '(fftw|cfitsio|gsl-|glafic|glade)' || continue
+      [[ -d "$p" ]] && continue
+      stale_entries+=("$p")
+    done
+    IFS="$IFS_BAK"
+
+    if [[ ${#stale_entries[@]} -gt 0 ]]; then
+      stale_found=1
+      warn "  ${var} 中包含以下不存在的路径："
+      for e in "${stale_entries[@]}"; do
+        echo -e "    ${RED}✗${NC} $e"
+      done
+    fi
+  done
+
+  if [[ $stale_found -eq 1 ]]; then
+    echo
+    warn "请重启终端或执行 'exec bash' 以清除残留环境变量。"
+  else
+    info "  当前环境变量中未发现残留路径。"
+  fi
+}
+
+do_uninstall() {
+  echo
+  echo -e "${RED}════════════════════════════════════════════════════${NC}"
+  echo -e "  ${RED}GLADE Uninstall / 卸载${NC}"
+  echo -e "${RED}════════════════════════════════════════════════════${NC}"
+  echo    "  将要执行的操作："
+  echo    "    [1] 删除 deps/          — CFITSIO, FFTW, GSL 源码与编译文件"
+  echo    "    [2] 删除 .venv/         — Python 虚拟环境"
+  echo    "    [3] 清理 glafic2        — 编译产物 (.o, .so, .a, binary)"
+  echo    "    [4] 删除生成的脚本      — env.sh, run_glade.sh, run_webui.sh"
+  echo    "    [5] 删除 .pth 文件      — Python site-packages 中的路径注册"
+  echo    "    [6] 清理 shell 配置     — .bashrc 等中的残留/失效路径"
+  echo    "    [7] 检查环境变量        — 报告 LD_LIBRARY_PATH 等中的残留"
+  echo -e "${RED}════════════════════════════════════════════════════${NC}"
+  echo
+  read -rp "  确认卸载？/ Confirm uninstall? [y/N]: " _confirm
+  if [[ "${_confirm}" != "y" && "${_confirm}" != "Y" ]]; then
+    info "已取消卸载。"
+    exit 0
+  fi
+  echo
+
+  _remove_local_artifacts
+  _remove_pth_files
+  _clean_shell_configs
+  _report_env_status
+
+  echo
+  info "════════════════════════════════════════════════════"
+  info "  卸载完成 / Uninstall complete"
+  info "════════════════════════════════════════════════════"
+  echo
+  echo -e "  ${YELLOW}注意 / Note:${NC}"
+  echo    "  • 当前终端的环境变量可能仍包含旧路径"
+  echo    "    请重启终端或执行: exec bash"
+  echo    "  • 源代码和配置文件 (main.py 等) 未被删除"
+  echo    "    仅清理了编译产物、依赖和路径注册"
+  echo    "  • shell 配置的备份已保存为 *.glade_uninstall_backup"
+  echo
+}
+
+# ══════════════════════════════════════════════════════════════════
+# Entry point — install / uninstall menu
+# ══════════════════════════════════════════════════════════════════
+
+choose_action() {
+  echo
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  GLADE Bootstrap Script / 引导脚本"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  [1] Install / 安装"
+  echo    "      安装所有依赖并构建 GLADE"
+  echo
+  echo    "  [2] Uninstall / 卸载"
+  echo    "      删除所有编译产物、依赖和残留路径"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  read -rp "  请选择 / Choose [1/2] (default: 1): " _action
+  case "${_action}" in
+    2) do_uninstall ;;
+    *) do_install ;;
+  esac
+}
+
+main() {
+  choose_action
 }
 
 main "$@"

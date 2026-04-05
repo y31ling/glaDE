@@ -33,6 +33,9 @@ env/
 .env
 
 # ==================== 项目特定 ====================
+# SN_2Sersic_SIE 模型数据（不纳入版本控制）
+SN_2Sersic_SIE/
+
 # 依赖库构建目录（由bootstrap_linux.sh自动生成）
 deps/
 
