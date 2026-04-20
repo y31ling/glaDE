@@ -367,7 +367,7 @@
 /* parameter for gsl_zbrent.c */
 #define GSL_ZBRENT_MAXITER 100
 /* parameter for mass.c */
-#define TOL_ROMBERG_JHK 5.0e-4
+#define TOL_ROMBERG_JHK 1.0e-8
 #define TOL_ROMBERG_GNFW 3.0e-4
 #define TOL_ROMBERG_EIN  1.0e-3
 #define ULIM_JHK 1.0e-8
