@@ -75,17 +75,26 @@ def make_triptych(opt_result: OptResult,
                   suptitle: str = "GLADE result",
                   show_2sigma: bool = False) -> str:
     """Render the result triptych for ``opt_result``; returns ``output_file``."""
-    be = backend
-    if be is None or isinstance(be, str):
-        name = be or opt_result.backend
-        if name not in ("cpu", "gpu", "glafic"):
-            name = "cpu"
-        be = make_backend(name)
+    # The result figure uses glafic (the reference image finder, and the same
+    # engine that draws the critical curves) regardless of the optimization
+    # backend -- the per-candidate Rhongomyniad finder can disagree with the
+    # batched solver that found the optimum. An explicit Backend *object*
+    # (e.g. a test fake) is honored as-is.
+    be = backend if (backend is not None and not isinstance(backend, str)) else None
+    if be is None:
+        try:
+            be = make_backend("cpu")
+        except Exception:  # noqa: BLE001 - glafic unavailable; fall back to run backend
+            fb = backend if (isinstance(backend, str) and backend in ("cpu", "gpu", "glafic")) else "cpu"
+            be = make_backend(fb)
 
     images = be.compute_images(opt_result.scene)
-    if not images:
-        raise RuntimeError("backend produced no images for the best-fit scene")
-    sel = select_images(images, obs.n) or images
+    sel = select_images(images, obs.n) if images else None
+    if sel is None:
+        n = 0 if not images else len(images)
+        raise ValueError(
+            f"best-fit model produced {n} image(s) (expected {obs.n}); "
+            f"triptych skipped")
     pred_pos = np.array([[im[0], im[1]] for im in sel], dtype=float)
     pred_mag = np.array([im[2] for im in sel], dtype=float)
 
