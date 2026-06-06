@@ -1,3 +1,24 @@
+V0.4.1
+
+中文
+- GPU 批量化：DE-GPU 与 GPU 上的 MCMC 现在将整代种群在一次 CUDA 批处理中求解（移植自 legacy 的批量优化器），相比此前的逐候选评估提速约 70 倍（约 0.16s/迭代 vs 约 11s/迭代），且与逐候选 GPU 结果完全一致。点质量子晕走快速批量核；其他组合自动回退到逐候选路径。GPU 路径要求源位置固定。
+- 新增 MCMC 功能：
+  · FindImage 左栏新增第 4 个选项 MCMC —— 直接进行 MCMC 拟合（不跑 DE）；先验范围即各参数 {下限, 上限}，质量类参数在 log10 空间采样；corner 图不画 DE 红线。
+  · 使用 CPU/GPU 时，若配置中 MCMC_ENABLED = True，则先 DE 后 MCMC（在 DE 最优解附近播种 walker，corner 图叠加 DE 红线，行为与 legacy 基本一致）。DE 与 MCMC 共用同一参数空间。
+  · 删除 MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX —— MCMC 先验始终为 DE 的 {下限, 上限}。包含这些旧键的 .dat 仍可加载（仅给出警告）。
+  · 输出 corner 图、trace 图与后验百分位数，并在 WebUI 结果区直接显示；Template 面板新增 MCMC-GeneralConfig。
+- 修复/维护：清理了一处遗留的失控进程隐患（不要以 workers=-1 在被分离的后台进程中运行 DE）。
+
+English
+- Batched GPU: DE-GPU and GPU MCMC now solve the whole DE generation in one CUDA batch (ported from the legacy batched optimizers), ~70x faster than the previous per-candidate evaluation (~0.16 s/iter vs ~11 s/iter), with results identical to the per-candidate GPU path. Point-mass sub-structures use the fast batched kernel; other combinations fall back automatically. The GPU path requires a fixed source position.
+- MCMC:
+  · FindImage gains a 4th left-rail option, MCMC — runs MCMC directly (no DE); the prior is each parameter's {lower, upper}, mass-like params are sampled in log10, and the corner plot has NO DE truth line.
+  · With CPU/GPU, setting MCMC_ENABLED = True runs DE then MCMC (walkers seeded around the DE best; the corner overlays the DE best as red truth lines), legacy-consistent. DE and MCMC share the same parameter space.
+  · Removed MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX — the MCMC prior is always the DE {lower, upper} bounds. Old .dat files that still set them load with a warning.
+  · Produces corner + trace plots and posterior percentiles, shown directly in the WebUI result panel. New Template: MCMC-GeneralConfig.
+- Fix/maintenance: cleaned up a runaway-process hazard (do not run DE with workers=-1 inside a detached background process).
+
+
 V0.4-ReUnit — Re-Unification
 
 中文

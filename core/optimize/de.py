@@ -28,6 +28,7 @@ class DEConfig:
     workers: int = 1
     early_stopping: bool = True
     early_stop_patience: int = 30
+    gpu_vectorized: bool = False   # objective handles the whole population (batched GPU)
 
     @classmethod
     def from_cfg(cls, cfg: GladeConfig) -> "DEConfig":
@@ -62,8 +63,12 @@ IterCallback = Optional[Callable[[int, np.ndarray, float, np.ndarray], None]]
 def run_de(objective, bounds, cfg: DEConfig,
            on_iteration: IterCallback = None,
            record_population: bool = True) -> DEResult:
-    workers = cfg.workers if cfg.workers else 1
-    updating = "deferred" if workers != 1 else "immediate"
+    if cfg.gpu_vectorized:
+        workers, updating, vectorized = 1, "deferred", True
+    else:
+        workers = cfg.workers if cfg.workers else 1
+        updating = "deferred" if workers != 1 else "immediate"
+        vectorized = False
 
     solver = DifferentialEvolutionSolver(
         objective,
@@ -77,6 +82,7 @@ def run_de(objective, bounds, cfg: DEConfig,
         disp=False,
         workers=workers,
         updating=updating,
+        vectorized=vectorized,
     )
 
     lb = np.array([b[0] for b in bounds], dtype=float)

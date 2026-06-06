@@ -27,6 +27,10 @@
         <span class="bo-name">GPU</span><span class="bo-sub">Rhongomyniad</span></button>
       <button class="backend-opt" data-backend="glafic">
         <span class="bo-name">Glafic</span><span class="bo-sub">direct</span></button>
+      <button class="backend-opt" data-backend="mcmc">
+        <span class="bo-name">MCMC</span><span class="bo-sub">emcee only</span></button>
+      <div class="rail-note">CPU/GPU also run MCMC if the config sets
+        <code>MCMC_ENABLED = True</code>.</div>
     </aside>
 
     <section id="findimage-main">
@@ -48,9 +52,7 @@
             <span id="term-state" class="term-state"></span>
           </div>
           <pre id="terminal" class="terminal"></pre>
-          <div id="result-area" class="result-area hidden">
-            <img id="result-img" alt="result" />
-          </div>
+          <div id="result-area" class="result-area hidden"></div>
         </div>
       </div>
     </section>

@@ -44,10 +44,18 @@ def optimize(cfg: GladeConfig,
 
     obs = build_obs(cfg)
     loss_cfg = LossConfig.from_cfg(cfg)
-    objective = Objective(problem, obs, loss_cfg, backend)
-
     de_cfg = DEConfig.from_cfg(cfg)
+
     is_gpu = isinstance(backend, str) and backend.lower() == "gpu"
+    objective = None
+    if is_gpu:
+        from .batched import BatchedGPUObjective, can_batch_gpu
+        ok, _reason = can_batch_gpu(cfg)
+        if ok:
+            objective = BatchedGPUObjective(problem, obs, loss_cfg)
+            de_cfg.gpu_vectorized = True   # whole population in one batched CUDA pass
+    if objective is None:
+        objective = Objective(problem, obs, loss_cfg, backend)
     if is_gpu or not isinstance(backend, str):
         de_cfg.workers = 1   # GPU/torch and explicit-object backends run single-process
     if de_overrides:

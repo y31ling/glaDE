@@ -28,6 +28,7 @@ class Job:
     files: list
     job_dir: str
     log_path: str
+    mode: str = "findimage"
     terminal: str = "?"
     pid: Optional[int] = None
     created: str = ""
@@ -62,7 +63,8 @@ class JobManager:
         force_arg = " --force" if force else ""
         run = (f"{shlex.quote(self._python())} -u "
                f"{shlex.quote(os.path.join('webui', 'runjob.py'))} "
-               f"--backend {job.backend} --out {shlex.quote(job.job_dir)} "
+               f"--backend {job.backend} --mode {shlex.quote(job.mode)} "
+               f"--out {shlex.quote(job.job_dir)} "
                f"--files {files_arg}{force_arg}")
         # cd, set env, run, tee to log, keep the window open afterwards
         return (f"cd {shlex.quote(self.root)}; {self._env_exports()}"
@@ -91,7 +93,8 @@ class JobManager:
         return "detached", p.pid
 
     # -- public API ----------------------------------------------------------
-    def start(self, backend: str, files: list, force: bool = False) -> Job:
+    def start(self, backend: str, files: list, mode: str = "findimage",
+              force: bool = False) -> Job:
         job_id = (datetime.now().strftime("%y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:4])
         job_dir = os.path.join(self.runs_dir, job_id)
         os.makedirs(job_dir, exist_ok=True)
@@ -99,7 +102,8 @@ class JobManager:
         open(log_path, "w").close()  # create empty log immediately for tailing
 
         job = Job(id=job_id, backend=backend, files=list(files), job_dir=job_dir,
-                  log_path=log_path, created=datetime.now().isoformat(timespec="seconds"))
+                  log_path=log_path, mode=mode,
+                  created=datetime.now().isoformat(timespec="seconds"))
         bash_cmd = self._build_command(job, force)
         job.terminal, job.pid = self._spawn_terminal(bash_cmd, f"GLADE {job_id}")
         with self._lock:

@@ -154,15 +154,30 @@ const FindImage = {
       es.close();
       const st = await api(`/api/run/${jobId}/status`).catch(() => ({}));
       if (st.state === "done") {
-        state.textContent = `done · loss ${Number(st.loss).toFixed(2)} · ${st.iterations} iters`;
-        state.className = "term-state done";
-        if (st.triptych) {
-          $("#result-img").src = `/api/run/${jobId}/result/result.png?t=` + Date.now();
-          $("#result-area").classList.remove("hidden");
-        }
+        let txt = "done";
+        if (st.loss != null && isFinite(st.loss)) txt += ` · loss ${Number(st.loss).toFixed(2)}`;
+        if (st.iterations) txt += ` · ${st.iterations} iters`;
+        if (st.mcmc) txt += ` · MCMC accept ${Number(st.mcmc.acceptance).toFixed(2)} (${st.mcmc.n_samples} samples)`;
+        state.textContent = txt; state.className = "term-state done";
+        this.showResults(jobId, st);
       } else { state.textContent = st.state || "ended"; state.className = "term-state error"; }
     });
     es.onerror = () => { state.textContent = "stream error"; state.className = "term-state error"; es.close(); };
+  },
+  showResults(jobId, st) {
+    const area = $("#result-area"); area.innerHTML = "";
+    const figs = [];
+    if (st.triptych) figs.push(["Result", st.triptych]);
+    if (st.mcmc && st.mcmc.corner) figs.push(["MCMC corner", st.mcmc.corner]);
+    if (st.mcmc && st.mcmc.trace) figs.push(["MCMC trace", st.mcmc.trace]);
+    if (!figs.length) { area.classList.add("hidden"); return; }
+    figs.forEach(([label, fname]) => {
+      const fig = document.createElement("figure"); fig.className = "result-fig";
+      fig.innerHTML = `<figcaption>${label}</figcaption>` +
+        `<img src="/api/run/${jobId}/result/${fname}?t=${Date.now()}" alt="${label}"/>`;
+      area.appendChild(fig);
+    });
+    area.classList.remove("hidden");
   },
 };
 

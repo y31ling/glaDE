@@ -36,6 +36,12 @@ def _check_unfilled_scalars(cfg: GladeConfig, issues: list[Issue]) -> None:
 
     for name, val in cfg.all_scalars().items():
         scan(val, name)
+        if name in schema.DEPRECATED_KEYS:
+            issues.append(Issue(
+                WARNING, "deprecated",
+                f"'{name}' was removed in V0.4.1 and is ignored; the MCMC prior is "
+                f"always the DE {{lower, upper}} bounds",
+                source_file=cfg.provenance.get(name)))
 
 
 def _check_obs(cfg: GladeConfig, issues: list[Issue]) -> None:

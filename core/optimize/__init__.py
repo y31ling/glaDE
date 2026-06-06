@@ -18,6 +18,7 @@ Pipeline::
 from __future__ import annotations
 
 from .backends import EngineBackend, make_backend
+from .batched import BatchedGPUObjective, can_batch_gpu
 from .de import DEConfig, DEResult, run_de
 from .loss import LossConfig, ml_loss
 from .matching import match_images, select_images
@@ -35,4 +36,5 @@ __all__ = [
     "match_images", "select_images",
     "Scene", "SceneComponent", "ObsData", "build_obs",
     "EngineBackend", "make_backend",
+    "BatchedGPUObjective", "can_batch_gpu",
 ]

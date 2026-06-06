@@ -290,9 +290,15 @@ ALGORITHM_KEYS = (
     "PENALTY_COEFFICIENT", "Draw_Graph", "draw_interval", "PRINT_INTERVAL",
     "COMPARE_GRAPH", "SHOW_2SIGMA", "OUTPUT_PREFIX",
     "MCMC_ENABLED", "MCMC_NWALKERS", "MCMC_NSTEPS", "MCMC_BURNIN", "MCMC_THIN",
-    "MCMC_PERTURBATION", "MCMC_PROGRESS", "MCMC_WORKERS", "MCMC_CUSTOM_RANGE",
-    "MCMC_SEARCH_RADIUS", "MCMC_LOG_M_MIN", "MCMC_LOG_M_MAX",
+    "MCMC_PERTURBATION", "MCMC_PROGRESS", "MCMC_WORKERS",
 )
+
+# Removed in V0.4.1: the MCMC prior is now always the DE {lower, upper} bounds,
+# so these custom-range keys are obsolete. Old .dat files that still set them are
+# accepted with a warning (see validate.py) rather than rejected.
+DEPRECATED_KEYS = frozenset({
+    "MCMC_CUSTOM_RANGE", "MCMC_SEARCH_RADIUS", "MCMC_LOG_M_MIN", "MCMC_LOG_M_MAX",
+})
 
 # canonical alias resolution (the .dat may use glafic's 'lambda')
 SCALAR_ALIASES = {"lambda": "lambda_cosmo"}

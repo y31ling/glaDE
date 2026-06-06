@@ -81,6 +81,20 @@ EARLY_STOPPING = True
 EARLY_STOP_PATIENCE = $int  # e.g. 30
 """
 
+MCMC_GENERAL = """# MCMC sampling (emcee). The prior is ALWAYS the DE {lower, upper} bounds of
+# every optimizable parameter; mass-like dims are sampled in log10 space.
+# Set MCMC_ENABLED = True to also run MCMC after a DE-CPU / DE-GPU run.
+# (The FindImage 'MCMC' mode runs MCMC directly with NO DE, ignoring this flag.)
+MCMC_ENABLED = True
+MCMC_NWALKERS = $int        # e.g. 32 (auto-raised to >= 2*ndim+2)
+MCMC_NSTEPS = $int          # e.g. 2000
+MCMC_BURNIN = $int          # steps discarded before thinning, e.g. 300
+MCMC_THIN = $int            # e.g. 2
+MCMC_PERTURBATION = $float  # walker init spread (fraction of bound width), e.g. 0.01
+MCMC_WORKERS = $int         # -1 = all CPU cores (ignored on the vectorized GPU path)
+MCMC_PROGRESS = True
+"""
+
 
 def _component_snippet(key: str) -> str:
     spec = schema.model(key)
@@ -132,5 +146,7 @@ def template_tree() -> list:
             {"name": "DE-CPU", "snippet": DE_CPU},
             {"name": "DE-GPU", "snippet": DE_GPU},
         ]},
-        {"name": "MCMC", "children": []},
+        {"name": "MCMC", "children": [
+            {"name": "MCMC-GeneralConfig", "snippet": MCMC_GENERAL},
+        ]},
     ]

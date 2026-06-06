@@ -90,8 +90,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
   border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px;
 }
-.result-area { margin-top: 10px; text-align: center; }
+.result-area { margin-top: 10px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+.result-fig { margin: 0; text-align: center; }
+.result-fig figcaption { font-size: 12px; color: var(--fg-dim); margin-bottom: 4px; }
 .result-area img { max-width: 100%; border: 1px solid var(--border); border-radius: 6px; }
+.rail-note { font-size: 10.5px; color: var(--fg-dim); margin-top: auto; padding-top: 10px; line-height: 1.4; }
+.rail-note code { background: var(--bg); padding: 1px 4px; border-radius: 3px; color: var(--gold); }
 .hidden { display: none !important; }
 
 /* ===================== Editor ===================== */

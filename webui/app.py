@@ -163,25 +163,40 @@ def templates():
 # --------------------------------------------------------------------------- #
 # run (validate -> confirm defaults -> spawn terminal -> SSE)
 # --------------------------------------------------------------------------- #
+def _resolve_engine_mode(rail_backend: str, cfg) -> tuple[str, str]:
+    """Map a FindImage rail choice to (engine, mode).
+
+    'mcmc' rail -> MCMC-only on the CPU/glafic engine.
+    'cpu'/'gpu'/'glafic' -> DE; also MCMC afterwards iff MCMC_ENABLED is set.
+    """
+    if rail_backend == "mcmc":
+        return "cpu", "mcmc"
+    mode = "de+mcmc" if bool(cfg.algorithm.get("MCMC_ENABLED", False)) else "findimage"
+    return rail_backend, mode
+
+
 @app.route("/api/run/check", methods=["POST"])
 def run_check():
     """Validate a selection without launching. Returns blocking errors and the
     basic variables that would fall back to defaults (for the confirm dialog)."""
     from core.format import load_config
+    from core.optimize.problem import OptProblem
     data = request.get_json(force=True)
-    backend = data["backend"]
+    rail = data["backend"]
+    engine = "cpu" if rail == "mcmc" else rail
     files = [os.path.join(INPUT_DIR, p) for p in data["files"]]
-    cfg, issues = load_config(files, backend=backend, with_defaults=True)
+    cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
-    warnings = [i.message for i in issues if not i.is_error]
+    _engine, mode = _resolve_engine_mode(rail, cfg)
     defaulted = {name: cfg.all_scalars().get(name) for name in cfg.applied_defaults}
     return jsonify({
         "ok": not errors,
+        "mode": mode,
+        "engine": engine,
         "errors": errors,
-        "warnings": warnings,
+        "warnings": [i.message for i in issues if not i.is_error],
         "defaulted": {k: _jsonable(v) for k, v in defaulted.items()},
-        "ndim": __import__("core.optimize.problem", fromlist=["OptProblem"]).OptProblem(cfg).ndim
-        if not errors else 0,
+        "ndim": OptProblem(cfg).ndim if not errors else 0,
     })
 
 
@@ -189,12 +204,13 @@ def run_check():
 def run_start():
     from core.format import load_config
     data = request.get_json(force=True)
-    backend = data["backend"]
+    rail = data["backend"]
     rel_files = data["files"]
     force = bool(data.get("force"))
+    engine = "cpu" if rail == "mcmc" else rail
     files = [os.path.join(INPUT_DIR, p) for p in rel_files]
 
-    cfg, issues = load_config(files, backend=backend, with_defaults=True)
+    cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
@@ -203,8 +219,10 @@ def run_start():
                         "defaulted": {k: _jsonable(cfg.all_scalars().get(k))
                                       for k in cfg.applied_defaults}}), 200
 
-    job = jobs.start(backend, [os.path.join("InputFiles", p) for p in rel_files], force=True)
-    return jsonify({"ok": True, "job_id": job.id, "terminal": job.terminal})
+    _engine, mode = _resolve_engine_mode(rail, cfg)
+    job = jobs.start(engine, [os.path.join("InputFiles", p) for p in rel_files],
+                     mode=mode, force=True)
+    return jsonify({"ok": True, "job_id": job.id, "terminal": job.terminal, "mode": mode})
 
 
 @app.route("/api/run/<job_id>/stream")
