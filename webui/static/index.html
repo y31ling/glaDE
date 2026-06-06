@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GLADE</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- top navigation -->
+  <header id="topnav">
+    <div class="brand">GLADE</div>
+    <nav class="navtabs">
+      <button class="navtab active" data-page="findimage">FindImage</button>
+      <button class="navtab" data-page="editor">Editor</button>
+    </nav>
+    <div class="nav-right"><span id="status-chip"></span></div>
+  </header>
+
+  <!-- ============ FindImage page ============ -->
+  <main id="page-findimage" class="page active">
+    <aside id="findimage-rail">
+      <div class="rail-title">Backend</div>
+      <button class="backend-opt active" data-backend="cpu">
+        <span class="bo-name">CPU</span><span class="bo-sub">glafic</span></button>
+      <button class="backend-opt" data-backend="gpu">
+        <span class="bo-name">GPU</span><span class="bo-sub">Rhongomyniad</span></button>
+      <button class="backend-opt" data-backend="glafic">
+        <span class="bo-name">Glafic</span><span class="bo-sub">direct</span></button>
+    </aside>
+
+    <section id="findimage-main">
+      <div class="fi-cols">
+        <div class="fi-files">
+          <div class="panel-head">
+            <span>Select .dat files</span>
+            <button id="fi-refresh" class="mini-btn" title="Refresh">⟳</button>
+          </div>
+          <div id="fi-filelist" class="filelist"></div>
+        </div>
+        <div class="fi-run">
+          <div class="run-controls">
+            <div class="selected-summary" id="fi-summary">No files selected</div>
+            <button id="fi-run" class="run-btn" disabled>▶ Run</button>
+          </div>
+          <div class="panel-head term-head">
+            <span id="term-title">Terminal output</span>
+            <span id="term-state" class="term-state"></span>
+          </div>
+          <pre id="terminal" class="terminal"></pre>
+          <div id="result-area" class="result-area hidden">
+            <img id="result-img" alt="result" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ Editor page ============ -->
+  <main id="page-editor" class="page">
+    <div id="icon-rail">
+      <button class="icon-btn active" data-panel="explorer" title="Explorer">
+        <img src="/assets/icon/Explorer.png" alt="Explorer" /></button>
+      <button class="icon-btn" data-panel="template" title="Template">
+        <img src="/assets/icon/Template.png" alt="Template" /></button>
+    </div>
+
+    <div id="side-panel">
+      <div id="explorer-panel" class="side-content active">
+        <div class="panel-head">
+          <span>Explorer · InputFiles</span>
+          <div class="head-actions">
+            <button class="mini-btn" id="exp-new-file" title="New file">＋</button>
+            <button class="mini-btn" id="exp-new-folder" title="New folder">🗀</button>
+            <button class="mini-btn" id="exp-refresh" title="Refresh">⟳</button>
+          </div>
+        </div>
+        <div id="file-tree" class="tree"></div>
+      </div>
+      <div id="template-panel" class="side-content">
+        <div class="panel-head"><span>Templates</span></div>
+        <div id="template-tree" class="tree"></div>
+      </div>
+    </div>
+
+    <div id="panel-resizer"></div>
+
+    <div id="editor-area">
+      <div id="tabbar"></div>
+      <div id="editor-host"></div>
+      <div id="editor-footer">
+        <button id="btn-delete" class="footer-btn danger" disabled>🗑 Delete</button>
+        <span id="editor-path" class="editor-path"></span>
+        <button id="btn-save" class="footer-btn primary" disabled>💾 Save</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- context menu + modal -->
+  <div id="ctxmenu" class="ctxmenu hidden"></div>
+  <div id="modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-title" id="modal-title"></div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

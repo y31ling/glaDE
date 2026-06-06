@@ -376,7 +376,7 @@ echo "  GLADE WebUI"
 echo "  Open in browser: http://localhost:${GLADE_PORT}"
 echo "  Press Ctrl+C to stop"
 echo "============================================================"
-python3 "${SCRIPT_DIR}/web/app.py"
+python3 "${SCRIPT_DIR}/webui/app.py"
 EOF
   chmod +x "${SCRIPT_DIR}/run_webui.sh"
 }

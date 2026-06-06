@@ -252,9 +252,9 @@ def parse_king_params(params_file):
     for img_idx, _ in matches:
         x_pattern = rf'x_king{img_idx}\s*=\s*([-\d.eE+]+)'
         y_pattern = rf'y_king{img_idx}\s*=\s*([-\d.eE+]+)'
-        m_pattern = rf'(?<!log10_)M{img_idx}\s*=\s*([-\d.eE+]+)'
-        rc_pattern = rf'r_c{img_idx}\s*=\s*([-\d.eE+]+)'
-        c_pattern = rf'(?<!r_)c{img_idx}\s*=\s*([-\d.eE+]+)'
+        m_pattern = rf'M_king{img_idx}\s*=\s*([-\d.eE+]+)'
+        rc_pattern = rf'rc_king{img_idx}\s*=\s*([-\d.eE+]+)'
+        c_pattern = rf'(?<!r)c_king{img_idx}\s*=\s*([-\d.eE+]+)'
         
         x_match = re.search(x_pattern, content)
         y_match = re.search(y_pattern, content)
@@ -342,7 +342,7 @@ def generate_glafic_input(model_type, subhalos, output_dir, prefix='glafic_run')
             
             elif model_type == 'king':
                 for img_idx, x, y, m, rc, c in subhalos:
-                    f.write(f"lens       pgc     {LENS_Z}    {m:.10e}    ")
+                    f.write(f"lens       king    {LENS_Z}    {m:.10e}    ")
                     f.write(f"{x:.10e}    {y:.10e}    0.0    0.0    {rc:.10e}    {c:.10e}\n")
             
             f.write("\n")

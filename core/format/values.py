@@ -1,0 +1,117 @@
+"""Value model for parsed GLADE ``.dat`` configurations.
+
+A parsed parameter is one of:
+
+* :class:`Fixed`      -- a locked numeric value.
+* :class:`Bounds`     -- an optimizable ``{lo, hi}`` search dimension.
+* :class:`Unfilled`   -- a ``$float`` / ``$int`` placeholder still left in the file.
+
+Scalars may additionally be plain Python objects (``list``, ``bool``, ``str``)
+for things like the observation arrays and flags.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Optional, Union
+
+
+@dataclass(frozen=True)
+class Fixed:
+    """A locked numeric parameter."""
+
+    value: float
+
+    def __str__(self) -> str:  # pragma: no cover - cosmetic
+        return repr(self.value)
+
+
+@dataclass(frozen=True)
+class Bounds:
+    """An optimizable parameter with inclusive search bounds ``[lo, hi]``."""
+
+    lo: float
+    hi: float
+
+    def __post_init__(self) -> None:
+        # bounds may be written hi-first; normalise to lo <= hi.
+        if self.hi < self.lo:
+            lo, hi = self.hi, self.lo
+            object.__setattr__(self, "lo", lo)
+            object.__setattr__(self, "hi", hi)
+
+    def __str__(self) -> str:  # pragma: no cover - cosmetic
+        return "{%r, %r}" % (self.lo, self.hi)
+
+
+@dataclass(frozen=True)
+class Unfilled:
+    """An unresolved template placeholder (``$float`` / ``$int`` ...)."""
+
+    kind: str = "float"          # 'float' | 'int' | 'str'
+    optimizable: bool = False    # was it $type{lower,upper} ?
+
+    def __str__(self) -> str:  # pragma: no cover - cosmetic
+        return "${}{}".format(self.kind, "{lower,upper}" if self.optimizable else "")
+
+
+@dataclass(frozen=True)
+class Ref:
+    """A reference to a named scalar (e.g. ``lens_z``) resolved after merge.
+
+    References are kept symbolic until the full (possibly multi-file) symbol
+    table is known, then replaced by a :class:`Fixed` value.
+    """
+
+    name: str
+
+    def __str__(self) -> str:  # pragma: no cover - cosmetic
+        return self.name
+
+
+# A component / source parameter.
+ParamValue = Union[Fixed, Bounds, Unfilled, Ref]
+
+
+@dataclass
+class Component:
+    """One lens or sub-structure component (both share a single stack)."""
+
+    name: str                         # 'sers1'
+    type: str                         # glade model keyword, e.g. 'sers'
+    z: ParamValue                     # redshift (usually Fixed after resolution)
+    params: list[ParamValue]          # p1..pk in glafic order
+    category: str = "lens"            # 'lens' | 'substructure' (authoring hint only)
+    raw_index: Optional[int] = None   # the literal N as written (advisory)
+    index: Optional[int] = None       # globally recomputed 1-based index
+    source_file: Optional[str] = None
+    lineno: Optional[int] = None
+
+    def is_optimizable(self) -> bool:
+        return any(isinstance(p, Bounds) for p in self.params) or isinstance(self.z, Bounds)
+
+
+@dataclass
+class Assignment:
+    """A single ``name = value`` scalar assignment, preserving order/origin."""
+
+    name: str
+    value: Any                        # Fixed | Bounds | Unfilled | list | bool | str
+    source_file: Optional[str] = None
+    lineno: Optional[int] = None
+
+
+@dataclass
+class ParsedFile:
+    """The result of parsing one ``.dat`` file (order preserved)."""
+
+    path: Optional[str] = None
+    assignments: list[Assignment] = field(default_factory=list)
+    components: list[Component] = field(default_factory=list)
+    # name -> resolved numeric value, for reference substitution within the file
+    symbols: dict[str, float] = field(default_factory=dict)
+
+    def scalar(self, name: str) -> Any:
+        for a in self.assignments:
+            if a.name == name:
+                return a.value
+        return None

@@ -178,12 +178,13 @@ draw_interval = 25
 PRINT_INTERVAL = 10
 
 # ── 可注入的观测数据 ────────────────────────────────────────
-obs_positions_mas_list = [[-330.461, 0], [330.461, 0], [0, -262.771], [0, 262.771]]
-obs_magnifications_list = [2.92052, 2.92052, -1.52908, -1.52908]
-obs_mag_errors_list = [0.2, 0.2, 0.2, 0.2]
-obs_pos_sigma_mas_list = [0.5, 0.5, 0.691, 0.691]
-center_offset_x = 0
-center_offset_y = 0
+obs_positions_mas_list = [[-266.035, 0.427], [118.835, -221.927],
+                          [238.324, 227.270], [-126.157, 319.719]]
+obs_magnifications_list = [-35.6, 15.7, -7.5, 9.1]
+obs_mag_errors_list = [2.1, 1.3, 1.0, 1.1]
+obs_pos_sigma_mas_list = [0.41, 0.86, 2.23, 3.11]
+center_offset_x = +0.01535
+center_offset_y = +0.03220
 obs_x_flip = True
 
 # 坐标转换：统一取符号，同时作用于观测位置和中心偏移，确保两者始终在同一坐标系下
@@ -524,12 +525,18 @@ else:
     print(f"  Scipy版本: {scipy.__version__}")
 
     np.random.seed(DE_SEED)
-    solver = DifferentialEvolutionSolver(
-        objective, bounds,
+    import inspect as _inspect
+    _de_sig = _inspect.signature(DifferentialEvolutionSolver.__init__).parameters
+    _de_kwargs = dict(
         maxiter=DE_MAXITER, popsize=DE_POPSIZE,
         atol=DE_ATOL, tol=DE_TOL,
-        rng=np.random.default_rng(DE_SEED), polish=DE_POLISH,
+        polish=DE_POLISH,
         disp=False, workers=DE_WORKERS, updating='deferred')
+    if 'rng' in _de_sig:
+        _de_kwargs['rng'] = np.random.default_rng(DE_SEED)
+    else:
+        _de_kwargs['seed'] = DE_SEED
+    solver = DifferentialEvolutionSolver(objective, bounds, **_de_kwargs)
 
     if Draw_Graph:
         plot_iteration_population(solver.population.copy(), 0, output_dir, bounds, pmap)
@@ -655,11 +662,15 @@ with open(best_params_file, 'w') as f:
                 "  ".join(f"{v:.6e}" for v in ps) + f"  # {key}\n")
 
     f.write(f"\nResults:\n")
-    f.write(f"  pos_rms_mas  = {np.sqrt(np.mean(opt_delta**2)):.4f}\n")
-    f.write(f"  pos_chi2     = {opt_pos_chi2:.4f}  (A={LOSS_COEF_A})\n")
-    f.write(f"  mag_chi2     = {opt_mag_chi2:.4f}  (B={LOSS_COEF_B})\n")
-    f.write(f"  total_loss   = {opt_loss:.4f}\n")
-    f.write(f"  improvement  = {improvement:.2f}%\n")
+    f.write(f"  pos_rms_mas      = {np.sqrt(np.mean(opt_delta**2)):.4f}\n")
+    f.write(f"  chi2_pos_base    = {base_pos_chi2:.4f}\n")
+    f.write(f"  chi2_mag_base    = {base_mag_chi2:.4f}\n")
+    f.write(f"  chi2_total_base  = {base_pos_chi2 + base_mag_chi2:.4f}\n")
+    f.write(f"  chi2_pos_best    = {opt_pos_chi2:.4f}  (A={LOSS_COEF_A})\n")
+    f.write(f"  chi2_mag_best    = {opt_mag_chi2:.4f}  (B={LOSS_COEF_B})\n")
+    f.write(f"  chi2_total_best  = {opt_pos_chi2 + opt_mag_chi2:.4f}\n")
+    f.write(f"  total_loss       = {opt_loss:.4f}\n")
+    f.write(f"  improvement      = {improvement:.2f}%\n")
     if opt_missing > 0:
         f.write(f"  missing_penalty = {opt_missing:.2e}\n")
     for i in range(n_obs):

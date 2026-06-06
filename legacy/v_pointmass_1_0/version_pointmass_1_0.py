@@ -1436,9 +1436,15 @@ with open(params_file, 'w') as f:
         f.write(f"y_sub{img_idx} = {y:.10e}  # arcsec\n")
         f.write(f"mass_sub{img_idx} = {m:.10e}  # Msun\n\n")
     
+    base_pos_chi2 = float(np.sum((base_delta_pos / obs_pos_sigma_mas) ** 2))
+    best_pos_chi2 = float(np.sum((best_delta_pos / obs_pos_sigma_mas) ** 2))
     f.write(f"# Performance\n")
-    f.write(f"chi2_base = {base_mag_chi2:.2f}\n")
-    f.write(f"chi2_best = {best_mag_chi2:.2f}\n")
+    f.write(f"chi2_pos_base = {base_pos_chi2:.4f}\n")
+    f.write(f"chi2_mag_base = {base_mag_chi2:.4f}\n")
+    f.write(f"chi2_total_base = {base_pos_chi2 + base_mag_chi2:.4f}\n")
+    f.write(f"chi2_pos_best = {best_pos_chi2:.4f}\n")
+    f.write(f"chi2_mag_best = {best_mag_chi2:.4f}\n")
+    f.write(f"chi2_total_best = {best_pos_chi2 + best_mag_chi2:.4f}\n")
     f.write(f"improvement = {improvement:.1f}%\n")
     f.write(f"constraint_satisfied = {constraint_satisfied}\n")
 

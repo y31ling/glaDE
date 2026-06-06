@@ -1,0 +1,12 @@
+# Observation / image data (iPTF16geu-style)
+source_x = {-0.10, 0.10}   # source position x: {lo,hi} => optimize
+source_y = 0.0244          # source position y: fixed value => locked
+
+obs_positions_mas_list = [[-266.035, 0.427], [118.835, -221.927],
+                          [238.324, 227.27], [-126.157, 319.719]]
+obs_magnifications_list = [-35.6, 15.7, -7.5, 9.1]
+obs_mag_errors_list     = [2.1, 1.3, 1.0, 1.1]
+obs_pos_sigma_mas_list  = [0.41, 0.86, 2.23, 3.11]
+center_offset_x = 0.01535
+center_offset_y = 0.0322
+obs_x_flip = True          # True = sky convention, False = math convention

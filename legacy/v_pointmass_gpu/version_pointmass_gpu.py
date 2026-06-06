@@ -34,10 +34,15 @@ for _cand in (_HERE.parent.parent / "Rhongomyniad",
         sys.path.insert(0, str(_cand))
         break
 
+# Make the shared post-processing module importable
+sys.path.insert(0, str(_HERE.parent))
+import gpu_postprocess as gp  # noqa: E402
+
 import numpy as np
 import torch
 from scipy.spatial.distance import cdist
-from scipy.optimize import differential_evolution, linear_sum_assignment
+from scipy.optimize import linear_sum_assignment
+from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
 
 import rhongomyniad as rh
 from rhongomyniad import constants as K
@@ -112,12 +117,30 @@ LOSS_COEF_A = 1.0
 LOSS_COEF_B = 1.0
 LOSS_PENALTY_PL = 10000.0
 
-DE_MAXITER = 200
-DE_POPSIZE = 15
+DE_MAXITER = 600
+DE_POPSIZE = 9
 DE_ATOL = 1e-3
 DE_TOL = 1e-3
 DE_SEED = random.randint(1, 100000)
 DE_POLISH = True
+
+EARLY_STOPPING = True
+EARLY_STOP_PATIENCE = 30
+
+# MCMC posterior sampling
+MCMC_ENABLED = False
+MCMC_NWALKERS = 32
+MCMC_NSTEPS = 2000
+MCMC_BURNIN = 300
+MCMC_THIN = 2
+MCMC_PERTURBATION = 0.01
+MCMC_PROGRESS = True
+
+# Iteration plot control (mirrors v_pointmass_1_0)
+Draw_Graph = 1
+draw_interval = 5
+SHOW_2SIGMA = False
+COMPARE_GRAPH = True
 
 OUTPUT_PREFIX = "v_pm_gpu"
 
@@ -477,18 +500,51 @@ def _build_bounds():
     return bounds
 
 
+def _solve_for_subhalos(subhalos):
+    """Run a single forward solve for the given subhalo list.  Returns
+    (pred_pos, pred_mag, delta_mas) or (None, None, None)."""
+    if subhalos:
+        sx_t = torch.tensor([[s[0] for s in subhalos]], device=device, dtype=dtype)
+        sy_t = torch.tensor([[s[1] for s in subhalos]], device=device, dtype=dtype)
+        lm_t = torch.tensor([[math.log10(max(s[2], 1e-30)) for s in subhalos]],
+                            device=device, dtype=dtype)
+    else:
+        # baseline = tiny far-away mass that contributes nothing
+        sx_t = torch.tensor([[1e3]], device=device, dtype=dtype)
+        sy_t = torch.tensor([[1e3]], device=device, dtype=dtype)
+        lm_t = torch.tensor([[0.0]], device=device, dtype=dtype)
+    imgs = batched_point_solve(sx_t, sy_t, lm_t,
+                               float(source_x), float(source_y), CACHE)[0]
+    return gp.match_images(imgs, obs_positions,
+                           center_offset_x, center_offset_y, n_obs=4)
+
+
 def main():
     bounds = _build_bounds()
-    print(f"\nDE ndim={n_params}  popsize_mult={DE_POPSIZE}  "
-          f"pop={DE_POPSIZE * n_params}  seed={DE_SEED}")
+    print("\n" + "=" * 70)
+    print("Step 1: baseline (no sub-halos)")
+    print("=" * 70)
+    base_pos, base_mag, base_delta = _solve_for_subhalos([])
+    if base_delta is None:
+        print("  warn: baseline solve did not yield 4 images")
+        base_delta = np.full(4, 1e3)
+        base_mag = np.zeros(4)
+        base_pos = np.zeros((4, 2))
+    base_pos_chi2 = float(np.sum((base_delta / obs_pos_sigma_mas) ** 2))
+    base_mag_chi2 = float(np.sum(((base_mag - obs_magnifications) / obs_mag_errors) ** 2))
+    base_total_chi2 = base_pos_chi2 + base_mag_chi2
+    print(f"  position RMS: {np.sqrt(np.mean(base_delta**2)):.3f} mas")
+    print(f"  chi2_pos    : {base_pos_chi2:.2f}")
+    print(f"  chi2_mag    : {base_mag_chi2:.2f}")
+    print(f"  chi2_total  : {base_total_chi2:.2f}")
 
-    # Baseline (no subhalos = tiny mass far from the image plane).
-    zero = np.zeros((n_params, 1))
-    for i in range(n_active_subhalos):
-        zero[i * 3 + 2, 0] = 2.0
-    print(f"baseline (tiny mass) loss: {float(vectorised_chi2(zero)[0]):.3f}")
+    print("\n" + "=" * 70)
+    print(f"Step 2: differential evolution (ndim={n_params}, popsize_mult={DE_POPSIZE},"
+          f" pop={DE_POPSIZE * n_params}, seed={DE_SEED})")
+    print("=" * 70)
+    print(f"  device: {device}   finder: {rh.get_finder()}")
 
-    # Warm-up timing.
+    # Warm-up timing
     test = np.random.rand(n_params, DE_POPSIZE * n_params) * 0.1 - 0.05
     for i in range(n_active_subhalos):
         test[i * 3 + 2] = 4.0 + np.random.rand(DE_POPSIZE * n_params)
@@ -499,44 +555,258 @@ def main():
     if device.type == "cuda":
         torch.cuda.synchronize()
     dt = time.perf_counter() - t0
-    print(f"warmup: {DE_POPSIZE * n_params} members in {dt*1000:.1f} ms "
+    print(f"  warmup: {DE_POPSIZE * n_params} members in {dt*1000:.1f} ms "
           f"({dt/(DE_POPSIZE*n_params)*1000:.2f} ms/member)")
 
-    t0 = time.perf_counter()
-    res = differential_evolution(
-        vectorised_chi2, bounds,
+    np.random.seed(DE_SEED)
+    de_kwargs = dict(
         maxiter=DE_MAXITER, popsize=DE_POPSIZE,
-        atol=DE_ATOL, tol=DE_TOL,
-        seed=DE_SEED, polish=DE_POLISH, disp=True,
-        vectorized=True,
-    )
-    dt = time.perf_counter() - t0
-    print(f"\nDE finished in {dt:.1f}s  nit={res.nit}  nfev={res.nfev}  loss={res.fun:.4f}")
+        atol=DE_ATOL, tol=DE_TOL, polish=DE_POLISH,
+        disp=False, vectorized=True, updating="deferred")
+    import inspect as _inspect
+    if "rng" in _inspect.signature(DifferentialEvolutionSolver.__init__).parameters:
+        de_kwargs["rng"] = np.random.default_rng(DE_SEED)
+    else:
+        de_kwargs["seed"] = DE_SEED
+    solver = DifferentialEvolutionSolver(vectorised_chi2, bounds, **de_kwargs)
 
-    best = res.x
-    subhalos = [(best[i * 3], best[i * 3 + 1], 10 ** best[i * 3 + 2])
+    # Fixed mass-axis range for iteration plots
+    fixed_mass_range = []
+    for img_idx in active_subhalos:
+        cfg = subhalo_configs[img_idx]
+        ml = np.log10(cfg["mass_guess"])
+        fixed_mass_range.extend([ml - cfg["mass_log_range"],
+                                 ml + cfg["mass_log_range"]])
+
+    if Draw_Graph:
+        gp.plot_iteration_subhalo_param(
+            solver.population.copy(), 0, output_dir,
+            active_subhalos, params_per_subhalo=3, main_param_idx=2,
+            draw_interval=draw_interval,
+            main_param_label=r"log(M)",
+            main_param_range=fixed_mass_range, bounds=bounds)
+
+    iteration = 1
+    prev_best = float(np.min(solver.population_energies))
+    converged_count = 0
+    t_de = time.perf_counter()
+    while True:
+        try:
+            solver.__next__()
+        except StopIteration:
+            print(f"  DE converged internally at iter {iteration}")
+            break
+        cur_best = float(np.min(solver.population_energies))
+        abs_change = abs(cur_best - prev_best)
+        rel_change = abs_change / abs(prev_best) if abs(prev_best) > 1e-10 else float("inf")
+        if iteration % 5 == 0 or cur_best < prev_best:
+            print(f"  iter {iteration:4d}: best={cur_best:.6f}  "
+                  f"|Δ|={abs_change:.3e}  rel={rel_change:.3e}")
+
+        converged_this = (abs_change < DE_ATOL) or (rel_change < DE_TOL)
+        if EARLY_STOPPING:
+            if converged_this:
+                converged_count += 1
+                if converged_count >= EARLY_STOP_PATIENCE:
+                    print(f"  early-stop after {converged_count} stable iters")
+                    if Draw_Graph:
+                        gp.plot_iteration_subhalo_param(
+                            solver.population.copy(), iteration, output_dir,
+                            active_subhalos, 3, 2,
+                            draw_interval=draw_interval,
+                            main_param_label=r"log(M)",
+                            main_param_range=fixed_mass_range, bounds=bounds)
+                    break
+            else:
+                converged_count = 0
+
+        if Draw_Graph:
+            gp.plot_iteration_subhalo_param(
+                solver.population.copy(), iteration, output_dir,
+                active_subhalos, 3, 2,
+                draw_interval=draw_interval,
+                main_param_label=r"log(M)",
+                main_param_range=fixed_mass_range, bounds=bounds)
+
+        prev_best = cur_best
+        iteration += 1
+        if iteration > DE_MAXITER:
+            print(f"  reached DE_MAXITER={DE_MAXITER}")
+            break
+    de_dt = time.perf_counter() - t_de
+
+    best_x = solver.x
+    best_loss = float(np.min(solver.population_energies))
+    print(f"\n  DE finished in {de_dt:.1f}s  iters={iteration}  loss={best_loss:.4f}")
+
+    subhalos = [(float(best_x[i * 3]), float(best_x[i * 3 + 1]),
+                 10 ** float(best_x[i * 3 + 2]))
                 for i in range(n_active_subhalos)]
 
-    print(f"\nBest sub-halo parameters:")
+    print("\n" + "=" * 70)
+    print("Step 3: best-fit analysis")
+    print("=" * 70)
+    best_pos, best_mag, best_delta = _solve_for_subhalos(subhalos)
+    if best_pos is None:
+        print("  warn: best-fit solve did not yield 4 images")
+        return
+    best_pos_chi2 = float(np.sum((best_delta / obs_pos_sigma_mas) ** 2))
+    best_mag_chi2 = float(np.sum(((best_mag - obs_magnifications) / obs_mag_errors) ** 2))
+    best_total_chi2 = best_pos_chi2 + best_mag_chi2
+    improvement = ((base_total_chi2 - best_total_chi2) / base_total_chi2 * 100
+                   if base_total_chi2 > 0 else 0.0)
+    print(f"  pos RMS    : {np.sqrt(np.mean(best_delta**2)):.3f} mas")
+    print(f"  chi2_pos   : {best_pos_chi2:.2f}  (baseline {base_pos_chi2:.2f})")
+    print(f"  chi2_mag   : {best_mag_chi2:.2f}  (baseline {base_mag_chi2:.2f})")
+    print(f"  chi2_total : {best_total_chi2:.2f}  (baseline {base_total_chi2:.2f})")
+    print(f"  improvement: {improvement:.1f}%  (on chi2_total)")
     for i, (x, y, m) in enumerate(subhalos):
         img_idx = active_subhalos[i]
-        print(f"  Image {img_idx}: ({x:+.6f}, {y:+.6f}) arcsec  "
-              f"M={m:.3e} M_sun  log10 M={np.log10(m):.3f}")
+        print(f"  sub-halo {img_idx}: ({x:+.6f}, {y:+.6f}) arcsec  "
+              f"M={m:.3e} (log10 M={np.log10(m):.3f})")
 
-    out_path = os.path.join(output_dir, f"{OUTPUT_PREFIX}_best_params.txt")
-    with open(out_path, "w") as f:
+    constraint_ok = bool(np.all(best_delta <= obs_pos_sigma_mas * CONSTRAINT_SIGMA))
+    print(f"  constraint satisfied: {constraint_ok}")
+
+    # ---- best params file -------------------------------------------------
+    params_path = os.path.join(output_dir, f"{OUTPUT_PREFIX}_best_params.txt")
+    with open(params_path, "w") as f:
         f.write(f"# Version Point Mass GPU (Rhongomyniad batched)\n")
         f.write(f"# DE seed: {DE_SEED}\n")
         f.write(f"# active_subhalos = {active_subhalos}\n")
+        f.write(f"# fine_tuning = {fine_tuning}\n")
         f.write(f"# finder = {rh.get_finder()}  device = {rh.get_device()}\n")
-        f.write(f"# DE: nit={res.nit} nfev={res.nfev} loss={res.fun:.6f}\n\n")
+        f.write(f"# DE: iters={iteration} loss={best_loss:.6f}\n\n")
         for i, (x, y, m) in enumerate(subhalos):
             img_idx = active_subhalos[i]
             f.write(f"# Sub-halo at Image {img_idx}\n")
-            f.write(f"x_sub{img_idx} = {x:.10e}\n")
-            f.write(f"y_sub{img_idx} = {y:.10e}\n")
-            f.write(f"mass_sub{img_idx} = {m:.10e}\n\n")
-    print(f"  saved: {out_path}")
+            f.write(f"x_sub{img_idx} = {x:.10e}  # arcsec\n")
+            f.write(f"y_sub{img_idx} = {y:.10e}  # arcsec\n")
+            f.write(f"mass_sub{img_idx} = {m:.10e}  # Msun\n\n")
+        f.write("# Performance\n")
+        f.write(f"chi2_pos_base = {base_pos_chi2:.4f}\n")
+        f.write(f"chi2_mag_base = {base_mag_chi2:.4f}\n")
+        f.write(f"chi2_total_base = {base_total_chi2:.4f}\n")
+        f.write(f"chi2_pos_best = {best_pos_chi2:.4f}\n")
+        f.write(f"chi2_mag_best = {best_mag_chi2:.4f}\n")
+        f.write(f"chi2_total_best = {best_total_chi2:.4f}\n")
+        f.write(f"improvement = {improvement:.2f}%\n")
+        f.write(f"constraint_satisfied = {constraint_ok}\n")
+    print(f"  saved best params: {params_path}")
+
+    # ---- MCMC -------------------------------------------------------------
+    posterior_indices = [(active_subhalos[i], i * 3 + 2)
+                         for i in range(n_active_subhalos)]
+    param_names = []
+    corner_labels = []
+    for img_idx in active_subhalos:
+        param_names += [f"x_{img_idx}", f"y_{img_idx}", f"logM_{img_idx}"]
+        corner_labels += [f"$x_{img_idx}$", f"$y_{img_idx}$",
+                          rf"$\log M_{img_idx}$"]
+
+    if MCMC_ENABLED:
+        bounds_arr = np.asarray(bounds)
+
+        def log_prob(p_batch):
+            # emcee with vectorize=True passes (nwalkers, ndim) -> (nwalkers,)
+            single = (p_batch.ndim == 1)
+            arr = p_batch.reshape(1, -1) if single else p_batch
+            in_bounds = np.all((arr >= bounds_arr[:, 0]) &
+                               (arr <= bounds_arr[:, 1]), axis=1)
+            out = np.full(len(arr), -np.inf)
+            if not np.any(in_bounds):
+                return out[0] if single else out
+            sub = arr[in_bounds].T  # (ndim, n_in)
+            losses = vectorised_chi2(sub)
+            valid = losses < 1e10
+            res_in = np.where(valid, -0.5 * losses, -np.inf)
+            out[in_bounds] = res_in
+            return out[0] if single else out
+
+        gp.run_mcmc_pipeline(
+            log_prob, log_prob_vectorized=True,
+            bounds=bounds, best_x=best_x,
+            output_dir=output_dir, output_prefix=OUTPUT_PREFIX,
+            param_names=param_names, corner_labels=corner_labels,
+            mass_param_indices=posterior_indices,
+            config=dict(NWALKERS=MCMC_NWALKERS, NSTEPS=MCMC_NSTEPS,
+                        BURNIN=MCMC_BURNIN, THIN=MCMC_THIN,
+                        PERTURBATION=MCMC_PERTURBATION,
+                        PROGRESS=MCMC_PROGRESS, WORKERS=1),
+            title_prefix="Point mass")
+
+    # ---- Critical curves + triptych --------------------------------------
+    print("\n" + "=" * 70)
+    print("Step 4: result plots")
+    print("=" * 70)
+    base_lens_lines = list(lens_params.values())
+    extra_lens_lines = []
+    for i, (x, y, m) in enumerate(subhalos):
+        idx = len(base_lens_lines) + 1 + i
+        extra_lens_lines.append(
+            (idx, "point", lens_z, m, x, y, 0.0, 0.0, 0.0, 0.0))
+
+    crit_segments, caus_segments = gp.compute_critical_curves(
+        output_dir, OUTPUT_PREFIX,
+        cosmo=(omega, lambda_cosmo, weos, hubble),
+        grid=(xmin, ymin, xmax, ymax, pix_ext, pix_poi, maxlev),
+        base_lens_lines=base_lens_lines,
+        extra_lens_lines=extra_lens_lines,
+        source_z=source_z, source_x=float(source_x), source_y=float(source_y))
+
+    triptych_path = os.path.join(output_dir, f"result_{OUTPUT_PREFIX}.png")
+    gp.write_result_triptych(
+        triptych_path,
+        suptitle=f"iPTF16geu: {n_active_subhalos} Point Mass Sub-halos (GPU)",
+        obs_positions=obs_positions,
+        pred_positions=best_pos,
+        delta_pos_mas=best_delta,
+        sigma_pos_mas=obs_pos_sigma_mas,
+        mu_obs=obs_magnifications,
+        mu_obs_err=obs_mag_errors,
+        mu_pred=best_mag,
+        crit_segments=crit_segments,
+        caus_segments=caus_segments,
+        subhalo_positions=subhalos,
+        show_2sigma=SHOW_2SIGMA)
+
+    if COMPARE_GRAPH and n_active_subhalos > 0:
+        compare_path = os.path.join(output_dir,
+                                    f"result_{OUTPUT_PREFIX}_compare.png")
+        gp.write_compare_triptych(
+            compare_path,
+            suptitle=f"iPTF16geu: Baseline vs {n_active_subhalos} Point Mass Sub-halos (GPU)",
+            obs_positions=obs_positions,
+            pred_positions=best_pos,
+            delta_pos_baseline=base_delta,
+            delta_pos_optimized=best_delta,
+            sigma_pos_mas=obs_pos_sigma_mas,
+            mu_obs=obs_magnifications,
+            mu_obs_err=obs_mag_errors,
+            mu_pred_baseline=base_mag,
+            mu_pred_optimized=best_mag,
+            crit_segments=crit_segments,
+            caus_segments=caus_segments,
+            subhalo_positions=subhalos,
+            show_2sigma=SHOW_2SIGMA)
+
+    # ---- Glafic CLI verification -----------------------------------------
+    gp.run_glafic_and_compare(
+        output_dir, OUTPUT_PREFIX,
+        cosmo=(omega, lambda_cosmo, weos, hubble),
+        grid=(xmin, ymin, xmax, ymax, pix_ext, pix_poi, maxlev),
+        base_lens_lines=base_lens_lines,
+        extra_lens_lines=extra_lens_lines,
+        source_z=source_z, source_x=float(source_x), source_y=float(source_y),
+        obs_positions=obs_positions,
+        center_offset_x=center_offset_x, center_offset_y=center_offset_y,
+        best_pos_py=best_pos, best_mag_py=best_mag,
+        header_comment=(f"{OUTPUT_PREFIX} verification\n"
+                        f"active_subhalos = {active_subhalos}"))
+
+    print("\n" + "=" * 70)
+    print(f"Done. results in {output_dir}/")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

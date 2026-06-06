@@ -1,0 +1,15 @@
+# Main lens (locked baseline) + mixed sub-structure (optimizable).
+# Indices N are advisory; they are recomputed globally at run time.
+
+# --- main lens: two Sersic bulges + one SIE halo ---
+'sers1': (1, 'sers', lens_z, 9.896617e+09, 2.656977e-03, 2.758473e-02,
+          2.986760e-01, 1.124730e+02, 3.939718e-01, 1.057760e+00)
+'sers2': (2, 'sers', lens_z, 2.555580e+10, 2.656977e-03, 2.758473e-02,
+          4.242340e-01, 5.396370e+01, 1.538855e+00, 1.000000e+00)
+'sie1':  (3, 'sie',  lens_z, 1.183382e+02, 2.656977e-03, 2.758473e-02,
+          1.571203e-01, 2.920348e+01)
+
+# --- sub-structure: one point mass + one King cluster (mixed types) ---
+'point1': (4, 'point', lens_z, {1e5, 1e7}, {-0.30, -0.20}, {-0.05, 0.05})
+'king1':  (5, 'king',  lens_z, {1e6, 1e9}, {0.10, 0.16}, {-0.24, -0.18},
+           0.0, 0.0, {0.001, 0.05}, {0.8, 2.2})

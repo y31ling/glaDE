@@ -140,3 +140,19 @@ github_deploy_*
 *.swp
 *.swo
 *~
+# WebUI job outputs
+runs/
+
+# ==================== V0.4 ====================
+# stray Windows-path artifact (accidental)
+C:/
+/C:/
+
+# user working files live in InputFiles/; ship the folder empty
+InputFiles/*
+!InputFiles/.gitkeep
+
+# keep V0.4 assets the blanket *.dat / *.png rules would otherwise drop
+!core/examples/*.dat
+!source/icon/Explorer.png
+!source/icon/Template.png

@@ -1,0 +1,162 @@
+"""High-level merged configuration and the multi-file section-merge."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+from . import schema
+from .defaults import DEFAULTS
+from .diagnostics import ERROR, Issue
+from .values import Component, Fixed, ParsedFile, Ref
+
+
+@dataclass
+class GladeConfig:
+    """A merged, ready-to-validate configuration assembled from one or more files."""
+
+    cosmology: dict[str, Any] = field(default_factory=dict)
+    grid: dict[str, Any] = field(default_factory=dict)
+    redshifts: dict[str, Any] = field(default_factory=dict)
+    source: dict[str, Any] = field(default_factory=dict)
+    obs: dict[str, Any] = field(default_factory=dict)
+    algorithm: dict[str, Any] = field(default_factory=dict)
+    other: dict[str, Any] = field(default_factory=dict)
+    components: list[Component] = field(default_factory=list)
+    provenance: dict[str, str] = field(default_factory=dict)
+    applied_defaults: list[str] = field(default_factory=list)
+
+    _SECTIONS = ("cosmology", "grid", "redshifts", "source", "obs", "algorithm", "other")
+
+    def get(self, name: str, default=None):
+        name = schema.SCALAR_ALIASES.get(name, name)
+        for sec in self._SECTIONS:
+            d = getattr(self, sec)
+            if name in d:
+                return d[name]
+        return default
+
+    def all_scalars(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for sec in self._SECTIONS:
+            out.update(getattr(self, sec))
+        return out
+
+
+def _symbol_table(merged_scalars: dict[str, tuple[Any, str, str]]) -> dict[str, float]:
+    """Numeric scalars usable as references in tuples / nested lists.
+
+    Keyed by canonical name *and* any alias (so a reference to ``lambda``
+    resolves to the value stored as ``lambda_cosmo``).
+    """
+    reverse: dict[str, list[str]] = {}
+    for alias, canon in schema.SCALAR_ALIASES.items():
+        reverse.setdefault(canon, []).append(alias)
+
+    table: dict[str, float] = {}
+    for canon, entry in merged_scalars.items():
+        val = entry[0]
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            table[canon] = float(val)
+            for alias in reverse.get(canon, ()):
+                table[alias] = float(val)
+    return table
+
+
+def _resolve_nested(val: Any, symbols: dict[str, float]) -> Any:
+    """Resolve ``Ref`` objects buried inside list/tuple scalar values.
+
+    Known references become floats; unknown ones are left as ``Ref`` for the
+    validation layer to report.
+    """
+    if isinstance(val, Ref):
+        return symbols.get(val.name, val)
+    if isinstance(val, list):
+        return [_resolve_nested(v, symbols) for v in val]
+    if isinstance(val, tuple):
+        return tuple(_resolve_nested(v, symbols) for v in val)
+    return val
+
+
+def merge(parsed_files: list[ParsedFile]) -> tuple[GladeConfig, list[Issue]]:
+    """Section-merge several parsed files.
+
+    Scalars may be defined in at most one file (a conflict is an error naming the
+    variable and both files). Components concatenate in file order and are
+    re-indexed globally 1-based.
+    """
+    issues: list[Issue] = []
+
+    # 1) merge scalars with conflict detection (keyed by canonical name so that
+    #    aliases such as 'lambda' / 'lambda_cosmo' collide as expected).
+    merged: dict[str, tuple[Any, str, str]] = {}  # canon -> (value, file, raw_name)
+    for pf in parsed_files:
+        fname = pf.path or "<file>"
+        for assign in pf.assignments:
+            canon = schema.SCALAR_ALIASES.get(assign.name, assign.name)
+            if canon in merged:
+                prev_file = merged[canon][1]
+                issues.append(Issue(
+                    ERROR, "conflict",
+                    f"'{assign.name}' is defined in both '{prev_file}' and "
+                    f"'{fname}'; each scalar may be defined only once across the "
+                    f"selected files",
+                    source_file=fname, lineno=assign.lineno,
+                ))
+                continue
+            merged[canon] = (assign.value, fname, assign.name)
+
+    symbols = _symbol_table(merged)
+
+    # 2) build config sections (resolving any references nested inside lists)
+    cfg = GladeConfig()
+    for canon, (val, fname, _raw) in merged.items():
+        cfg.provenance[canon] = fname
+        sec = schema.classify_scalar(canon)
+        target = getattr(cfg, sec) if sec != "other" else cfg.other
+        target[canon] = _resolve_nested(val, symbols)
+
+    # 3) concatenate + resolve + re-index components
+    def _resolve(pv, comp: Component, what: str):
+        if isinstance(pv, Ref):
+            if pv.name in symbols:
+                return Fixed(symbols[pv.name])
+            issues.append(Issue(
+                ERROR, "unresolved_ref",
+                f"component '{comp.name}' {what} references unknown name "
+                f"'{pv.name}'",
+                source_file=comp.source_file, lineno=comp.lineno,
+            ))
+            return pv
+        return pv
+
+    index = 0
+    for pf in parsed_files:
+        for comp in pf.components:
+            index += 1
+            comp.index = index
+            comp.z = _resolve(comp.z, comp, "redshift z")
+            comp.params = [
+                _resolve(p, comp, f"parameter p{i + 1}")
+                for i, p in enumerate(comp.params)
+            ]
+            cfg.components.append(comp)
+
+    return cfg, issues
+
+
+def apply_defaults(cfg: GladeConfig) -> list[str]:
+    """Fill missing basics from :data:`DEFAULTS`. Returns the names defaulted.
+
+    The required observation arrays and components are never defaulted.
+    """
+    present = set(cfg.all_scalars())
+    applied: list[str] = []
+    for name, val in DEFAULTS.items():
+        if name in present:
+            continue
+        sec = schema.classify_scalar(name)
+        target = getattr(cfg, sec) if sec != "other" else cfg.other
+        target[name] = val
+        cfg.applied_defaults.append(name)
+        applied.append(name)
+    return applied
