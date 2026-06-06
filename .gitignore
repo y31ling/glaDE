@@ -156,3 +156,6 @@ InputFiles/*
 !core/examples/*.dat
 !source/icon/Explorer.png
 !source/icon/Template.png
+
+# session handoff note for a future Claude Code (local only, not shipped)
+memory.md

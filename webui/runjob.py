@@ -147,9 +147,9 @@ def _run_de(args, cfg, obs, problem, loss_cfg):
     for k, v in result.fitted.items():
         print(f"    {k:18s} = {float(v):.6g}", flush=True)
     with open(os.path.join(args.out, "best_params.txt"), "w", encoding="utf-8") as fh:
-        fh.write(f"# GLADE DE result  backend={args.backend}  loss={result.loss:.6f}\n")
+        fh.write(f"# GLADE DE result  backend={args.backend}  loss={result.loss:.8f}\n")
         for k, v in result.fitted.items():
-            fh.write(f"{k} = {float(v):.8g}\n")
+            fh.write(f"{k} = {float(v):.10g}\n")
     return result
 
 
@@ -195,7 +195,7 @@ def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):
     with open(os.path.join(args.out, "mcmc_summary.txt"), "w", encoding="utf-8") as fh:
         fh.write(f"# GLADE MCMC  backend={args.backend}  acceptance={res.acceptance_fraction:.4f}\n")
         for name, s in res.summary.items():
-            fh.write(f"{name} = {s['p50']:.8g}  [{s['p16']:.8g}, {s['p84']:.8g}]\n")
+            fh.write(f"{name} = {s['p50']:.10g}  [{s['p16']:.10g}, {s['p84']:.10g}]\n")
     write_status(mcmc={"acceptance": res.acceptance_fraction,
                        "n_samples": int(res.samples.shape[0]),
                        "corner": os.path.basename(plots["corner"]),
@@ -222,9 +222,27 @@ def _verify(args, cfg, obs, loss_cfg, scene, opt_loss, write_status):
                   flush=True)
     for w in rep.get("warnings", []):
         print(f"  [warn] {w}", flush=True)
+
+    # scipy-exact ground truth (engine-independent; glafic@1e-5 Sersic is only
+    # Romberg-tolerance accurate, so this is the authoritative check)
+    from core.verify import reference_check
+    print("\n  -- scipy-exact reference (ground truth) --", flush=True)
+    rref = reference_check(scene, obs)
+    if rref.get("ok"):
+        print(f"  run-engine Sersic deflection vs scipy-exact: "
+              f"{rref['gpu_sersic_vs_scipy_arcsec']:.2e} arcsec", flush=True)
+        print(f"  source-plane self-consistency: "
+              f"{rref['source_plane_scatter_mas']:.3f} mas", flush=True)
+        bs, fs = rref["backprojected_source"], rref["fitted_source"]
+        print(f"  back-projected source ({bs[0]:+.5f}, {bs[1]:+.5f}) "
+              f"vs fitted ({fs[0]:+.5f}, {fs[1]:+.5f})", flush=True)
+    else:
+        print(f"  [info] {rref.get('warning', 'scipy reference unavailable')}", flush=True)
+    for w in rref.get("warnings", []):
+        print(f"  [warn] {w}", flush=True)
     print("  (verification is informational — the result above is unchanged)", flush=True)
     try:
-        write_status(glafic_verify=rep)
+        write_status(glafic_verify=rep, scipy_reference=rref)
     except Exception:  # noqa: BLE001
         pass
 

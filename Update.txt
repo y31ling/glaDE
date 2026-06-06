@@ -2,11 +2,13 @@ V0.4.2
 
 中文
 - GPU 结果图现在使用与优化器完全一致的批量求解器图像（不再用 glafic 重新计算），因此 GPU 跑出来的结果图与优化过程所见完全一致。
-- 新增参数 glafic_verified（默认 True）：每次运行结束后，独立调用 glafic 可执行文件对最优模型重新求解，并与优化器结果比较。该步骤纯属验证，不影响结果图；即使差异很大也照常完成，仅在差异较大时给出告警（例如 GPU 批量求解器与 glafic 在像位置上存在约 mas 级差异，而位置容差常为亚 mas，会触发告警）。可在配置中设为 False 关闭。
+- 新增参数 glafic_verified（默认 True）：每次运行结束后，独立调用 glafic 可执行文件对最优模型重新求解，并与优化器结果比较。该步骤纯属验证，不影响结果图；即使差异很大也照常完成，仅在差异较大时给出告警。可在配置中设为 False 关闭。
+- 新增 scipy 精确参考验证（地面真值）：经独立分析+验证确认，Rhongomyniad(GPU) 的 Sersic 偏转与 scipy@1e-12 精确积分吻合到 ~1e-9 arcsec，是“正确”的一方；glafic 的 Sersic 受 Romberg 容差(TOL_ROMBERG_JHK，本版保持 1e-5：快速但 ~µas→mas 级不够精确)限制。验证现在同时报告 glafic 二进制（信息性）与 scipy 精确参考（运行引擎 Sersic 偏转误差 + 源平面自洽性）。保存结果精度提升到 10 位有效数字。
 
 English
 - The GPU result figure now uses the batched solver's images (the same engine that drove the optimization) instead of re-rendering with glafic, so a GPU run's figure matches exactly what the optimizer saw.
-- New parameter glafic_verified (default True): after each run, independently invoke the glafic binary on the best-fit model and compare its loss / images to the optimizer's. Purely a check — it never affects the result figure and the run always completes, only warning when the discrepancy is large (e.g. the GPU batched finder and glafic can disagree at the ~mas level while position tolerances are sub-mas). Set it to False to disable.
+- New parameter glafic_verified (default True): after each run, independently invoke the glafic binary on the best-fit model and compare its loss / images to the optimizer's. Purely a check — it never affects the result figure and the run always completes, only warning when the discrepancy is large. Set it to False to disable.
+- Added a scipy-exact reference verification (ground truth): independent analysis confirmed Rhongomyniad (GPU) Sersic deflection matches a scipy@1e-12 integral to ~1e-9 arcsec (the accurate one), while glafic's Sersic is Romberg-tolerance-limited (TOL_ROMBERG_JHK, kept at 1e-5 here: fast but ~µas→mas). Verification now reports both the glafic binary (informational) and the scipy-exact reference (run-engine Sersic-deflection error + source-plane self-consistency). Saved results bumped to 10 significant figures.
 
 
 V0.4.1
