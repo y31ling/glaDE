@@ -287,13 +287,10 @@ class BatchedGPUObjective:
             popsize = arr.shape[1] if arr.ndim == 2 else 1
             return np.full(popsize, INVALID_LOSS)
 
-    def _evaluate(self, params_arr):
-        if self._cache is None:
-            self._build_cache()
+    def _batch_tensors(self, arr):
+        """Build (sx, sy, log_m) torch tensors of shape (popsize, K) from an
+        ``(ndim, popsize)`` candidate array."""
         torch = self._torch
-        arr = np.asarray(params_arr, dtype=float)
-        if arr.ndim == 1:
-            arr = arr[:, None]
         popsize = arr.shape[1]
         points = self._cache["points"]
         Kk = len(points)
@@ -305,13 +302,34 @@ class BatchedGPUObjective:
         sx = np.stack([col("x", k) for k in range(Kk)], axis=1)
         sy = np.stack([col("y", k) for k in range(Kk)], axis=1)
         lm = np.stack([_as_log10(points[k]["mass"], col("mass", k)) for k in range(Kk)], axis=1)
-
         dev, dt = self.device, self.dtype
-        all_images = self._solve(
-            torch.tensor(sx, device=dev, dtype=dt),
-            torch.tensor(sy, device=dev, dtype=dt),
-            torch.tensor(lm, device=dev, dtype=dt),
-            float(self._cache["source_x"]), float(self._cache["source_y"]))
+        return (torch.tensor(sx, device=dev, dtype=dt),
+                torch.tensor(sy, device=dev, dtype=dt),
+                torch.tensor(lm, device=dev, dtype=dt))
+
+    def images_for(self, candidate):
+        """Images ``[(x, y, mag), ...]`` for a single candidate, via the SAME
+        batched solver that drives the optimization (so a result figure matches
+        what the optimizer saw)."""
+        if self._cache is None:
+            self._build_cache()
+        arr = np.asarray(candidate, dtype=float).reshape(-1, 1)
+        sx_t, sy_t, lm_t = self._batch_tensors(arr)
+        out = self._solve(sx_t, sy_t, lm_t,
+                          float(self._cache["source_x"]), float(self._cache["source_y"]))
+        return out[0]
+
+    def _evaluate(self, params_arr):
+        if self._cache is None:
+            self._build_cache()
+        arr = np.asarray(params_arr, dtype=float)
+        if arr.ndim == 1:
+            arr = arr[:, None]
+        popsize = arr.shape[1]
+        sx_t, sy_t, lm_t = self._batch_tensors(arr)
+        all_images = self._solve(sx_t, sy_t, lm_t,
+                                 float(self._cache["source_x"]),
+                                 float(self._cache["source_y"]))
 
         obs = self.obs
         loss = np.full(popsize, INVALID_LOSS)

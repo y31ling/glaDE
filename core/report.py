@@ -75,20 +75,29 @@ def make_triptych(opt_result: OptResult,
                   suptitle: str = "GLADE result",
                   show_2sigma: bool = False) -> str:
     """Render the result triptych for ``opt_result``; returns ``output_file``."""
-    # The result figure uses glafic (the reference image finder, and the same
-    # engine that draws the critical curves) regardless of the optimization
-    # backend -- the per-candidate Rhongomyniad finder can disagree with the
-    # batched solver that found the optimum. An explicit Backend *object*
-    # (e.g. a test fake) is honored as-is.
-    be = backend if (backend is not None and not isinstance(backend, str)) else None
-    if be is None:
+    # Choose the image engine for the figure:
+    #  * explicit Backend object (e.g. a test fake) -> used as-is;
+    #  * a GPU run -> the SAME batched solver that drove the optimization, so the
+    #    figure matches what the optimizer saw;
+    #  * otherwise -> glafic (the reference finder, also used for crit curves).
+    be_obj = backend if (backend is not None and not isinstance(backend, str)) else None
+    images = None
+    if be_obj is not None:
+        images = be_obj.compute_images(opt_result.scene)
+    elif opt_result.backend == "gpu":
+        from .optimize.batched import BatchedGPUObjective, can_batch_gpu
+        if can_batch_gpu(opt_result.problem.cfg)[0]:
+            from .optimize.loss import LossConfig
+            bobj = BatchedGPUObjective(opt_result.problem, obs,
+                                       LossConfig.from_cfg(opt_result.problem.cfg))
+            images = bobj.images_for(opt_result.x)
+    if images is None:
         try:
-            be = make_backend("cpu")
-        except Exception:  # noqa: BLE001 - glafic unavailable; fall back to run backend
-            fb = backend if (isinstance(backend, str) and backend in ("cpu", "gpu", "glafic")) else "cpu"
-            be = make_backend(fb)
+            images = make_backend("cpu").compute_images(opt_result.scene)
+        except Exception:  # noqa: BLE001 - glafic unavailable; last-resort run backend
+            fb = opt_result.backend if opt_result.backend in ("cpu", "gpu", "glafic") else "cpu"
+            images = make_backend(fb).compute_images(opt_result.scene)
 
-    images = be.compute_images(opt_result.scene)
     sel = select_images(images, obs.n) if images else None
     if sel is None:
         n = 0 if not images else len(images)

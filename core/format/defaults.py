@@ -56,6 +56,8 @@ DEFAULTS: dict[str, object] = {
     "COMPARE_GRAPH": True,
     "SHOW_2SIGMA": False,
     "OUTPUT_PREFIX": "glade_run",
+    # independently re-run the glafic binary on the result to verify it
+    "glafic_verified": True,
     # mcmc (off by default)
     "MCMC_ENABLED": False,
     "MCMC_NWALKERS": 32,

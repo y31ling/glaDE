@@ -97,6 +97,7 @@ def main(argv=None) -> int:
         write_status(loss=de_result.loss, iterations=de_result.de.nit,
                      triptych="result.png",
                      fitted={k: float(v) for k, v in de_result.fitted.items()})
+        _verify(args, cfg, obs, loss_cfg, de_result.scene, de_result.loss, write_status)
 
     # ---- MCMC (de+mcmc / mcmc) ----
     if args.mode in ("de+mcmc", "mcmc"):
@@ -189,6 +190,7 @@ def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):
                                        "MCMC posterior-median model",
                                        os.path.join(args.out, "result.png"))
         write_status(triptych="result.png")
+        _verify(args, cfg, obs, loss_cfg, problem.make_scene(median), None, write_status)
 
     with open(os.path.join(args.out, "mcmc_summary.txt"), "w", encoding="utf-8") as fh:
         fh.write(f"# GLADE MCMC  backend={args.backend}  acceptance={res.acceptance_fraction:.4f}\n")
@@ -199,6 +201,32 @@ def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):
                        "corner": os.path.basename(plots["corner"]),
                        "trace": os.path.basename(plots["trace"]),
                        "summary": res.summary})
+
+
+def _verify(args, cfg, obs, loss_cfg, scene, opt_loss, write_status):
+    if not bool(cfg.algorithm.get("glafic_verified", True)):
+        return
+    _hr("Independent verification (glafic binary)")
+    from core.verify import verify_with_glafic
+    rep = verify_with_glafic(scene, obs, args.out, loss_cfg=loss_cfg, opt_loss=opt_loss)
+    if rep.get("ok"):
+        print(f"  glafic: {rep.get('glafic_bin', '?')}", flush=True)
+        print(f"  glafic images: {rep.get('glafic_n_images')}", flush=True)
+        if "glafic_loss" in rep:
+            line = f"  glafic loss vs obs: {rep['glafic_loss']:.4f}"
+            if "optimizer_loss" in rep:
+                line += (f"   (optimizer {rep['optimizer_loss']:.4f}, "
+                         f"diff {rep['loss_rel_diff']*100:.1f}%)")
+            print(line, flush=True)
+            print(f"  glafic max image offset: {rep['glafic_max_delta_mas']:.2f} mas",
+                  flush=True)
+    for w in rep.get("warnings", []):
+        print(f"  [warn] {w}", flush=True)
+    print("  (verification is informational — the result above is unchanged)", flush=True)
+    try:
+        write_status(glafic_verify=rep)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _write_triptych(args, result, obs, suptitle, out):

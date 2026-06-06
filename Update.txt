@@ -1,23 +1,26 @@
+V0.4.2
+
+中文
+- GPU 结果图现在使用与优化器完全一致的批量求解器图像（不再用 glafic 重新计算），因此 GPU 跑出来的结果图与优化过程所见完全一致。
+- 新增参数 glafic_verified（默认 True）：每次运行结束后，独立调用 glafic 可执行文件对最优模型重新求解，并与优化器结果比较。该步骤纯属验证，不影响结果图；即使差异很大也照常完成，仅在差异较大时给出告警（例如 GPU 批量求解器与 glafic 在像位置上存在约 mas 级差异，而位置容差常为亚 mas，会触发告警）。可在配置中设为 False 关闭。
+
+English
+- The GPU result figure now uses the batched solver's images (the same engine that drove the optimization) instead of re-rendering with glafic, so a GPU run's figure matches exactly what the optimizer saw.
+- New parameter glafic_verified (default True): after each run, independently invoke the glafic binary on the best-fit model and compare its loss / images to the optimizer's. Purely a check — it never affects the result figure and the run always completes, only warning when the discrepancy is large (e.g. the GPU batched finder and glafic can disagree at the ~mas level while position tolerances are sub-mas). Set it to False to disable.
+
+
 V0.4.1
 
 中文
-- GPU 批量化：DE-GPU 与 GPU 上的 MCMC 现在将整代种群在一次 CUDA 批处理中求解（移植自 legacy 的批量优化器），相比此前的逐候选评估提速约 70 倍（约 0.16s/迭代 vs 约 11s/迭代），且与逐候选 GPU 结果完全一致。点质量子晕走快速批量核；其他组合自动回退到逐候选路径。GPU 路径要求源位置固定。
+- GPU 批量化：DE-GPU 与 GPU 上的 MCMC 现在将整代种群在一次 CUDA 批处理中求解，与Legacy行为保持一致。
 - 新增 MCMC 功能：
   · FindImage 左栏新增第 4 个选项 MCMC —— 直接进行 MCMC 拟合（不跑 DE）；先验范围即各参数 {下限, 上限}，质量类参数在 log10 空间采样；corner 图不画 DE 红线。
   · 使用 CPU/GPU 时，若配置中 MCMC_ENABLED = True，则先 DE 后 MCMC（在 DE 最优解附近播种 walker，corner 图叠加 DE 红线，行为与 legacy 基本一致）。DE 与 MCMC 共用同一参数空间。
   · 删除 MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX —— MCMC 先验始终为 DE 的 {下限, 上限}。包含这些旧键的 .dat 仍可加载（仅给出警告）。
   · 输出 corner 图、trace 图与后验百分位数，并在 WebUI 结果区直接显示；Template 面板新增 MCMC-GeneralConfig。
-- 修复/维护：清理了一处遗留的失控进程隐患（不要以 workers=-1 在被分离的后台进程中运行 DE）。
-
-English
-- Batched GPU: DE-GPU and GPU MCMC now solve the whole DE generation in one CUDA batch (ported from the legacy batched optimizers), ~70x faster than the previous per-candidate evaluation (~0.16 s/iter vs ~11 s/iter), with results identical to the per-candidate GPU path. Point-mass sub-structures use the fast batched kernel; other combinations fall back automatically. The GPU path requires a fixed source position.
-- MCMC:
-  · FindImage gains a 4th left-rail option, MCMC — runs MCMC directly (no DE); the prior is each parameter's {lower, upper}, mass-like params are sampled in log10, and the corner plot has NO DE truth line.
-  · With CPU/GPU, setting MCMC_ENABLED = True runs DE then MCMC (walkers seeded around the DE best; the corner overlays the DE best as red truth lines), legacy-consistent. DE and MCMC share the same parameter space.
-  · Removed MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX — the MCMC prior is always the DE {lower, upper} bounds. Old .dat files that still set them load with a warning.
-  · Produces corner + trace plots and posterior percentiles, shown directly in the WebUI result panel. New Template: MCMC-GeneralConfig.
-- Fix/maintenance: cleaned up a runaway-process hazard (do not run DE with workers=-1 inside a detached background process).
-
+- 清理了一处遗留的失控进程隐患。
+- glafic常数为了确保速度而回退：
+        TOL_ROMBERG_JHK 1.0e-8 -> 1.0e-5
 
 V0.4-ReUnit — Re-Unification
 
@@ -31,17 +34,6 @@ V0.4-ReUnit — Re-Unification
 - 完全重写 WebUI（webui/，旧 web/ 弃用）：顶栏两页 FindImage（默认）与 Editor；在 FindImage 选择 CPU / GPU / Glafic 与一个或多个 .dat 文件后运行；运行时新开一个真实终端并自动输入指令，WebUI 通过 SSE 实时回传该终端输出，每个任务独立目录——彻底解决并发问题。Editor 为类 VSCode 三栏（50px 图标栏 + 可拖拽侧栏 + Monaco 多标签编辑器，含保存/删除）；Explorer 管理 InputFiles（新建/打开/重命名/删除/导入/导出翻译）；Template 面板按光标插入带注释的预设片段。
 - glafic ↔ glade 翻译：导入时优化矩阵中标记为 1 的参数转为 {v, v} 供手动微调；导出时 {下限, 上限} 取代表值（质量类取几何平均），观测数据与模型数据分文件输出。
 - 修正：DE 目标函数中 center_offset_x 现随 obs_x_flip 取号（与观测同坐标系），修复了预测像位置整体偏移、损失无法下降的问题；将 glafic TOL_ROMBERG_JHK 设为 1.0e-5（精度与速度的折中：比旧值 5.0e-4 更精确，又比 V0.3 的 1.0e-8 快得多）。
-
-English
-- Core refactor: the duplicated Differential-Evolution optimization and plotting code scattered across legacy/ is extracted into a unified, backend-agnostic core/ package (legacy/ is kept as a frozen archive; new code never imports it).
-  · core/optimize — one DE optimizer; the same code drives glafic (CPU) or Rhongomyniad (GPU). Main lens and sub-structure (point-mass / NFW / King / p-jaffe / …) compose and optimize together in one mixed stack.
-  · core/plot — unified triptych, critical curves, and per-iteration animation frames.
-  · core/format — a new .dat configuration format + parser (below).
-  · core/translate — glafic ↔ glade two-way translation (with a CLI).
-- New .dat format: mirrors the legacy inline style, adding {lower, upper} to mark an optimizable dimension (a bare value locks it) and $float / $int placeholders. Mass-like parameters are searched in log10. Multiple files merge by section with global component re-indexing; missing basic values fall back to defaults with a confirmation prompt.
-- WebUI rewritten from scratch (webui/; the old web/ is deprecated): top-nav FindImage (default) + Editor. Pick CPU/GPU/Glafic + one or more .dat files; each run opens a real OS terminal, auto-types the command, and the WebUI mirrors that terminal live over SSE in a per-job directory — eliminating the old concurrency bugs. The Editor is a VSCode-like 3-column panel (50px icon rail + drag-resizable tree + tabbed Monaco editor with save/delete), an Explorer over InputFiles (new/open/rename/delete/import/export-translate), and a Template panel that inserts annotated snippets at the cursor.
-- Translate: glafic→glade turns opt-matrix-flagged parameters into {v, v} for manual widening; glade→glafic collapses {lower, upper} to a representative value (geometric mean for masses) and splits observation vs model data into separate files.
-- Fixes: the DE objective now applies the obs_x_flip sign to center_offset_x (same frame as the observations), fixing a constant x-offset that kept predicted image positions misaligned and the loss from converging; set glafic TOL_ROMBERG_JHK = 1.0e-5 (a precision/speed trade-off: more accurate than the old 5.0e-4, far faster than V0.3's 1.0e-8).
 
 
 V0.3.0 - Rhongomyniad Beta version

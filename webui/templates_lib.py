@@ -65,6 +65,8 @@ DE_POPSIZE = $int           # population multiplier, e.g. 64
 DE_SEED = $int              # e.g. 42
 EARLY_STOPPING = True
 EARLY_STOP_PATIENCE = $int  # e.g. 30
+glafic_verified = True      # after the run, independently re-run the glafic binary
+                            # to verify the result (figure unaffected; warns on mismatch)
 DE_WORKERS = $int           # -1 = all CPU cores
 """
 
@@ -79,6 +81,8 @@ DE_POPSIZE = $int           # population multiplier, e.g. 64
 DE_SEED = $int              # e.g. 42
 EARLY_STOPPING = True
 EARLY_STOP_PATIENCE = $int  # e.g. 30
+glafic_verified = True      # after the run, independently re-run the glafic binary
+                            # to verify the result (figure unaffected; warns on mismatch)
 """
 
 MCMC_GENERAL = """# MCMC sampling (emcee). The prior is ALWAYS the DE {lower, upper} bounds of
