@@ -161,8 +161,12 @@ double calcein_i(int i)
   case 25:
     ein = calcein_gau(i);
     break;
-
+    
   case 26:
+    ein = calcein_cnfw(i);
+    break;
+
+  case 27:
     ein = calcein_king(i);
     break;
   }
@@ -248,6 +252,28 @@ double calcein_tnfw(int i)
   tnfw_set_tau(para_lens[i][7] * para_lens[i][6]);
   if((calcein_tnfw_func(smallcore) > 0.0) && (calcein_tnfw_func(XMAX_CALCEIN) < 0.0)){
     r = gsl_zbrent(calcein_tnfw_func, smallcore, XMAX_CALCEIN, TOL_ZBRENT_CALCEIN) * x;
+  } else {
+    r = CALCEIN_NAN;
+  }
+
+  return r;
+}
+
+double calcein_cnfw(int i)
+{
+  double x, r, c;
+
+  if(nfw_users == 0){
+    b_sav = b_func(para_lens[i][1], para_lens[i][6]);
+    x = rtotheta(rs(para_lens[i][1], para_lens[i][6]));
+  } else {
+    x = para_lens[i][6];
+    c = rs(para_lens[i][1], 1.0) / thetator(para_lens[i][6]);
+    b_sav = b_func(para_lens[i][1], c);
+  }
+  set_b_cnfw(para_lens[i][7]);
+  if((calcein_cnfw_func(smallcore) > 0.0) && (calcein_cnfw_func(XMAX_CALCEIN) < 0.0)){
+    r = gsl_zbrent(calcein_cnfw_func, smallcore, XMAX_CALCEIN, TOL_ZBRENT_CALCEIN) * x;
   } else {
     r = CALCEIN_NAN;
   }
@@ -365,6 +391,11 @@ double calcein_tnfw_func(double x)
   return b_sav * dphi_tnfw_dl(x) / x - 1.0;
 }
 
+double calcein_cnfw_func(double x)
+{
+  return b_sav * dphi_cnfw_dl(x) / x - 1.0;
+}
+
 double calcein_hern_func(double x)
 {
   return b_sav * dphi_hern_dl(x) / x - 1.0;
@@ -407,6 +438,7 @@ double calcein_king_func(double x)
   return b_sav * dphi_king_dl(x) / x - 1.0;
 }
 //king end
+
 /*--------------------------------------------------------------
   calculate circular-average of kappa
 */
@@ -584,7 +616,7 @@ double calc_kappa_ave(double r, double x0, double y0, int lensid)
   y0_calkap_sav = y0;
   r_calkap_sav = r;
 
-  return gsl_romberg3(calc_kappa_ave_func, 0.0, 2.0 * M_PI, TOL_ROMBERG_AVE) / (2.0 * M_PI);
+  return gsl_qgaus2(calc_kappa_ave_func, 0.0, 2.0 * M_PI) / (2.0 * M_PI);
 }
 
 double calc_kappa_ave_func(double t)
@@ -843,6 +875,7 @@ void calcmr_i(int i, double *mtot, double *mdel, double *rdel)
     *mdel = CALCEIN_NAN;
     *rdel = CALCEIN_NAN;
     break;
+
   }
 
   return;

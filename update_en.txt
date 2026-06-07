@@ -1,0 +1,77 @@
+V0.4.3
+
+- Synced the bundled glafic to upstream v2.1.14 (was v2.1.10), absorbing all four upstream releases:
+  - 2.1.11: fixed a typo in the crline (straight critical line, model #24) y-deflection.
+  - 2.1.12 / 2.1.13: the azimuthal kappa-average integral switched from adaptive Romberg to Gauss-Kronrod (gsl_qgaus2), more robust (affects kapparad/kappacum etc., which GLADE does not use directly).
+  - 2.1.13: a new relrange (relative-range) prior for parprior.
+  - 2.1.14: a new acnfw lens model (approximate cored-NFW via a CSE series), with a new file app_cnfw.c.
+- Preserved all of GLADE's local glafic modifications:
+  - The King (1962) lens model -- because upstream's acnfw took model number 26, King was renumbered to model number 27 (still selected by the name "king", so input files and core/ need no change).
+  - TOL_ROMBERG_JHK kept at 1.0e-5 (upstream is 5.0e-4).
+  - The vendored-dependency build (app_cnfw.o added to both the Makefile and bootstrap_linux.sh).
+- Verification: the rebuilt binary, static library, and python module all build cleanly; the King model produces bit-identical results before and after the upgrade via both the CPU binary and the python interface (point_solve); acnfw solves correctly; King and acnfw coexist without collision.
+- While syncing, found and reported two upstream glafic bugs (unrelated to GLADE and not triggered by it): an extended-source-optimize segfault when a prior rejects the initial model (oguri/glafic2#4), and the relrange psf prior reading uninitialized variables (oguri/glafic2#5). See glafic_relrange_psf_bug_report.md and glafic_upstream_issue_draft.md.
+
+
+V0.4.2
+
+- The GPU result figure now uses the batched solver's images (the same engine that drove the optimization) instead of re-rendering with glafic, so a GPU run's figure matches exactly what the optimizer saw.
+- New parameter glafic_verified (default True): after each run, independently invoke the glafic binary on the best-fit model and compare its loss/images to the optimizer's. This is purely a check; it never affects the result figure and the run always completes, only warning when the discrepancy is large. Set it to False to disable.
+- Added a scipy-exact reference verification (ground truth): independent analysis confirmed Rhongomyniad (GPU) Sersic deflection matches a scipy@1e-12 integral to about 1e-9 arcsec, while glafic's Sersic is Romberg-tolerance-limited (TOL_ROMBERG_JHK, kept at 1e-5 here: fast but not accurate enough at roughly micro-arcsec to milli-arcsec scales). Verification now reports both the glafic binary (informational) and the scipy-exact reference (run-engine Sersic deflection error plus source-plane self-consistency). Saved results now use 10 significant figures.
+
+
+V0.4.1
+
+- GPU batching: DE-GPU and GPU MCMC now solve each whole population/generation in one CUDA batch, matching the legacy batched behavior.
+- Added MCMC workflows:
+  - The FindImage sidebar now has a fourth option, MCMC, for direct MCMC fitting without DE; priors are the parameter {lower, upper} bounds, mass-like parameters are sampled in log10 space, and corner plots do not show a DE red line.
+  - On CPU/GPU, setting MCMC_ENABLED = True runs DE first and then MCMC seeded around the DE best fit; corner plots overlay the DE red line and the behavior is close to legacy. DE and MCMC share the same parameter space.
+  - Removed MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX; MCMC priors are always the DE {lower, upper} bounds. Old .dat files containing these keys still load with warnings.
+  - Output now includes corner plots, trace plots, posterior percentiles, and direct display in the WebUI result area; the Template panel now includes MCMC-GeneralConfig.
+- Cleaned up a legacy runaway-process hazard.
+- Reverted the glafic constant for speed: TOL_ROMBERG_JHK 1.0e-8 -> 1.0e-5.
+
+
+V0.4.0 - ReUnit Major Update
+
+- Core refactor: the previously scattered and duplicated Differential Evolution optimization and plotting code in legacy/ was extracted into a unified, backend-agnostic core/ module. legacy/ remains as a historical archive, while new code no longer depends on it.
+  - core/optimize: a single DE optimizer can drive glafic (CPU) or Rhongomyniad (GPU); main lenses and substructures (point-mass / NFW / King / p-jaffe and more) can be composed and optimized together.
+  - core/plot: unified triptych, critical-curve, and iteration-frame plotting.
+  - core/format: a new .dat configuration format and parser.
+  - core/translate: bidirectional glafic <-> GLADE translation scripts, including a CLI.
+- New .dat configuration format: close to the legacy inline style, with {lower, upper} marking optimizable dimensions (bare values are locked) and $float / $int as fill-in placeholders; mass-like parameters are searched in log10 space. Multiple files merge by section, component indices are globally renumbered, and missing basic values fall back to defaults with confirmation.
+- Fully rewritten WebUI (webui/; old web/ deprecated): top-level FindImage and Editor pages; FindImage selects CPU / GPU / Glafic plus one or more .dat files, opens a real terminal for each run, and streams output back through SSE into independent job directories to solve concurrency issues. The Editor is VSCode-like with a 50px icon rail, draggable sidebar, Monaco multi-tab editor, save/delete controls, Explorer management for InputFiles, import/export translation, and Template insertion at the cursor.
+- glafic <-> GLADE translation: import converts optimization-matrix parameters marked as 1 into {v, v} bounds for manual adjustment; export writes representative values for bounds (geometric mean for mass-like parameters) and separates observation/model data.
+- Fixes: center_offset_x in the DE objective now follows obs_x_flip so it stays in the same coordinate system as observations, fixing global predicted-image offsets and stuck losses; glafic TOL_ROMBERG_JHK is set to 1.0e-5 as a speed/accuracy compromise.
+
+
+V0.3.0 - Rhongomyniad Beta version
+
+Note: this version was still experimental and had many known issues to fix.
+
+- Added the Rhongomyniad component, giving GLADE its first GPU-accelerated path.
+- Added the glafic_verify tool for independent verification with glafic.
+- Added the Clave visualization calculator.
+- Adjusted several key glafic constants for more precise glafic calculations:
+  - TOL_ROMBERG_JHK 5.0e-4 -> 1.0e-8
+  - TOL_ROMBERG_NFW 3.0e-4 -> 1.0e-7
+
+
+V0.2.2
+
+- Added this changelog.
+- Added one-click conversion of current parameter settings to glafic input file format.
+- Redesigned the observation data editor for consistency with the lens-file editor and direct file import.
+- Made the sidebar resizable by drag handle.
+- Made the "None" model output format consistent with the other models.
+- Fixed concurrency issues in WebUI mode.
+
+
+V0.2.0 - WebUI Major Update
+
+- Added the WebUI for convenient parameter editing and model execution.
+
+
+V0.1.0 - Prototype
+
+- Combined glafic with Differential Evolution in the initial prototype.

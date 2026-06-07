@@ -1,6 +1,6 @@
 # glafic version 2
 
-glafic is a software for studying gravitational lensing. Use it at your own risk; the author shall not take any responsibility for loss or damage caused by the use of this software. The binary files are available at [this URL](https://www.slac.stanford.edu/~oguri/glafic/). If you use this software (or any modified version of it) for your research work, please cite the following paper:
+glafic is a software for studying gravitational lensing. Use it at your own risk; the author shall not take any responsibility for loss or damage caused by the use of this software. The binary files are available at [this URL](https://drive.google.com/drive/folders/1AJwbOiHbaV65_cEo3qbz3c4s3tvD7rS8?usp=share_link). If you use this software (or any modified version of it) for your research work, please cite the following paper:
 
 - [M. Oguri, PASJ, 62, 1017 (2010)](https://ui.adsabs.harvard.edu/abs/2010PASJ...62.1017O/abstract) 
 
@@ -46,6 +46,10 @@ If you have any questions, suggestions, or comments regarding glafic, please con
 
 | date       | version | comments |
 |:---        |:---     |:---      |
+| 2026.04.22 | 2.1.14  |  `acnfw` lens model added |
+| 2025.12.15 | 2.1.13  |  a new prior `relrange` added for `parprior`|
+| 2025.09.22 | 2.1.12  |  integration method for `kapparad` and `kappacum` changed |
+| 2025.09.12 | 2.1.11  |  a bug in `crline` fixed |
 | 2024.10.02 | 2.1.10  |  another option for `chi2_usemag` added |
 | 2024.05.27 | 2.1.9   |  `gaupot` lens model added |
 | 2023.12.06 | 2.1.8   | `getpar_*` commands added for the python interface |

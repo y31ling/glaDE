@@ -17,8 +17,8 @@
   glafic version
 */
 
-#define VERSION "2.1.10"
-#define RELEASE_DATE "2024.10.02"
+#define VERSION "2.1.14"
+#define RELEASE_DATE "2026.04.22"
 
 /*--------------------------------------------------------------
   primary default parameters
@@ -367,6 +367,7 @@
 /* parameter for gsl_zbrent.c */
 #define GSL_ZBRENT_MAXITER 100
 /* parameter for mass.c */
+/* glade local override: tightened from upstream 5.0e-4 for accuracy (see Update.txt) */
 #define TOL_ROMBERG_JHK 1.0e-5
 #define TOL_ROMBERG_GNFW 3.0e-4
 #define TOL_ROMBERG_EIN  1.0e-3
@@ -423,6 +424,21 @@
 */
 
 /*--------------------------------------------------------------
+  app_cnfw.c
+*/
+
+double phi_acnfw_dl(double x, double y, double q, double b);
+void ddphi_acnfw_dl(double x, double y, double q, double b, double *pxx, double *pxy, double *pyy);
+void alpha_acnfw_dl(double x, double y, double q, double b, double *ax, double *ay);
+void calc_jp_acnfw(double b, int *j, double *p);
+void set_b_cnfw(double b);
+double dphi_cnfw_dl(double x);
+double bkappa_cnfw_dl(double x, double b);
+double bkappa_nfw_dl_cnfw(double x);
+double kappa_cnfw_dl(double x, double b);
+double f_cnfw(double x);
+
+/*--------------------------------------------------------------
   app_ell.c
 */
 
@@ -453,6 +469,7 @@ double calcein_jaffe(int i, double rco);
 double calcein_nfw(int i);
 double calcein_gnfw(int i);
 double calcein_tnfw(int i);
+double calcein_cnfw(int i);
 double calcein_hern(int i);
 double calcein_sers(int i);
 double calcein_pow(int i);
@@ -462,9 +479,11 @@ double calcein_jaffe_func(double x);
 double calcein_nfw_func(double x);
 double calcein_gnfw_func(double x);
 double calcein_tnfw_func(double x);
+double calcein_cnfw_func(double x);
 double calcein_hern_func(double x);
 double calcein_sers_func(double x);
 double calcein_ein_func(double x);
+double calcein_gau_func(double x);
 double calcein_gau_func(double x);
 double calcein_king(int i);
 double calcein_king_func(double x);
@@ -664,6 +683,7 @@ double dphi_gnfw_dl_tab(double x, double alpha);
 */
 
 double gsl_qgaus(double (*func)(double), double a, double b);
+double gsl_qgaus2(double (*func)(double), double a, double b);
 double gsl_romberg1(double (*func)(double), double a, double b, double eps);
 double gsl_romberg2(double (*func)(double), double a, double b, double eps);
 double gsl_romberg3(double (*func)(double), double a, double b, double eps);
@@ -865,6 +885,8 @@ double kappa_king_dl(double x);
 double dkappa_king_dl(double x);
 double dphi_king_dl(double x);
 void kapgam_king(double tx, double ty, double tx0, double ty0, double m, double rc, double c, double e, double pa, double *kap, double *gam1, double *gam2, double *phi, double *ax, double *ay, int alponly);
+
+void kapgam_acnfw(double tx, double ty, double tx0, double ty0, double m, double c, double b, double e, double pa, double *kap, double *gam1, double *gam2, double *phi, double *ax, double *ay, int alponly);
 
 void u_calc(double dx, double dy, double e, double si, double co, double u[]);
 
@@ -1170,6 +1192,10 @@ GLOBAL double para_lens_rat[NMAX_LEN][NPAR_LEN];
 GLOBAL double para_lens_ras[NMAX_LEN][NPAR_LEN];
 GLOBAL int para_lens_rai[NMAX_LEN][NPAR_LEN];
 GLOBAL int para_lens_raj[NMAX_LEN][NPAR_LEN];
+GLOBAL double para_lens_reral[NMAX_LEN][NPAR_LEN];
+GLOBAL double para_lens_rerah[NMAX_LEN][NPAR_LEN];
+GLOBAL int para_lens_rerai[NMAX_LEN][NPAR_LEN];
+GLOBAL int para_lens_reraj[NMAX_LEN][NPAR_LEN];
 
 GLOBAL double para_ext[NMAX_EXT][NPAR_EXT];
 GLOBAL int model_ext[NMAX_EXT];
@@ -1183,6 +1209,10 @@ GLOBAL double para_ext_rat[NMAX_EXT][NPAR_EXT];
 GLOBAL double para_ext_ras[NMAX_EXT][NPAR_EXT];
 GLOBAL int para_ext_rai[NMAX_EXT][NPAR_EXT];
 GLOBAL int para_ext_raj[NMAX_EXT][NPAR_EXT];
+GLOBAL double para_ext_reral[NMAX_EXT][NPAR_EXT];
+GLOBAL double para_ext_rerah[NMAX_EXT][NPAR_EXT];
+GLOBAL int para_ext_rerai[NMAX_EXT][NPAR_EXT];
+GLOBAL int para_ext_reraj[NMAX_EXT][NPAR_EXT];
 GLOBAL double para_extlen_rat[NMAX_EXT][NPAR_EXT];
 GLOBAL double para_extlen_ras[NMAX_EXT][NPAR_EXT];
 GLOBAL int para_extlen_rai[NMAX_EXT][NPAR_EXT];
@@ -1197,6 +1227,9 @@ GLOBAL double para_psf_sig[NPAR_PSF];
 GLOBAL double para_psf_rat[NPAR_PSF];
 GLOBAL double para_psf_ras[NPAR_PSF];
 GLOBAL int para_psf_raj[NPAR_PSF];
+GLOBAL double para_psf_reral[NPAR_PSF];
+GLOBAL double para_psf_rerah[NPAR_PSF];
+GLOBAL int para_psf_reraj[NPAR_PSF];
 
 GLOBAL double para_poi[NMAX_POI][NPAR_POITAB];
 GLOBAL int flag_para_poi[NMAX_POI][NPAR_POITAB];
@@ -1208,6 +1241,10 @@ GLOBAL double para_poi_rat[NMAX_POI][NPAR_POITAB];
 GLOBAL double para_poi_ras[NMAX_POI][NPAR_POITAB];
 GLOBAL int para_poi_rai[NMAX_POI][NPAR_POITAB];
 GLOBAL int para_poi_raj[NMAX_POI][NPAR_POITAB];
+GLOBAL double para_poi_reral[NMAX_POI][NPAR_POITAB];
+GLOBAL double para_poi_rerah[NMAX_POI][NPAR_POITAB];
+GLOBAL int para_poi_rerai[NMAX_POI][NPAR_POITAB];
+GLOBAL int para_poi_reraj[NMAX_POI][NPAR_POITAB];
 GLOBAL double para_poilen_rat[NMAX_POI][NPAR_POITAB];
 GLOBAL double para_poilen_ras[NMAX_POI][NPAR_POITAB];
 GLOBAL int para_poilen_rai[NMAX_POI][NPAR_POITAB];

@@ -1,70 +1,77 @@
+V0.4.3
+
+- 内置 glafic 同步到上游最新版 v2.1.14（原为 v2.1.10），完整吸收四个版本的上游更新：
+  - 2.1.11：修正 crline（直线临界线，#24 模型）y 方向偏转的一处笔误。
+  - 2.1.12 / 2.1.13：方位角平均 κ 积分由自适应 Romberg 改为 Gauss-Kronrod（gsl_qgaus2），更稳健（影响 kapparad/kappacum 等命令，GLADE 不直接使用）。
+  - 2.1.13：parprior 新增 relrange 相对范围先验。
+  - 2.1.14：新增 acnfw（近似 cored-NFW，基于 CSE 级数）透镜模型，含独立文件 app_cnfw.c。
+- 保留 GLADE 对 glafic 的全部本地改动：
+  - King(1962) 透镜模型——因上游 acnfw 占用了模型号 26，King 顺延为模型号 27（仍按名字 "king" 选择，输入文件与 core/ 无需改动）。
+  - TOL_ROMBERG_JHK 维持 1.0e-5（上游为 5.0e-4）。
+  - vendored 依赖构建（Makefile 与 bootstrap_linux.sh 均加入 app_cnfw.o）。
+- 验证：重新编译二进制、静态库与 python 模块均通过；King 模型经 CPU 二进制与 python 接口（point_solve）跑出的结果与升级前逐位一致；acnfw 可正常求解；King 与 acnfw 共存无冲突。
+- 同步过程中在上游 glafic 发现并已上报两个缺陷（与 GLADE 自身无关、GLADE 也不会触发）：扩展源优化在先验拒绝初始模型时段错误（oguri/glafic2#4），relrange psf 先验解析读入未初始化变量（oguri/glafic2#5）。详见 glafic_relrange_psf_bug_report.md 与 glafic_upstream_issue_draft.md。
+
+
 V0.4.2
 
-中文
 - GPU 结果图现在使用与优化器完全一致的批量求解器图像（不再用 glafic 重新计算），因此 GPU 跑出来的结果图与优化过程所见完全一致。
 - 新增参数 glafic_verified（默认 True）：每次运行结束后，独立调用 glafic 可执行文件对最优模型重新求解，并与优化器结果比较。该步骤纯属验证，不影响结果图；即使差异很大也照常完成，仅在差异较大时给出告警。可在配置中设为 False 关闭。
-- 新增 scipy 精确参考验证（地面真值）：经独立分析+验证确认，Rhongomyniad(GPU) 的 Sersic 偏转与 scipy@1e-12 精确积分吻合到 ~1e-9 arcsec，是“正确”的一方；glafic 的 Sersic 受 Romberg 容差(TOL_ROMBERG_JHK，本版保持 1e-5：快速但 ~µas→mas 级不够精确)限制。验证现在同时报告 glafic 二进制（信息性）与 scipy 精确参考（运行引擎 Sersic 偏转误差 + 源平面自洽性）。保存结果精度提升到 10 位有效数字。
-
-English
-- The GPU result figure now uses the batched solver's images (the same engine that drove the optimization) instead of re-rendering with glafic, so a GPU run's figure matches exactly what the optimizer saw.
-- New parameter glafic_verified (default True): after each run, independently invoke the glafic binary on the best-fit model and compare its loss / images to the optimizer's. Purely a check — it never affects the result figure and the run always completes, only warning when the discrepancy is large. Set it to False to disable.
-- Added a scipy-exact reference verification (ground truth): independent analysis confirmed Rhongomyniad (GPU) Sersic deflection matches a scipy@1e-12 integral to ~1e-9 arcsec (the accurate one), while glafic's Sersic is Romberg-tolerance-limited (TOL_ROMBERG_JHK, kept at 1e-5 here: fast but ~µas→mas). Verification now reports both the glafic binary (informational) and the scipy-exact reference (run-engine Sersic-deflection error + source-plane self-consistency). Saved results bumped to 10 significant figures.
+- 新增 scipy 精确参考验证（地面真值）：经独立分析与验证确认，Rhongomyniad（GPU）的 Sersic 偏转与 scipy@1e-12 精确积分吻合到约 1e-9 arcsec，是更准确的一方；glafic 的 Sersic 受 Romberg 容差（TOL_ROMBERG_JHK，本版保持 1e-5：快速但约微角秒到毫角秒级不够精确）限制。验证现在同时报告 glafic 二进制（信息性）与 scipy 精确参考（运行引擎 Sersic 偏转误差和源平面自洽性）。保存结果精度提升到 10 位有效数字。
 
 
 V0.4.1
 
-中文
-- GPU 批量化：DE-GPU 与 GPU 上的 MCMC 现在将整代种群在一次 CUDA 批处理中求解，与Legacy行为保持一致。
+- GPU 批量化：DE-GPU 与 GPU 上的 MCMC 现在将整代种群在一次 CUDA 批处理中求解，与历史版本行为保持一致。
 - 新增 MCMC 功能：
-  · FindImage 左栏新增第 4 个选项 MCMC —— 直接进行 MCMC 拟合（不跑 DE）；先验范围即各参数 {下限, 上限}，质量类参数在 log10 空间采样；corner 图不画 DE 红线。
-  · 使用 CPU/GPU 时，若配置中 MCMC_ENABLED = True，则先 DE 后 MCMC（在 DE 最优解附近播种 walker，corner 图叠加 DE 红线，行为与 legacy 基本一致）。DE 与 MCMC 共用同一参数空间。
-  · 删除 MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX —— MCMC 先验始终为 DE 的 {下限, 上限}。包含这些旧键的 .dat 仍可加载（仅给出警告）。
-  · 输出 corner 图、trace 图与后验百分位数，并在 WebUI 结果区直接显示；Template 面板新增 MCMC-GeneralConfig。
+  - FindImage 左栏新增第 4 个选项 MCMC，用于直接进行 MCMC 拟合（不跑 DE）；先验范围即各参数的 {下限, 上限}，质量类参数在 log10 空间采样；corner 图不画 DE 红线。
+  - 使用 CPU/GPU 时，若配置中 MCMC_ENABLED = True，则先 DE 后 MCMC（在 DE 最优解附近播种 walker，corner 图叠加 DE 红线，行为与历史版本基本一致）。DE 与 MCMC 共用同一参数空间。
+  - 删除 MCMC_CUSTOM_RANGE / MCMC_SEARCH_RADIUS / MCMC_LOG_M_MIN / MCMC_LOG_M_MAX；MCMC 先验始终为 DE 的 {下限, 上限}。包含这些旧键的 .dat 仍可加载（仅给出警告）。
+  - 输出 corner 图、trace 图与后验百分位数，并在 WebUI 结果区直接显示；Template 面板新增 MCMC-GeneralConfig。
 - 清理了一处遗留的失控进程隐患。
-- glafic常数为了确保速度而回退：
-        TOL_ROMBERG_JHK 1.0e-8 -> 1.0e-5
+- glafic 常数为了确保速度而回退：TOL_ROMBERG_JHK 1.0e-8 -> 1.0e-5。
 
-V0.4-ReUnit — Re-Unification
 
-中文
-- 重构核心：将原先分散、重复于 legacy/ 中的差分进化（DE）优化与作图代码，抽取为统一、与后端无关的 core/ 模块（legacy/ 保留为历史归档，新代码不再依赖它）。
-  · core/optimize —— 单一 DE 优化器，同一套代码即可驱动 glafic(CPU) 或 Rhongomyniad(GPU)；主透镜与子结构（point-mass / NFW / King / p-jaffe …）可任意组合、混合优化。
-  · core/plot —— 统一的三联图、临界曲线与迭代过程动画帧绘制。
-  · core/format —— 全新的 .dat 配置格式与解析器（见下）。
-  · core/translate —— glafic ↔ glade 双向翻译脚本（含命令行）。
+V0.4.0 - ReUnit 重统一大更新
+
+- 重构核心：将原先分散、重复于 legacy/ 中的差分进化（DE）优化与作图代码抽取为统一、与后端无关的 core/ 模块（legacy/ 保留为历史归档，新代码不再依赖它）。
+  - core/optimize：单一 DE 优化器，同一套代码即可驱动 glafic（CPU）或 Rhongomyniad（GPU）；主透镜与子结构（point-mass / NFW / King / p-jaffe 等）可任意组合、混合优化。
+  - core/plot：统一的三联图、临界曲线与迭代过程动画帧绘制。
+  - core/format：全新的 .dat 配置格式与解析器。
+  - core/translate：glafic <-> GLADE 双向翻译脚本（含命令行）。
 - 全新 .dat 配置格式：贴近 legacy 的内联写法，新增 {下限, 上限} 标记“待优化”维度（裸数值即锁定），$float / $int 为待填占位符；质量类参数在 log10 空间搜索。多文件按区块合并、组件序号全局重排；缺失的基础量回退到默认值并提示确认。
-- 完全重写 WebUI（webui/，旧 web/ 弃用）：顶栏两页 FindImage（默认）与 Editor；在 FindImage 选择 CPU / GPU / Glafic 与一个或多个 .dat 文件后运行；运行时新开一个真实终端并自动输入指令，WebUI 通过 SSE 实时回传该终端输出，每个任务独立目录——彻底解决并发问题。Editor 为类 VSCode 三栏（50px 图标栏 + 可拖拽侧栏 + Monaco 多标签编辑器，含保存/删除）；Explorer 管理 InputFiles（新建/打开/重命名/删除/导入/导出翻译）；Template 面板按光标插入带注释的预设片段。
-- glafic ↔ glade 翻译：导入时优化矩阵中标记为 1 的参数转为 {v, v} 供手动微调；导出时 {下限, 上限} 取代表值（质量类取几何平均），观测数据与模型数据分文件输出。
+- 完全重写 WebUI（webui/，旧 web/ 弃用）：顶栏两页 FindImage（默认）与 Editor；在 FindImage 选择 CPU / GPU / Glafic 与一个或多个 .dat 文件后运行；运行时新开一个真实终端并自动输入指令，WebUI 通过 SSE 实时回传该终端输出，每个任务独立目录，解决并发问题。Editor 为类 VSCode 三栏（50px 图标栏、可拖拽侧栏、Monaco 多标签编辑器，含保存/删除）；Explorer 管理 InputFiles（新建/打开/重命名/删除/导入/导出翻译）；Template 面板按光标插入带注释的预设片段。
+- glafic <-> GLADE 翻译：导入时优化矩阵中标记为 1 的参数转为 {v, v} 供手动微调；导出时 {下限, 上限} 取代表值（质量类取几何平均），观测数据与模型数据分文件输出。
 - 修正：DE 目标函数中 center_offset_x 现随 obs_x_flip 取号（与观测同坐标系），修复了预测像位置整体偏移、损失无法下降的问题；将 glafic TOL_ROMBERG_JHK 设为 1.0e-5（精度与速度的折中：比旧值 5.0e-4 更精确，又比 V0.3 的 1.0e-8 快得多）。
 
 
-V0.3.0 - Rhongomyniad Beta version
-*注意，该版本仍处在实验阶段，有许多已知问题待修复*
-- 新增了 Rhongomyniad 组件，glade现在支持GPU加速
-- 新增了 glafic_verify 工具，支持使用glafic进行独立验证
-- 新增了 Clave可视化计算器
-- 修改了glafic中几个关键常数的值，现在glafic会更加精确地计算了。
-        TOL_ROMBERG_JHK 5.0e-4 -> 1.0e-8
-        TOL_ROMBERG_NFW 3.0e-4 -> 1.0e-7
+V0.3.0 - Rhongomyniad 测试版
+
+注意：该版本仍处在实验阶段，有许多已知问题待修复。
+
+- 新增 Rhongomyniad 组件，GLADE 开始支持 GPU 加速。
+- 新增 glafic_verify 工具，支持使用 glafic 进行独立验证。
+- 新增 Clave 可视化计算器。
+- 修改 glafic 中几个关键常数的值，使 glafic 计算更精确：
+  - TOL_ROMBERG_JHK 5.0e-4 -> 1.0e-8
+  - TOL_ROMBERG_NFW 3.0e-4 -> 1.0e-7
+
 
 V0.2.2
-- 新增了这个日志
-- 新增了可以将当前参数设置一键转换到glafic input file的功能
-- 重做了观测数据的填写窗口，使其与lens file保持一致且可以直接导入
-- 侧边栏现在可以通过拖拽来改变大小
-- "None"模型现在和其他模型的输出格式保持一致。
-- 修正了webui模式下的并发问题
-- Added this changelog
-- Added one-click conversion of current parameter settings to glafic input file format
-- Redesigned the observation data editor for consistency with lens file format; supports direct file import
-- Sidebar is now resizable via drag handle
-- "None" model output format is now consistent with other models
-- Fixed concurrency issues in WebUI mode
 
-V0.2.0 - WEBUI Major Update 
-- 新增了Webui界面，可以方便快捷地进行编辑
-- Added WebUI for convenient parameter editing and model execution
+- 新增这个日志。
+- 新增可将当前参数设置一键转换到 glafic 输入文件的功能。
+- 重做观测数据填写窗口，使其与 lens 文件保持一致且可以直接导入。
+- 侧边栏现在可以通过拖拽改变大小。
+- "None" 模型现在和其他模型的输出格式保持一致。
+- 修正 WebUI 模式下的并发问题。
 
 
-V0.1.0 - Prototype
-- Glafic with DE
+V0.2.0 - WebUI 重大更新
+
+- 新增 WebUI 界面，可以方便快捷地进行编辑与模型运行。
+
+
+V0.1.0 - 原型
+
+- 集成 glafic 与差分进化（DE）的原型版本。

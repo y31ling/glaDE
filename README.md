@@ -2,298 +2,247 @@
 
 [[License: MIT](https://opensource.org/licenses/MIT)]
 [[Python 3.8+](https://www.python.org/downloads/)]
-[[CI](https://github.com/y31ling/glaDE/actions)]
+[[glafic2](https://github.com/oguri/glafic2)]
 
----------------It's quite a prototype right now, there are still many works and problems waiting to do and fix.---------------
+GLADE is a gravitational-lensing analysis workbench for strong-lens modelling,
+substructure searches, Differential Evolution, and MCMC. It wraps a modified
+`glafic2` CPU/reference engine, a unified backend-agnostic `core/` optimizer,
+and the experimental `Rhongomyniad/` GPU lens calculator behind a browser UI and
+command-line tools.
 
-> **V0.2.0 Major Update**: Added a bilingual (Chinese / English) WebUI for browser-based parameter configuration and job launching; 
->
-> new **None** model for direct DE/MCMC optimization of source or lens parameters without subhalo search;
->
-> fixed multiple hard-coded values for broader dataset compatibility.
+> **V0.4.3 current release**: the bundled glafic is synced to upstream v2.1.14
+> (from v2.1.10), preserving GLADE's local King model (renumbered to model #27,
+> since upstream's new `acnfw` took #26), the `TOL_ROMBERG_JHK` override, and the
+> vendored build.
 
-**GLADE** is a unified gravitational lensing analysis platform that integrates multiple lens models with modern optimization algorithms. Built on top of [glafic2](https://github.com/oguri/glafic2), GLADE specializes in subhalo detection and strong lensing system modeling.
+Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
 
-## 🌟 Features
+## Features
 
-- **Multi-Model Support**: Point Mass, NFW, King, and Pseudo-Jaffe lens models
-- **Optimization**: Differential Evolution (DE) and MCMC sampling algorithms  
-- **Deployment**: Automated Linux environment setup and dependency management
-- **Interface**: Single entry point through `main.py` for all models
-- **Toolset**: Complete analysis pipeline from modeling to visualization
+- **Unified optimizer core**: one Differential Evolution pipeline drives CPU
+  glafic, direct glafic, or GPU Rhongomyniad backends.
+- **Flexible `.dat` format**: inline, glafic-like configuration files use
+  `{lower, upper}` bounds for optimizable dimensions and locked bare values for
+  fixed parameters.
+- **Composable lens stacks**: main lenses and substructures share one component
+  list, so point mass, NFW, King, pseudo-Jaffe, Sersic, SIE, shear, and other
+  glafic models can be mixed where the chosen backend supports them.
+- **GPU acceleration**: Rhongomyniad provides a PyTorch lens calculator and a
+  batched GPU path for compatible point-mass optimization and MCMC workloads.
+- **MCMC workflows**: run MCMC only, or run DE first and seed emcee walkers from
+  the DE best fit; corner, trace, summary, and result figures are written to the
+  run directory and surfaced in the WebUI.
+- **Independent verification**: `glafic_verified = True` reruns the best model
+  through the glafic binary, while the scipy-exact check reports Sersic
+  deflection accuracy and source-plane consistency.
+- **Browser workbench**: the current `webui/` app provides FindImage runs,
+  real-time terminal streaming, result previews, an Explorer, Monaco editor, and
+  template insertion for `InputFiles/`.
+- **Translation tools**: convert between glafic input/obs files and GLADE `.dat`
+  files from the WebUI or `python -m core.translate.cli`.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### System Requirements
 
-- **OS**: Linux (Ubuntu 18.04+ / CentOS 7+ recommended)
-- **Python**: 3.8 or higher
-- **Compiler**: GCC with C/C++ support
-- **Storage**: At least 2GB available disk space
-- **Memory**: 4GB RAM recommended for large-scale MCMC sampling
+- Linux environment with GCC and standard build tools
+- Python 3.8 or higher
+- CFITSIO, FFTW3, and GSL for building glafic2
+- Optional CUDA-capable PyTorch environment for GPU runs
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/y31ling/glaDE.git
 cd glaDE
 
-# One-click installation (first time setup)
+# First-time setup: build dependencies, glafic2, Python bindings, and launchers.
 bash bootstrap_linux.sh
-
-# Run via CLI
-./run_glade.sh
-
-# Or launch the WebUI
-./run_webui.sh        # then open http://localhost:6017
 ```
 
-### WebUI (Browser Interface)
+The bootstrap script creates `env.sh`, `run_glade.sh`, and `run_webui.sh`, and
+installs the Python dependencies listed in `requirements.txt`.
 
-GLADE includes a web-based interface for configuring and launching analyses without editing code.
+### Launch the WebUI
 
 ```bash
-# Start the WebUI server (after running bootstrap_linux.sh once)
 ./run_webui.sh
 
-# Use a custom port (default: 6017)
+# Or choose another port; default is 6017.
 GLADE_PORT=8080 ./run_webui.sh
 ```
 
-Then open **[http://localhost:6017](http://localhost:6017)** in your browser.
+Open <http://localhost:6017>. The main WebUI is `webui/`; the older `web/`
+directory is kept for historical compatibility.
 
-**WebUI Features:**
+### Run from the Command Line
 
-- Select subhalo model (Point Mass, NFW, King, Pseudo-Jaffe, None) from the sidebar
-- Configure all optimization parameters through a graphical form
-- Load baseline lens parameters from a `bestfit.dat` file path or paste content manually
-- Launch and monitor optimization runs in real time via the built-in terminal panel
-- Switch between **Chinese** and **English** interface using the toggle button in the top-right corner
-- Save the current parameter configuration back to the model script as new defaults ("Set as Default")
+For legacy-script compatibility, `main.py` still dispatches through `runner.py`
+to the archived `legacy/version_*.py` workflows:
 
-
-The bootstrap script automatically:
-
-- Installs system dependencies (apt packages)
-- Downloads and compiles CFITSIO, FFTW, GSL libraries
-- Builds glafic2 binary and Python modules
-- Creates virtual environment and installs Python dependencies (including Flask for the WebUI)
-- Generates environment scripts (`env.sh`, `run_glade.sh`, `run_webui.sh`)
-
-### Quick Configuration
-
-Edit `main.py` to configure your analysis:
-
-```python
-# Select lens model
-model_use = "point_mass"  # Options: 'nfw', 'king', 'p-jaffe'
-
-# Set data directory (containing bestfit.dat)
-# Or you can simply change the parameters in the scripts directly
-source_dir = "work/your_data_directory"
-
-# Configure optimization parameters
-common_overrides = {
-    "active_subhalos": [1, 2, 3, 4],  # Enable all subhalos
-    "DE_MAXITER": 800,                # DE iterations
-    "DE_POPSIZE": 75,                 # Population size
-    "MCMC_ENABLED": True,             # Enable MCMC sampling
-    "MCMC_NSTEPS": 5000,             # MCMC steps
-    ...
-}
-```
-
-## 📁 Project Structure
-
-```
-glade/
-├── main.py              # Main entry point (CLI)
-├── bootstrap_linux.sh   # One-click installation script
-├── requirements.txt     # Python dependencies
-├── runner.py           # Model execution engine
-├── runtime_env.py      # Runtime environment setup
-├── injector.py         # Parameter injection system
-├── run_glade.sh        # Generated: CLI launcher
-├── run_webui.sh        # Generated: WebUI launcher
-├── env.sh              # Generated: environment loader
-├── glafic2/            # glafic gravitational lensing engine
-│   ├── *.c, *.h       # C source code
-│   ├── Makefile       # Build configuration
-│   └── python/        # Python bindings
-├── legacy/             # Lens model implementations
-│   ├── v_pointmass_1_0/  # Point mass model
-│   ├── v_nfw_2_0/        # NFW profile model
-│   ├── v_king_1_0/       # King profile model
-│   ├── v_p_jaffe_2_0/    # Pseudo-Jaffe model
-│   └── v_none_1_0/       # None model (source/lens optimizer)
-├── web/                # WebUI (Flask backend + frontend)
-│   ├── app.py          # Flask server
-│   └── templates/
-│       └── index.html  # Single-page WebUI (bilingual)
-├── tools/              # Analysis toolkit
-│   ├── glafic_optimize.py  # glafic-based optimization
-│   ├── mcmc_from_result.py # MCMC post-processing
-│   ├── drawgraph.py        # Visualization tools
-│   └── replot_mcmc.py      # MCMC plotting
-└── samples/            # Example datasets
-```
-
-## 🔧 Supported Lens Models
-
-
-| Model            | Description                 | Parameters         | Use Case            |
-| ---------------- | --------------------------- | ------------------ | ------------------- |
-| **Point Mass**   | Point mass approximation    | x, y, mass         | Subhalo detection   |
-| **NFW**          | Navarro-Frenk-White profile | x, y, M_vir, c_vir | Dark matter halos   |
-| **King**         | King profile                | x, y, mass, r_c, c | Globular clusters   |
-| **Pseudo-Jaffe** | Pseudo-Jaffe profile        | x, y, σ, a, r_co   | Elliptical galaxies |
-
-
-## 🎯 Usage Examples
-
-### Basic Lens Modeling
-
-```python
-# 1. Configure model
-model_use = "point_mass"
-source_dir = ""
-
-# 2. Set optimization parameters
-common_overrides = {
-    "active_subhalos": [1, 2, 3, 4],
-    "DE_MAXITER": 650,
-    "MCMC_ENABLED": True,
-    "MCMC_NSTEPS": 5000,
-}
-
-# 3. Run analysis
+```bash
 ./run_glade.sh
 ```
 
-### Advanced MCMC Sampling
+For the current v0.4 core, use `.dat` files directly:
+
+```bash
+source env.sh
+python webui/runjob.py \
+  --backend cpu \
+  --mode findimage \
+  --out runs/manual_cpu \
+  --files core/examples/constants.dat \
+          core/examples/images_data.dat \
+          core/examples/lens_and_substructure.dat \
+  --force
+```
+
+Backends are `cpu`, `gpu`, and `glafic`. Modes are `findimage`, `de+mcmc`, and
+`mcmc`.
+
+## `.dat` Configuration
+
+The v0.4 `.dat` format is the canonical format used by the Editor and optimizer.
+It is intentionally close to glafic/legacy inline configuration, with two key
+additions:
 
 ```python
-model_overrides = {
-    "point_mass": {
-        "MCMC_ENABLED": True,
-        "MCMC_NWALKERS": 64,
-        "MCMC_NSTEPS": 10000,
-        "MCMC_BURNIN": 1000,
-        "fine_tuning": True,  # Enable fine-tuning mode
-        "fine_tuning_configs": {
-            1: {"search_radius": 0.080, "mass_guess": 1.0e5},
-            2: {"search_radius": 0.070, "mass_guess": 5.0e4},
-        }
-    }
-}
+source_x = {-0.10, 0.10}   # optimize within bounds
+source_y = 0.0244          # lock this value
+
+'sers1':  (1, 'sers', lens_z, 9.896617e+09, 2.656977e-03, 2.758473e-02,
+           2.986760e-01, 1.124730e+02, 3.939718e-01, 1.057760e+00)
+'point1': (2, 'point', lens_z, {1e5, 1e7}, {-0.30, -0.20}, {-0.05, 0.05})
 ```
 
-### Parameter Override System
+- `{lower, upper}` marks an optimizable parameter.
+- Bare numbers are locked.
+- Mass-like parameters are searched in `log10` space.
+- Multiple selected files are merged by section, and component indices are
+  recomputed globally.
+- Missing basic constants fall back to defaults; observation arrays and at least
+  one component are required.
 
-GLADE uses a flexible parameter override mechanism:
+See [core/SPEC.md](core/SPEC.md) for the full specification.
 
-- Override keys match variable names in the original model scripts
-- Common parameters: `active_subhalos`, `DE_MAXITER`, `MCMC_ENABLED`
-- Model-specific parameters can be set in `model_overrides`
-- Generated scripts are saved as `legacy/<model_dir>/_glade_generated_run.py`
+## WebUI Workflow
 
-## 📊 Output and Results
+1. Put or create `.dat` files under `InputFiles/` from the Editor page.
+2. Use the Template panel to insert constants, observation data, lenses,
+   substructures, and MCMC settings.
+3. Select one or more `.dat` files in FindImage.
+4. Choose `CPU`, `GPU`, `Glafic`, or `MCMC`.
+5. Run and watch the spawned terminal stream back into the browser.
+6. Inspect `result.png`, `mcmc_corner.png`, `mcmc_trace.png`, `best_params.txt`,
+   `mcmc_summary.txt`, `status.json`, and verification outputs in `runs/<job>/`.
 
-Results are saved in `results/<model_name>/` with timestamp subdirectories:
+## Project Structure
 
-- `*_best_params.txt`: Optimized parameters
-- `*_corner.png`: MCMC posterior distribution plots
-- `*_triptych.png`: Three-panel analysis visualization
-- `*_mcmc_chain.dat`: Raw MCMC sampling chain
-- `*_optresult.dat`: Optimization convergence data
+```text
+glade/
+├── main.py                 # legacy-compatible CLI entry point
+├── runner.py               # legacy model dispatcher
+├── bootstrap_linux.sh      # one-click Linux setup
+├── run_webui.sh            # generated WebUI launcher
+├── InputFiles/             # editable .dat inputs for the WebUI
+├── core/                   # v0.4 optimizer, parser, translator, plots, verify
+│   ├── format/             # .dat parser, defaults, schema, validation
+│   ├── optimize/           # backend-agnostic DE and CPU/GPU/glafic backends
+│   ├── mcmc/               # emcee posterior sampling and plotting
+│   ├── plot/               # triptych, critical curves, iteration frames
+│   └── translate/          # glafic <-> glade conversion
+├── webui/                  # current Flask + Monaco browser workbench
+├── glafic2/                # modified glafic v2 source and Python bindings
+├── Rhongomyniad/           # experimental GPU lens calculator
+├── legacy/                 # archived pre-v0.4 model scripts
+└── tools/                  # verification, plotting, and post-processing helpers
+```
 
-## 🛠️ Analysis Toolkit
+## Supported Models
 
-### Load Environment
+CPU/glafic support follows the known glafic models registered in
+`core/format/schema.py`. GPU support currently covers:
+
+| Model | Typical Role | GPU |
+|:---|:---|:---:|
+| `point` | point-mass substructure | yes |
+| `nfw`, `nfwpot` | NFW substructure | yes |
+| `king` | King-profile substructure | yes |
+| `jaffe` | pseudo-Jaffe substructure | yes |
+| `sers` | Sersic lens component | yes |
+| `sie` | SIE lens component | yes |
+| `pert` | external shear/convergence | yes |
+| `gaupot` | Gaussian potential | yes |
+
+Other registered glafic models can still be used on CPU/direct glafic when their
+parameters are provided in the `.dat` component syntax.
+
+## Translation
 
 ```bash
-source env.sh  # Load runtime environment
+# glafic input -> GLADE .dat files
+python -m core.translate.cli to-glade some_model.input -o InputFiles/imported
+
+# GLADE .dat files -> glafic model/obs files
+python -m core.translate.cli to-glafic \
+  InputFiles/constants.dat InputFiles/lens.dat InputFiles/images_data.dat \
+  -o exported/run
 ```
 
-### glafic Optimization Tool
+The translator converts glafic optimization-matrix flags into `{value, value}`
+bounds for manual widening and uses representative midpoints when exporting
+bounded GLADE values back to glafic.
+
+## Outputs
+
+Current v0.4 WebUI/core runs write into `runs/<job_id>/`:
+
+- `job.log`: full terminal output streamed to the WebUI.
+- `status.json`: machine-readable state, figures, fitted parameters, and
+  verification reports.
+- `best_params.txt`: DE best-fit physical parameters.
+- `result.png`: triptych result figure.
+- `mcmc_corner.png`, `mcmc_trace.png`, `mcmc_summary.txt`: MCMC outputs when
+  MCMC is enabled or selected.
+- `glafic_verify.input` and glafic point outputs: independent verification
+  artifacts when `glafic_verified` is enabled.
+
+Legacy `main.py` runs continue to write model-specific outputs under `results/`.
+
+## Tests
 
 ```bash
-# Using glafic optimization(ameoba) to repeat optimization process for an existing result 
-python tools/glafic_optimize.py results/point_mass/result_dir/
-
-# Enable MCMC sampling
-python tools/glafic_optimize.py results/point_mass/result_dir/ --mcmc --mcmc_nsteps 50000
-
-# Verbose output with restart control
-python tools/glafic_optimize.py results/point_mass/result_dir/ --verbose --max_restart 5
+source env.sh
+for t in format optimize translate plot; do .venv/bin/python core/tests/test_$t.py; done
 ```
 
-### MCMC Post-Processing
+The core tests use lightweight fake backends where possible. Live CPU/GPU runs
+also require built glafic bindings and, for GPU, a working PyTorch/CUDA setup.
 
-```bash
-# Generate MCMC sampling from optimization results
-python tools/mcmc_from_result.py results/point_mass/241126_1234/
+## History
 
-# Replot MCMC results with custom settings
-python tools/replot_mcmc.py results/point_mass/241126_1234/
+| version | comments |
+|:---|:---|
+| 0.4.3 | The bundled glafic was synced to upstream v2.1.14, preserving GLADE's King model (renumbered to #27 to avoid the new `acnfw`), the tolerance override, and the vendored build. |
+| 0.4.2 | GPU result plots now reuse the optimizer's batched solver images and add informational glafic plus scipy-exact verification. |
+| 0.4.1 | Batched GPU DE/MCMC and the new MCMC modes were added, with MCMC priors unified to the DE bounds. |
+| 0.4.0 | The project was reunified around `core/`, the new `.dat` format, the rewritten `webui/`, and glafic <-> GLADE translation. |
+| 0.3.0 | Rhongomyniad introduced experimental GPU acceleration, glafic verification tools, Clave visualization, and tighter glafic constants. |
+| 0.2.2 | The changelog, glafic input export, improved observation editor, resizable sidebar, consistent None-model output, and WebUI concurrency fixes were added. |
+| 0.2.0 | The first bilingual WebUI added browser-based parameter editing and model execution. |
+| 0.1.0 | The prototype combined glafic with Differential Evolution. |
 
-# Generate publication-quality plots
-python tools/drawgraph.py results/point_mass/241126_1234/
-```
+## License
 
-## 📚 Technical Details
+This project is licensed under the MIT License; see [LICENSE](LICENSE). glafic2
+itself is GPL-licensed upstream software by Masamune Oguri; cite the upstream
+papers listed in [glafic2/README.md](glafic2/README.md) when using glafic or
+modified glafic for research.
 
-### Core Algorithms
+## Acknowledgments
 
-- **Differential Evolution**: Global optimization with adaptive parameters
-- **MCMC Sampling**: Bayesian parameter estimation with `emcee`
-- **Hungarian Algorithm**: Optimal image matching for multi-image systems
-- **Adaptive Mesh Refinement**: High-precision lens equation solving
-
-### Performance Features
-
-- Multi-core parallel processing support
-- Early stopping mechanisms and convergence detection
-- Memory-efficient data structures
-- Batch processing and intelligent caching
-- GPU acceleration ready (future development)
-
-### Optimization Features
-
-- **Flexible subhalo selection**: Choose which images to fit subhalos near
-- **Fine-tuning mode**: Independent configuration for each subhalo
-- **Parameter bounds**: Automatic and custom parameter range setting
-- **Convergence monitoring**: Real-time optimization progress tracking
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **glafic2**: Core gravitational lensing computation engine by Masamune Oguri, Really Great Thanks!
-- **SciPy ecosystem**: Scientific computing foundation
-- **emcee**: Affine-invariant MCMC sampling
-- **corner**: Posterior distribution visualization
-- **matplotlib**: Publication-quality plotting
-
-## 📈 Roadmap
-
-- [] GPU acceleration support
-- [√] Web-based interface
-- [] Additional lens models (Sersic, Einasto)
-- [] Docker containerization
-- [] Intergrate Differential Evolution into glafic command directly
-
-## !! Known Issues
-
-- **[glafic]** The built-in Optimization-DE command in glafic does not work correctly — do not use it for now.
-- Glafic checking progress doesn't using absolute value to compare, plz compare the result manually for now.
-
----
-
-74502093_p0_master1200
-
-グレイ最高
-(Image Not authorized by the [author](https://www.pixiv.net/artworks/74502093), Will delete if u mind)
+- **glafic2**: gravitational lensing engine by Masamune Oguri.
+- **Rhongomyniad**: local GPU lens-calculation component used by GLADE.
+- **SciPy, NumPy, Astropy, emcee, corner, matplotlib, Flask, Monaco**: the
+  scientific and UI ecosystem supporting the current workflow.
