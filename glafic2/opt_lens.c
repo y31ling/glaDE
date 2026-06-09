@@ -321,8 +321,55 @@ double chi2tot(double chi2min_point[NMAX_POI][NPAR_CHI2],  double chi2min_extend
   if(((flag_sav != 1) && (np > 0)) || ((flag_sav == (-1)) && (flag_pointobs == 1))) r = r + chi2calc_opt_point(chi2min_point, 0);
   
   r = r + chi2prior_lens() + chi2prior_map();
-  
+
   return r;
+}
+
+/*
+  glade local addition: same total as chi2tot(), but writes the individual chi2
+  components into out[NPAR_CHI2EACH] so an external optimizer (glade DE) can apply
+  per-component weights. The sum out[0..7] equals chi2tot()/c2calc() exactly when
+  no range penalty fires. Layout:
+    out[0]=position  out[1]=flux/mag  out[2]=time-delay  out[3]=point-param prior
+    out[4]=extended pixel  out[5]=extended-param prior  out[6]=lens+map prior
+    out[7]=range penalty (lens/extend params outside glafic's physical range)
+*/
+double chi2tot_each(double out[NPAR_CHI2EACH])
+{
+  double chi2min_point[NMAX_POI][NPAR_CHI2];
+  double chi2min_extend[NPAR_CHI2MIN];
+  int i, l;
+  int do_ext, do_poi;
+
+  for(l=0;l<NPAR_CHI2EACH;l++) out[l] = 0.0;
+
+  if(check_para_lens_all() > 0){ out[7] = chi2pen_range; return chi2pen_range; }
+
+  do_ext = (((flag_sav != 2) && (ne > 0)) || ((flag_sav == (-1)) && (flag_arrayobs == 1)));
+  do_poi = (((flag_sav != 1) && (np > 0)) || ((flag_sav == (-1)) && (flag_pointobs == 1)));
+
+  if(do_ext){
+    if(check_para_ext_all() > 0){ out[7] = chi2pen_range; return chi2pen_range; }
+    flag_computeall = 0;
+    i_ext_fid = -1;
+    chi2calc_extend(chi2min_extend);
+    out[4] = chi2min_extend[1];   /* extended-source pixel chi2 */
+    out[5] = chi2min_extend[2];   /* extended-source parameter prior */
+  }
+
+  if(do_poi){
+    chi2calc_opt_point(chi2min_point, 0);
+    for(i=0;i<num_poi;i++){
+      out[0] += chi2min_point[i][1];   /* image position */
+      out[1] += chi2min_point[i][2];   /* flux / magnitude */
+      out[2] += chi2min_point[i][3];   /* time delay */
+      out[3] += chi2min_point[i][4];   /* point-source parameter prior */
+    }
+  }
+
+  out[6] = chi2prior_lens() + chi2prior_map();   /* lens-param + map prior */
+
+  return out[0] + out[1] + out[2] + out[3] + out[4] + out[5] + out[6] + out[7];
 }
 
 /* {lens} -> {cosmo} -> {ext} -> sky -> {point} -> {psf} */

@@ -563,8 +563,21 @@ void glafic_optextend(int verb)
 double glafic_c2calc(void)
 {
   opt_lens_static(-1);
-  
+
   return chi2calc_nopar();
+}
+
+/* glade local: like glafic_c2calc() but fills out[] with the chi2 breakdown.
+   Returns the total (== glafic_c2calc()). See chi2tot_each() in opt_lens.c. */
+double glafic_c2calc_each(double out[])
+{
+  opt_lens_static(-1);
+
+  parmatch_lens();
+  parmatch_ext();
+  set_distance_lpl_init();
+
+  return chi2tot_each(out);
 }
 
 void glafic_reset_obs_point(int i, int j, int k, double p)

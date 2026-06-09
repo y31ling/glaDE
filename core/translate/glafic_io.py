@@ -39,6 +39,15 @@ class GlaficLens:
 
 
 @dataclass
+class GlaficExtend:
+    """An extended-source component (glafic set_extend)."""
+    type: str                        # glafic name: 'sersic' | 'gauss' | ...
+    z: float
+    params: list[float]              # length 7 (norm, x, y, e, pa, r0, n)
+    opt: Optional[list[int]] = None  # length 8 flags (z + p1..p7)
+
+
+@dataclass
 class GlaficObs:
     zs: float
     # each image: (x_arcsec, y_arcsec, mag, sigma_pos_arcsec, sigma_mag, flag)
@@ -55,6 +64,14 @@ class GlaficModel:
     source_y: Optional[float] = None
     point_opt: Optional[list[int]] = None          # 3 flags (zs, xs, ys)
     obs: Optional[GlaficObs] = None
+    # extended-source additions (populated by the python-script parser)
+    extends: list[GlaficExtend] = field(default_factory=list)
+    secondary: dict = field(default_factory=dict)  # set_secondary key -> value
+    extended_file: Optional[str] = None            # readobs_extend FITS
+    mask_file: Optional[str] = None                # readobs_extend mask
+    noise_file: Optional[str] = None               # readnoise_extend FITS
+    constraint_file: Optional[str] = None          # readobs_point file
+    prior_file: Optional[str] = None               # parprior file
 
 
 # --------------------------------------------------------------------------- #
@@ -163,6 +180,130 @@ def _parse_obs(lines: list[str], i: int, model: GlaficModel) -> int:
     zs = header[2] if header and len(header) > 2 else (model.source_z or 0.0)
     model.obs = GlaficObs(zs=zs, images=images)
     return i
+
+
+# --------------------------------------------------------------------------- #
+# python-driver-script parsing (import a `import glafic; glafic.*(...)` script)
+# --------------------------------------------------------------------------- #
+
+def looks_like_python(text: str) -> bool:
+    """Heuristic: is this a python glafic driver script rather than an input file?"""
+    return ("import glafic" in text) or ("glafic." in text)
+
+
+def _const_eval(node, variables: dict):
+    """Evaluate a literal / simple expression node from a glafic call argument."""
+    import ast
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        v = _const_eval(node.operand, variables)
+        if isinstance(v, (int, float)):
+            return -v if isinstance(node.op, ast.USub) else +v
+    if isinstance(node, ast.Name):
+        return variables.get(node.id)
+    return None
+
+
+def parse_glafic_python(text: str) -> GlaficModel:
+    """Parse a python glafic driver script (the colleague's workflow) via AST.
+
+    Recognises init / set_secondary / startup_setnum / set_lens / set_extend /
+    set_point / setopt_* / readobs_extend / readnoise_extend / readobs_point /
+    parprior. Module-level string/number assignments are resolved so file-path
+    variables (``extended_file = '...'``) flow into the call arguments.
+    """
+    import ast
+
+    model = GlaficModel()
+    variables: dict = {}
+    lens_opt: dict[int, list[int]] = {}
+    ext_opt: dict[int, list[int]] = {}
+
+    tree = ast.parse(text)
+
+    # 1) collect simple module-level assignments (Name = literal)
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                and isinstance(node.targets[0], ast.Name):
+            val = _const_eval(node.value, variables)
+            if val is not None:
+                variables[node.targets[0].id] = val
+
+    # 2) walk every glafic.<fn>(...) call
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call):
+            continue
+        fn = call.func
+        if not (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                and fn.value.id == "glafic"):
+            continue
+        name = fn.attr
+        args = [_const_eval(a, variables) for a in call.args]
+
+        if name in ("init", "set_primary") and len(args) >= 12:
+            keys = ["omega", "lambda", "weos", "hubble", "prefix",
+                    "xmin", "ymin", "xmax", "ymax", "pix_ext", "pix_poi", "maxlev"]
+            for k, v in zip(keys, args[:12]):
+                if k == "prefix":
+                    model.prefix = str(v)
+                elif k == "maxlev":
+                    model.primary[k] = int(v)
+                else:
+                    model.primary[k] = float(v)
+        elif name == "set_secondary" and args and isinstance(args[0], str):
+            parts = args[0].split()
+            if len(parts) >= 2:
+                try:
+                    model.secondary[parts[0]] = float(parts[1])
+                except ValueError:
+                    model.secondary[parts[0]] = parts[1]
+        elif name == "set_lens" and len(args) >= 3:
+            nums = [float(a) for a in args[2:]]
+            z = nums[0] if nums else 0.0
+            params = (nums[1:] + [0.0] * NPAR)[:NPAR]
+            model.lenses.append(GlaficLens(type=str(args[1]), z=z, params=params))
+        elif name == "set_extend" and len(args) >= 3:
+            nums = [float(a) for a in args[2:]]
+            z = nums[0] if nums else 0.0
+            params = (nums[1:] + [0.0] * NPAR)[:NPAR]
+            model.extends.append(GlaficExtend(type=str(args[1]), z=z, params=params))
+        elif name == "set_point" and len(args) >= 4:
+            model.source_z = float(args[1])
+            model.source_x = float(args[2])
+            model.source_y = float(args[3])
+        elif name == "setopt_lens" and len(args) >= 2:
+            lens_opt[int(args[0])] = [int(a) for a in args[1:]]
+        elif name == "setopt_extend" and len(args) >= 2:
+            ext_opt[int(args[0])] = [int(a) for a in args[1:]]
+        elif name == "setopt_point" and len(args) >= 2:
+            model.point_opt = [int(a) for a in args[1:]][:3]
+        elif name == "readobs_extend" and args:
+            model.extended_file = str(args[0])
+            if len(args) >= 2 and isinstance(args[1], str):
+                model.mask_file = str(args[1])
+        elif name == "readnoise_extend" and args:
+            model.noise_file = str(args[0])
+        elif name == "readobs_point" and args:
+            model.constraint_file = str(args[0])
+        elif name == "parprior" and args:
+            model.prior_file = str(args[0])
+
+    # attach opt flags (z + p1..p7) by 1-based id
+    for k, lens in enumerate(model.lenses, start=1):
+        if k in lens_opt:
+            lens.opt = (lens_opt[k] + [0] * (NPAR + 1))[: NPAR + 1]
+    for k, ext in enumerate(model.extends, start=1):
+        if k in ext_opt:
+            ext.opt = (ext_opt[k] + [0] * (NPAR + 1))[: NPAR + 1]
+    return model
+
+
+def parse_glafic_any(text: str) -> GlaficModel:
+    """Parse either a glafic python driver script or a glafic input file."""
+    if looks_like_python(text):
+        return parse_glafic_python(text)
+    return parse_glafic_input(text)
 
 
 # --------------------------------------------------------------------------- #

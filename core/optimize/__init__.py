@@ -20,7 +20,8 @@ from __future__ import annotations
 from .backends import EngineBackend, make_backend
 from .batched import BatchedGPUObjective, can_batch_gpu
 from .de import DEConfig, DEResult, run_de
-from .loss import LossConfig, ml_loss
+from .extend import ExtendObjective, ExtendSpec, build_extend_spec
+from .loss import ExtendLossConfig, LossConfig, ml_loss
 from .matching import match_images, select_images
 from .objective import Objective
 from .problem import Dim, OptProblem
@@ -33,6 +34,7 @@ __all__ = [
     "Objective",
     "run_de", "DEConfig", "DEResult",
     "ml_loss", "LossConfig",
+    "ExtendObjective", "ExtendSpec", "build_extend_spec", "ExtendLossConfig",
     "match_images", "select_images",
     "Scene", "SceneComponent", "ObsData", "build_obs",
     "EngineBackend", "make_backend",

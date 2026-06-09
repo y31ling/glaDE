@@ -10,10 +10,13 @@ substructure searches, Differential Evolution, and MCMC. It wraps a modified
 and the experimental `Rhongomyniad/` GPU lens calculator behind a browser UI and
 command-line tools.
 
-> **V0.4.3 current release**: the bundled glafic is synced to upstream v2.1.14
-> (from v2.1.10), preserving GLADE's local King model (renumbered to model #27,
-> since upstream's new `acnfw` took #26), the `TOL_ROMBERG_JHK` override, and the
-> vendored build.
+> **V0.4.4 current release**: GLADE now fits extended sources (FITS images). A
+> `.dat` can reference an observed FITS image plus external file addresses
+> (`extended_file`, `constraint_file`, `prior_file`, …) and is optimized on the
+> CPU via glafic's new per-component `c2calc`, with weightable chi2 terms
+> (`W_POS`/`W_FLUX`/`W_TD`/`W_EXT`/`W_PRIOR`), an optionally optimizable Hubble
+> constant, MCMC support, and a graded `missing_img_penalty` for under-imaged
+> candidates.
 
 Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
 
@@ -32,6 +35,10 @@ Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
 - **MCMC workflows**: run MCMC only, or run DE first and seed emcee walkers from
   the DE best fit; corner, trace, summary, and result figures are written to the
   run directory and surfaced in the WebUI.
+- **Extended-source fitting**: a `.dat` can reference an observed FITS image and
+  external files (`extended_file`, `constraint_file`, `prior_file`) to fit
+  extended (Sersic etc.) sources on the CPU via glafic's per-component `c2calc`,
+  with weightable chi2 terms, an optimizable Hubble constant, and MCMC support.
 - **Independent verification**: `glafic_verified = True` reruns the best model
   through the glafic binary, while the scipy-exact check reports Sersic
   deflection accuracy and source-plane consistency.
@@ -224,6 +231,7 @@ also require built glafic bindings and, for GPU, a working PyTorch/CUDA setup.
 
 | version | comments |
 |:---|:---|
+| 0.4.4 | Extended-source (FITS) CPU fitting was added: a `.dat` can reference a FITS image and external file addresses and is optimized via glafic's new per-component `c2calc` with weightable terms, an optimizable Hubble constant, MCMC support, and a graded missing-image penalty. |
 | 0.4.3 | The bundled glafic was synced to upstream v2.1.14, preserving GLADE's King model (renumbered to #27 to avoid the new `acnfw`), the tolerance override, and the vendored build. |
 | 0.4.2 | GPU result plots now reuse the optimizer's batched solver images and add informational glafic plus scipy-exact verification. |
 | 0.4.1 | Batched GPU DE/MCMC and the new MCMC modes were added, with MCMC priors unified to the DE bounds. |

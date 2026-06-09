@@ -18,7 +18,12 @@ from .optimize.matching import match_images, select_images
 from .optimize.runner import OptResult
 from .optimize.scene import ObsData
 from .optimize.backends import _pad7
-from .plot import plot_triptych, read_critical_curves, subhalo_label
+from .plot import (
+    plot_extend_result,
+    plot_triptych,
+    read_critical_curves,
+    subhalo_label,
+)
 
 
 def compute_crit_curves(scene, prefix: str):
@@ -65,6 +70,44 @@ def _subhalo_markers(opt_result: OptResult, center_offset) -> list:
         y = sc.params[2] + center_offset[1]
         markers.append((x, y, subhalo_label(i, gc.type, sc.params)))
     return markers
+
+
+def make_extend_figure(opt_result: OptResult,
+                       output_file: str = "extend_result.png",
+                       suptitle: str = "GLADE extended-source result") -> str:
+    """Render the observed / model / residual figure for an extended-source run.
+
+    Drives glafic on the best-fit scene to render the lensed model image
+    (``writeimage``), reads the observed FITS, and plots both plus the residual,
+    overlaying the critical curve. Returns ``output_file``.
+    """
+    if opt_result.mode != "extend" or opt_result.extend_spec is None:
+        raise ValueError("make_extend_figure requires an extended-source OptResult")
+
+    from .optimize.backends import _import_glafic
+    from .optimize.extend import render_images
+
+    scene = opt_result.scene
+    rendered = render_images(_import_glafic(), scene, opt_result.extend_spec,
+                             prefix="temp_glade_extfig")
+    if rendered is None:
+        raise ValueError("could not render the best-fit extended model image")
+    model, obs, _nx, _ny = rendered
+
+    extent = (scene.xmin, scene.xmax, scene.ymin, scene.ymax)
+    prefix = os.path.join(os.path.dirname(os.path.abspath(output_file)) or ".",
+                          "best_ext")
+    crit_segments, _caus = compute_crit_curves(scene, prefix)
+
+    comps = None
+    if opt_result.extend_components is not None:
+        c = opt_result.extend_components
+        comps = {"pos": c[0], "flux": c[1], "td": c[2],
+                 "pixel": c[4], "loss": float(opt_result.loss)}
+
+    return plot_extend_result(
+        obs, model, output_file=output_file, extent=extent,
+        crit_segments=crit_segments, suptitle=suptitle, components=comps)
 
 
 def make_triptych(opt_result: OptResult,

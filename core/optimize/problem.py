@@ -22,6 +22,7 @@ class Dim:
 
     ``target`` identifies where the value is injected:
         ('source', 'source_x' | 'source_y')
+        ('cosmo', 'hubble')
         ('comp_z', comp_index)
         ('comp_param', comp_index, param_index)
     ``lo``/``hi`` are bounds in *search* space (already log10 for mass-like).
@@ -49,18 +50,28 @@ def _glafic_key(comp_type: str) -> str:
 class OptProblem:
     """Optimizable-dimension model built from a config."""
 
-    def __init__(self, cfg: GladeConfig):
+    def __init__(self, cfg: GladeConfig, extend_mode: bool = False):
         self.cfg = cfg
+        # In extend mode the point-source position is solved internally by glafic
+        # (it is glafic's fast inner parameter), so source_x / source_y are NOT
+        # outer DE dimensions; everything else (lens, extend, hubble) still is.
+        self.extend_mode = extend_mode
         self.dims: list[Dim] = []
         self._build_dims()
 
     # -- dimension extraction ------------------------------------------------
     def _build_dims(self) -> None:
-        src = self.cfg.source
-        for axis in ("source_x", "source_y"):
-            v = src.get(axis)
-            if isinstance(v, Bounds):
-                self.dims.append(Dim(("source", axis), v.lo, v.hi, False, axis))
+        if not self.extend_mode:
+            src = self.cfg.source
+            for axis in ("source_x", "source_y"):
+                v = src.get(axis)
+                if isinstance(v, Bounds):
+                    self.dims.append(Dim(("source", axis), v.lo, v.hi, False, axis))
+
+        # Hubble may be an optimizable dimension (e.g. time-delay cosmography).
+        h = self.cfg.cosmology.get("hubble")
+        if isinstance(h, Bounds):
+            self.dims.append(Dim(("cosmo", "hubble"), h.lo, h.hi, False, "hubble"))
 
         for comp in self.cfg.components:
             spec = schema.model(comp.type)
@@ -114,8 +125,11 @@ class OptProblem:
                           self._fixed_scalar(src, "source_x", 0.0))
         source_y = ov.get(("source", "source_y"),
                           self._fixed_scalar(src, "source_y", 0.0))
+        hubble = ov.get(("cosmo", "hubble"),
+                        self._fixed_scalar(cos, "hubble", 0.7))
 
         components: list[SceneComponent] = []
+        extends: list[SceneComponent] = []
         for comp in cfg.components:
             z = ov.get(("comp_z", comp.index),
                        comp.z.value if isinstance(comp.z, Fixed) else float("nan"))
@@ -125,13 +139,14 @@ class OptProblem:
                     params.append(p.value)
                 else:  # Bounds -> from candidate
                     params.append(ov[("comp_param", comp.index, j)])
-            components.append(SceneComponent(_glafic_key(comp.type), float(z), params))
+            sc = SceneComponent(_glafic_key(comp.type), float(z), params)
+            (extends if schema.is_extend_model(comp.type) else components).append(sc)
 
         return Scene(
             omega=self._fixed_scalar(cos, "omega", 0.3),
             lam=self._fixed_scalar(cos, "lambda_cosmo", 0.7),
             weos=self._fixed_scalar(cos, "weos", -1.0),
-            hubble=self._fixed_scalar(cos, "hubble", 0.7),
+            hubble=hubble,
             xmin=self._fixed_scalar(grid, "xmin", -0.5),
             ymin=self._fixed_scalar(grid, "ymin", -0.5),
             xmax=self._fixed_scalar(grid, "xmax", 0.5),
@@ -143,6 +158,7 @@ class OptProblem:
             source_x=source_x,
             source_y=source_y,
             components=components,
+            extends=extends,
         )
 
     # -- result decoding -----------------------------------------------------

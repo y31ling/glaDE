@@ -157,6 +157,91 @@ def test_optimize_converges_to_truth():
     assert abs(result.scene.source_x - 0.03) < 5e-3
 
 
+def test_missing_img_penalty_config_plumbing():
+    from core.optimize.loss import LossConfig
+    # default is present and disabled
+    cfg = _cfg()
+    assert cfg.get("missing_img_penalty") == 0.0
+    assert LossConfig.from_cfg(cfg).missing_img_penalty == 0.0
+    # set in the .dat -> classified to the algorithm section and read by LossConfig
+    cfg2, issues = lint_text(TEST_CFG + "\nmissing_img_penalty = 250.0\n",
+                             backend="cpu", with_defaults=True)
+    assert not any(i.is_error for i in issues), [str(i) for i in issues]
+    assert cfg2.algorithm.get("missing_img_penalty") == 250.0
+    assert LossConfig.from_cfg(cfg2).missing_img_penalty == 250.0
+    # the UPPER-case alias resolves to the same canonical key
+    cfg3, _ = lint_text(TEST_CFG + "\nMISSING_IMG_PENALTY = 7.0\n",
+                        backend="cpu", with_defaults=True)
+    assert LossConfig.from_cfg(cfg3).missing_img_penalty == 7.0
+
+
+def test_point_source_loss_missing_penalty():
+    from core.optimize.objective import INVALID_LOSS, point_source_loss
+    from core.optimize.loss import LossConfig
+    from core.optimize.scene import ObsData
+
+    obs = ObsData(
+        positions=np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),
+        magnifications=np.array([10.0, 10.0, 10.0, 10.0]),
+        mag_errors=np.array([1.0, 1.0, 1.0, 1.0]),
+        pos_sigma_mas=np.array([1.0, 1.0, 1.0, 1.0]),
+        center_offset=(0.0, 0.0),
+    )
+    full = [(0.0, 0.0, 10.0), (1.0, 0.0, 10.0), (0.0, 1.0, 10.0), (1.0, 1.0, 10.0)]
+
+    disabled = LossConfig(missing_img_penalty=0.0)
+    enabled = LossConfig(missing_img_penalty=500.0)
+
+    # exact image count -> ~0 loss whether or not the penalty is on
+    assert point_source_loss(full, obs, disabled) < 1e-9
+    assert point_source_loss(full, obs, enabled) < 1e-9
+
+    # n_obs + 1 (a faint central image) still drops the lowest-|mag| one -> ~0
+    plus1 = full + [(0.5, 0.5, 0.001)]
+    assert point_source_loss(plus1, obs, enabled) < 1e-9
+    # over-imaged by 2 is rejected even with the penalty (only "fewer" is graded)
+    assert point_source_loss(full + [(0.5, 0.5, 0.001), (0.6, 0.6, 0.002)],
+                             obs, enabled) >= INVALID_LOSS
+
+    # fewer images: hard reject when disabled, graded when enabled
+    three = full[:3]
+    assert point_source_loss(three, obs, disabled) >= INVALID_LOSS
+    loss3 = point_source_loss(three, obs, enabled)   # 1 missing, base ~0
+    loss2 = point_source_loss(full[:2], obs, enabled)
+    loss0 = point_source_loss([], obs, enabled)
+    assert math.isclose(loss3, 500.0, rel_tol=1e-9)
+    assert math.isclose(loss2, 1000.0, rel_tol=1e-9)
+    assert math.isclose(loss0, 2000.0, rel_tol=1e-9)
+    assert loss3 < loss2 < loss0                      # strictly graded by shortfall
+
+
+def test_objective_routes_missing_penalty():
+    from core.optimize.objective import INVALID_LOSS, Objective
+    from core.optimize.loss import LossConfig
+    cfg = _cfg()
+    p = OptProblem(cfg)
+    obs = build_obs(cfg)
+
+    class ShortBackend:
+        """Returns the first ``k`` observed images exactly (k < n_obs)."""
+        name = "short"
+
+        def __init__(self, k):
+            self.k = k
+
+        def compute_images(self, scene):
+            return [(obs.positions[i, 0], obs.positions[i, 1],
+                     obs.magnifications[i]) for i in range(self.k)]
+
+    cand = [0.03, 6.0, -0.25, 0.0]
+    # disabled -> the short candidate is rejected
+    obj0 = Objective(p, obs, LossConfig(missing_img_penalty=0.0), ShortBackend(3))
+    assert obj0(cand) >= INVALID_LOSS
+    # enabled -> graded (1 missing image * penalty, residuals ~0)
+    obj1 = Objective(p, obs, LossConfig(missing_img_penalty=1000.0), ShortBackend(3))
+    assert math.isclose(obj1(cand), 1000.0, rel_tol=1e-6)
+
+
 def test_objective_is_picklable_by_name():
     import pickle
     from core.optimize.objective import Objective

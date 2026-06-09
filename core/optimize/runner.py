@@ -24,19 +24,33 @@ class OptResult:
     problem: OptProblem
     de: DEResult
     backend: str
+    # Extended-source runs only (None for the point-only path):
+    extend_spec: object = None        # core.optimize.extend.ExtendSpec
+    extend_components: object = None   # best-fit c2calc_each tuple
+    mode: str = "point"               # 'point' | 'extend'
 
 
 def optimize(cfg: GladeConfig,
              backend: Union[str, Backend] = "cpu",
              on_iteration: IterCallback = None,
              de_overrides: Optional[dict] = None,
-             record_population: bool = True) -> OptResult:
+             record_population: bool = True,
+             base_dir: Optional[str] = None) -> OptResult:
     """Run Differential Evolution on ``cfg`` using ``backend``.
 
     ``backend`` is normally ``'cpu' | 'glafic' | 'gpu'`` (rebuilt per worker for
     process parallelism); an explicit :class:`Backend` object may be passed for
     testing, in which case the run is single-process.
+
+    If ``cfg`` is an extended-source configuration (a FITS ``extended_file`` or
+    any extend-model component), the extended-source CPU path is used instead;
+    ``base_dir`` resolves relative FITS / constraint / prior file paths.
     """
+    from ..format.validate import is_extend_mode
+    if is_extend_mode(cfg):
+        return _optimize_extend(cfg, backend, on_iteration, de_overrides,
+                                record_population, base_dir)
+
     problem = OptProblem(cfg)
     if problem.ndim == 0:
         raise ValueError(
@@ -73,4 +87,54 @@ def optimize(cfg: GladeConfig,
         problem=problem,
         de=result,
         backend=backend if isinstance(backend, str) else getattr(backend, "name", "custom"),
+        mode="point",
+    )
+
+
+def _optimize_extend(cfg: GladeConfig,
+                     backend: Union[str, Backend],
+                     on_iteration: IterCallback,
+                     de_overrides: Optional[dict],
+                     record_population: bool,
+                     base_dir: Optional[str]) -> OptResult:
+    """Extended-source CPU path: DE over a glafic c2calc_each weighted loss."""
+    from .extend import ExtendObjective, build_extend_spec
+    from .loss import ExtendLossConfig
+
+    name = backend if isinstance(backend, str) else getattr(backend, "name", "cpu")
+    if str(name).lower() == "gpu":
+        raise ValueError(
+            "extended-source fitting is CPU-only for now; select the CPU backend")
+
+    problem = OptProblem(cfg, extend_mode=True)
+    if problem.ndim == 0:
+        raise ValueError(
+            "configuration has no optimizable {lo, hi} parameters to search")
+
+    spec = build_extend_spec(cfg, base_dir=base_dir)
+    loss_cfg = ExtendLossConfig.from_cfg(cfg)
+    de_cfg = DEConfig.from_cfg(cfg)
+    if de_overrides:
+        for k, v in de_overrides.items():
+            setattr(de_cfg, k, v)
+
+    objective = ExtendObjective(problem, spec, loss_cfg)
+    result = run_de(objective, problem.bounds, de_cfg,
+                    on_iteration=on_iteration,
+                    record_population=record_population)
+    best_components = objective.components_for(result.x)
+    # NB: a temp point file (glade-arrays path) is intentionally left on disk so
+    # the result figure / verification can re-read it; the caller owns cleanup.
+
+    return OptResult(
+        x=result.x,
+        loss=result.fun,
+        fitted=problem.decode(result.x),
+        scene=problem.make_scene(result.x),
+        problem=problem,
+        de=result,
+        backend="cpu",
+        extend_spec=spec,
+        extend_components=best_components,
+        mode="extend",
     )

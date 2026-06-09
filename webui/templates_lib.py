@@ -21,6 +21,9 @@ DISPLAY_NAME = {
     "nfw": "NFW", "gnfw": "gNFW", "tnfw": "tNFW", "king": "King", "hern": "Hernquist",
     "ein": "Einasto", "pow": "power-law", "pert": "perturbation (shear)",
     "gaupot": "Gaussian", "anfw": "analytic NFW",
+    "extsersic": "Sersic (extend)", "extgauss": "Gaussian (extend)",
+    "exttophat": "top-hat (extend)", "extmoffat": "Moffat (extend)",
+    "extjaffe": "Jaffe (extend)",
 }
 
 CONSTANTS = """# Basic model parameters
@@ -60,6 +63,8 @@ DE_CPU = """# Algorithm: Differential Evolution on the CPU (glafic) backend
 LOSS_COEF_A = $float        # weight on position chi2, e.g. 4
 LOSS_COEF_B = $float        # weight on magnification chi2, e.g. 1
 LOSS_PENALTY_PL = $float    # per-image over-tolerance penalty, e.g. 10000
+missing_img_penalty = $float # per-missing-image penalty when a candidate forms
+                            # FEWER images than observed; 0 = hard-reject (default)
 DE_MAXITER = $int           # e.g. 650
 DE_POPSIZE = $int           # population multiplier, e.g. 64
 DE_SEED = $int              # e.g. 42
@@ -76,6 +81,8 @@ DE_GPU = """# Algorithm: Differential Evolution on the GPU (Rhongomyniad) backen
 LOSS_COEF_A = $float        # weight on position chi2, e.g. 4
 LOSS_COEF_B = $float        # weight on magnification chi2, e.g. 1
 LOSS_PENALTY_PL = $float    # per-image over-tolerance penalty, e.g. 10000
+missing_img_penalty = $float # per-missing-image penalty when a candidate forms
+                            # FEWER images than observed; 0 = hard-reject (default)
 DE_MAXITER = $int           # e.g. 650
 DE_POPSIZE = $int           # population multiplier, e.g. 64
 DE_SEED = $int              # e.g. 42
@@ -83,6 +90,46 @@ EARLY_STOPPING = True
 EARLY_STOP_PATIENCE = $int  # e.g. 30
 glafic_verified = True      # after the run, independently re-run the glafic binary
                             # to verify the result (figure unaffected; warns on mismatch)
+"""
+
+EXTEND_IMAGES = """# Extended-source (FITS) fitting -- CPU only. Setting extended_file switches the
+# run to the extended-source path: DE drives glafic's per-pixel chi2 (c2calc).
+extended_file = $str        # observed extended-image FITS, e.g. 'host_ER.fits'
+# extend_mask_file = $str   # optional pixel mask FITS (1 = ignore pixel)
+# noise_file = $str         # optional per-pixel noise FITS (else analytic, below)
+
+# --- optional point-source (SN) constraints behind the ring ---
+# constraint_file = $str    # glafic readobs_point file (x y flux pos_sig flux_err td td_err parity)
+# prior_file = $str         # glafic parprior file (gauss/range priors on params)
+
+# --- glafic chi2 / noise engine settings (set_secondary) ---
+chi2_splane = $int          # point chi2: 0 = image-plane, 1 = source-plane, e.g. 1
+chi2_checknimg = $int       # 1 = penalise wrong image count, e.g. 1
+chi2_usemag = $int          # flux chi2: 0 = use flux, -1 = use |mag|, e.g. -1
+obs_gain = $float           # detector gain [e-/ADU], e.g. 1.6
+obs_ncomb = $int            # number of combined frames, e.g. 1
+obs_readnoise = $float      # read noise [e-], e.g. 3.08
+flag_extnorm = $int         # source norm: 0 = peak brightness, 1 = total flux, e.g. 0
+"""
+
+DE_EXTEND = """# Algorithm: Differential Evolution for an extended-source (CPU) run.
+# The loss is glafic's c2calc broken into components, each with its own weight;
+# all weights at 1.0 reproduce glafic's c2calc exactly. The point-only legacy
+# case corresponds to W_POS, W_FLUX non-zero and the rest zero.
+W_POS = $float              # image-position chi2 weight, e.g. 1.0
+W_FLUX = $float             # flux / magnitude chi2 weight, e.g. 1.0
+W_TD = $float               # time-delay chi2 weight, e.g. 1.0
+W_EXT = $float              # extended-source pixel chi2 weight, e.g. 1.0
+W_PRIOR = $float            # parameter-prior chi2 weight, e.g. 1.0
+missing_img_penalty = $float # per-missing-image penalty when the SN forms FEWER
+                            # images than observed; 0 = glafic's flat reject (default)
+DE_MAXITER = $int           # e.g. 400
+DE_POPSIZE = $int           # population multiplier, e.g. 32
+DE_SEED = $int              # e.g. 42
+EARLY_STOPPING = True
+EARLY_STOP_PATIENCE = $int  # e.g. 30
+glafic_verified = True      # after the run, independently re-check with the glafic binary
+DE_WORKERS = $int           # -1 = all CPU cores
 """
 
 MCMC_GENERAL = """# MCMC sampling (emcee). The prior is ALWAYS the DE {lower, upper} bounds of
@@ -104,10 +151,15 @@ def _component_snippet(key: str) -> str:
     spec = schema.model(key)
     if spec is None:
         return ""
+    is_extend = spec.category == schema.EXTEND_CATEGORY
+    z_tok = "source_z" if is_extend else "lens_z"
     params = ", ".join("$float{lower, upper}" for _ in spec.params)
-    line = f"'{key}1': (1, '{key}', lens_z, {params})"
+    line = f"'{key}1': (1, '{key}', {z_tok}, {params})"
     desc = "; ".join(f"{p.name}: {p.desc}" for p in spec.params if p.desc)
-    note = "  # GPU-supported" if spec.gpu else "  # CPU/Glafic only"
+    if is_extend:
+        note = "  # extended source (CPU only); requires extended_file"
+    else:
+        note = "  # GPU-supported" if spec.gpu else "  # CPU/Glafic only"
     out = f"{line}{note}\n"
     if desc:
         out += f"#   {desc}\n"
@@ -133,11 +185,16 @@ def template_tree() -> list:
         return [{"name": DISPLAY_NAME.get(k, k), "key": k,
                  "snippet": _component_snippet(k)} for k in _keys(category)]
 
+    extend_keys = ["extsersic", "extgauss", "exttophat", "extmoffat", "extjaffe"]
+    extend_nodes = [{"name": DISPLAY_NAME.get(k, k), "key": k,
+                     "snippet": _component_snippet(k)}
+                    for k in extend_keys if schema.model(k)]
+
     return [
         {"name": "OBS DATA", "children": [
             {"name": "Images Data", "snippet": IMAGES_DATA},
             {"name": "Constants", "snippet": CONSTANTS},
-            {"name": "Extend_images", "snippet": "", "disabled": True},
+            {"name": "Extend_images", "snippet": EXTEND_IMAGES},
         ]},
         {"name": "Source", "children": [
             {"name": "point", "snippet": SOURCE_POINT},
@@ -146,9 +203,11 @@ def template_tree() -> list:
         ]},
         {"name": "Lens", "children": comp_nodes("lens")},
         {"name": "Sub-structure", "children": comp_nodes("substructure")},
+        {"name": "Extend Source", "children": extend_nodes},
         {"name": "Algorithm parameters", "children": [
             {"name": "DE-CPU", "snippet": DE_CPU},
             {"name": "DE-GPU", "snippet": DE_GPU},
+            {"name": "DE-Extend (CPU)", "snippet": DE_EXTEND},
         ]},
         {"name": "MCMC", "children": [
             {"name": "MCMC-GeneralConfig", "snippet": MCMC_GENERAL},

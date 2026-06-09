@@ -180,6 +180,7 @@ def run_check():
     """Validate a selection without launching. Returns blocking errors and the
     basic variables that would fall back to defaults (for the confirm dialog)."""
     from core.format import load_config
+    from core.format.validate import is_extend_mode
     from core.optimize.problem import OptProblem
     data = request.get_json(force=True)
     rail = data["backend"]
@@ -187,16 +188,17 @@ def run_check():
     files = [os.path.join(INPUT_DIR, p) for p in data["files"]]
     cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
+    extend = is_extend_mode(cfg)
     _engine, mode = _resolve_engine_mode(rail, cfg)
     defaulted = {name: cfg.all_scalars().get(name) for name in cfg.applied_defaults}
     return jsonify({
         "ok": not errors,
-        "mode": mode,
+        "mode": "extend" if extend else mode,
         "engine": engine,
         "errors": errors,
         "warnings": [i.message for i in issues if not i.is_error],
         "defaulted": {k: _jsonable(v) for k, v in defaulted.items()},
-        "ndim": OptProblem(cfg).ndim if not errors else 0,
+        "ndim": OptProblem(cfg, extend_mode=extend).ndim if not errors else 0,
     })
 
 

@@ -48,6 +48,10 @@ DEFAULTS: dict[str, object] = {
     "LOSS_COEF_A": 4,
     "LOSS_COEF_B": 1,
     "LOSS_PENALTY_PL": 10000,
+    # per-missing-image penalty: when a DE candidate forms FEWER images than
+    # observed, the loss gains (n_obs - n_pred) * this. 0.0 = disabled (a
+    # short-imaged candidate is hard-rejected, the historical behaviour).
+    "missing_img_penalty": 0.0,
     "CONSTRAINT_SIGMA": 1,
     "PENALTY_COEFFICIENT": 1000,
     # plotting / output

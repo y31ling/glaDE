@@ -44,14 +44,56 @@ def _check_unfilled_scalars(cfg: GladeConfig, issues: list[Issue]) -> None:
                 source_file=cfg.provenance.get(name)))
 
 
-def _check_obs(cfg: GladeConfig, issues: list[Issue]) -> None:
-    for key in schema.REQUIRED_OBS_KEYS:
-        if key not in cfg.obs:
-            issues.append(Issue(
-                ERROR, "missing_obs",
-                f"required observation array '{key}' is missing"))
+def is_extend_mode(cfg: GladeConfig) -> bool:
+    """An extended-source run: a FITS is given or any component is an extend model."""
+    if cfg.obs.get("extended_file") is not None:
+        return True
+    return any(schema.is_extend_model(c.type) for c in cfg.components)
 
-    arrays = {k: cfg.obs[k] for k in schema.REQUIRED_OBS_KEYS if k in cfg.obs}
+
+def _check_obs(cfg: GladeConfig, issues: list[Issue]) -> None:
+    extend = is_extend_mode(cfg)
+
+    if extend:
+        # Extended-source mode: the FITS is the primary constraint and is
+        # required; the four point arrays are optional (point constraints may be
+        # absent, in glade arrays, or in a glafic constraint_file).
+        if cfg.obs.get("extended_file") is None:
+            issues.append(Issue(
+                ERROR, "missing_extended_file",
+                "extended-source components are present but 'extended_file' "
+                "(the observed FITS image) is not set"))
+        elif not any(schema.is_extend_model(c.type) for c in cfg.components):
+            issues.append(Issue(
+                ERROR, "no_extend_component",
+                "'extended_file' is set but the configuration has no extended-"
+                "source component (e.g. an 'extsersic' tuple) to fit it with"))
+        has_arrays = any(k in cfg.obs for k in schema.REQUIRED_OBS_KEYS)
+        has_file = cfg.obs.get("constraint_file") is not None
+        if has_arrays and has_file:
+            issues.append(Issue(
+                WARNING, "duplicate_point_obs",
+                "both glade point-observation arrays and a 'constraint_file' are "
+                "given; the constraint_file takes precedence"))
+        if not has_arrays:
+            return  # point obs via constraint_file (or none) -> array checks N/A
+        # a partial set of glade point arrays would crash the constraint-file
+        # writer at runtime -> require all four when any is present.
+        for key in schema.REQUIRED_OBS_KEYS:
+            if key not in cfg.obs:
+                issues.append(Issue(
+                    ERROR, "missing_obs",
+                    f"point-observation array '{key}' is missing; in extend mode "
+                    f"either give all four obs arrays or use a 'constraint_file'"))
+    else:
+        for key in schema.REQUIRED_OBS_KEYS:
+            if key not in cfg.obs:
+                issues.append(Issue(
+                    ERROR, "missing_obs",
+                    f"required observation array '{key}' is missing"))
+
+    array_keys = schema.REQUIRED_OBS_KEYS + schema.OBS_EXTEND_ARRAY_KEYS
+    arrays = {k: cfg.obs[k] for k in array_keys if k in cfg.obs}
     lengths = set()
     for k, v in arrays.items():
         if not isinstance(v, list):

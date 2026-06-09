@@ -13,6 +13,7 @@ plotting from the legacy scripts into one module:
 from __future__ import annotations
 
 from .crit import read_critical_curves
+from .extend_fig import plot_extend_result
 from .iteration import plot_iteration
 from .labels import subhalo_label
 from .triptych import plot_triptych, plot_triptych_compare
@@ -21,6 +22,7 @@ __all__ = [
     "read_critical_curves",
     "plot_triptych",
     "plot_triptych_compare",
+    "plot_extend_result",
     "plot_iteration",
     "subhalo_label",
 ]

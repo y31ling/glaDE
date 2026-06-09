@@ -5,7 +5,8 @@ the new config model: the FIXED (non-optimized) components' deflection field is
 cached once on a fine grid; the OPTIMIZED point-mass sub-structures are evaluated
 for the entire population in one batched kernel, the lens equation is solved by a
 batched triangle-seed + Newton refine, and the per-candidate loss reuses the
-exact same ``select_images`` / ``match_images`` / ``ml_loss`` as the CPU path.
+exact same ``point_source_loss`` helper as the CPU path (so the optional
+``missing_img_penalty`` behaves identically on GPU).
 
 Scope: the fast batched path requires every *optimizable* component to be a
 point mass (``'point'``) and the source position to be fixed (matching the legacy
@@ -23,9 +24,8 @@ import numpy as np
 from ..format import schema
 from ..format.config import GladeConfig
 from ..format.values import Bounds, Fixed
-from .loss import LossConfig, ml_loss
-from .matching import match_images, select_images
-from .objective import INVALID_LOSS
+from .loss import LossConfig
+from .objective import INVALID_LOSS, point_source_loss
 from .problem import OptProblem
 from .scene import ObsData
 
@@ -332,16 +332,9 @@ class BatchedGPUObjective:
                                  float(self._cache["source_y"]))
 
         obs = self.obs
-        loss = np.full(popsize, INVALID_LOSS)
+        loss = np.empty(popsize)
         for c in range(popsize):
-            sel = select_images(all_images[c], obs.n)
-            if sel is None:
-                continue
-            pred_pos = np.array([[im[0], im[1]] for im in sel], dtype=float)
-            pred_mag = np.array([im[2] for im in sel], dtype=float)
-            _, mm, delta = match_images(obs.positions, pred_pos, pred_mag, obs.center_offset)
-            loss[c] = ml_loss(delta, mm, obs.magnifications, obs.mag_errors,
-                              obs.pos_sigma_mas, self.loss_cfg)
+            loss[c] = point_source_loss(all_images[c], obs, self.loss_cfg)
         return loss
 
 

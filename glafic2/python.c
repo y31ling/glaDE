@@ -630,6 +630,20 @@ PyObject* python_c2calc(PyObject* self, PyObject* args)
   return Py_BuildValue("d", c2);
 }
 
+/* glade local: return the chi2 broken into its components as a tuple
+   (pos, flux, td, prior_point, pixel, prior_ext, prior_lens, penalty).
+   Their sum equals c2calc(). */
+PyObject* python_c2calc_each(PyObject* self, PyObject* args)
+{
+  double out[NPAR_CHI2EACH];
+
+  glafic_c2calc_each(out);
+
+  return Py_BuildValue("dddddddd",
+                       out[0], out[1], out[2], out[3],
+                       out[4], out[5], out[6], out[7]);
+}
+
 PyObject* python_reset_obs_point(PyObject* self, PyObject* args)
 {
   int i, j, k;
@@ -821,6 +835,7 @@ static PyMethodDef methods[] = {
   {"optpoint", (PyCFunction)python_optpoint, METH_VARARGS|METH_KEYWORDS},
   {"optextend", (PyCFunction)python_optextend, METH_VARARGS|METH_KEYWORDS},
   {"c2calc", python_c2calc, METH_VARARGS},
+  {"c2calc_each", python_c2calc_each, METH_VARARGS},
   {"reset_obs_point", python_reset_obs_point, METH_VARARGS},
   {"xy2coord", (PyCFunction)python_xy2coord, METH_VARARGS|METH_KEYWORDS},
   {"coord2xy", (PyCFunction)python_coord2xy, METH_VARARGS|METH_KEYWORDS},

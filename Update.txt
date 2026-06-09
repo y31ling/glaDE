@@ -1,3 +1,23 @@
+V0.4.4
+
+- 新增扩展源（FITS 图像）拟合：.dat 现在可引用一张观测 FITS 图与若干外部文件地址（extended_file / extend_mask_file / noise_file / constraint_file / prior_file），由 glafic 在 CPU 上对 Sersic 等扩展源做逐像素拟合，运行时自动识别并切换到扩展源优化路径。
+  - 新增五种扩展源组件类型 extsersic / extgauss / exttophat / extmoffat / extjaffe（category=extend，仅 CPU/glafic），元组 z 为源红移，参数为 (norm, x, y, e, pa, size, index)，对应 glafic 的 set_extend 关键字。
+  - 扩展源模式下 glafic 在内部求解 SN 点源位置，因此 source_x/source_y 不再作为外层 DE 维度；点源约束可用 glafic 原生 constraint_file（全保真），也可用 glade 的观测数组（运行时转写成临时 glafic 约束文件）。
+  - 新增可加权的逐分量损失：底层 glafic C 引擎新增 chi2tot_each()，把总 chi2 拆成 8 个分量（位置、流量、时间延迟、点源参数先验、扩展源像素、扩展源参数先验、透镜+map 先验、范围惩罚），经 c2calc_each 暴露到 Python；新增 .dat 权重键 W_POS / W_FLUX / W_TD / W_EXT / W_PRIOR（默认均为 1.0，此时损失与 glafic 原生 c2calc 完全相等）。
+  - 扩展源拟合支持 MCMC（mcmc 与 de+mcmc 两种模式），似然为 -0.5 × 加权 c2calc 损失，与 DE 结果一致；遵循 MCMC_WORKERS（基于 fork 的 CPU 多进程），并新增起始 walker 可行性检查：若全部 walker 落在零似然区会给出可操作的报错（建议改用 de+mcmc 或收紧范围），部分不可行则抖动替换。注意：扩展源 MCMC 较慢（每个 walker 每步都跑一次 glafic），请用较小的 MCMC_NSTEPS。
+  - 新增扩展源结果三联图（观测 / 最佳拟合模型 / 残差），可叠加临界曲线与像位置；观测 FITS 不可用时自动退化为仅模型单图。
+  - 新增独立验证 verify_extend：用独立的 glafic 二进制重新求解（start_setopt + c2calc + findimg）并与 glade 的求和 c2calc 比较（相对差 >5% 时告警），另做与引擎无关的 scipy 源平面参考校验；由 glafic_verified 开关控制。
+  - 扩展源拟合目前仅支持 CPU：对扩展源配置选择 GPU 后端会被明确拒绝（validate() 报 gpu_unsupported）。
+- 新增分级缺像惩罚 missing_img_penalty（默认 0.0 = 保持历史的硬拒绝）：当候选模型成像数少于观测时，不再直接淘汰，而是按其已成像 / 扩展源像素 chi2 再加上 (n_obs - n_pred) × penalty 进行分级评分；点源、批量 GPU、扩展源三条路径一致生效（亦接受大写别名 MISSING_IMG_PENALTY）。
+- WebUI 与翻译 / 导入同步支持扩展源：
+  - 模板树新增 Extend Source 组件分类（五种扩展源模型，使用 source_z 并标注需要 extended_file），启用原先禁用的 Extend_images 观测数据片段，新增 DE-Extend (CPU) 算法模板（暴露五个 c2calc 权重、missing_img_penalty、glafic_verified 等），并在 DE-CPU / DE-GPU 模板中加入 missing_img_penalty。
+  - run_check 确认对话框现可正确识别扩展源配置（mode 显示 extend、维度数正确）；扩展源运行产出 result.png 三联图、迭代帧、含 8 个 chi2 分量的 best_params.txt、MCMC 图与摘要，以及独立验证区块。
+  - glafic → glade 导入现在还能解析 python 驱动脚本（import glafic; glafic.*(...)）：含 set_extend / readobs_extend 的脚本会被导入为完整的扩展源 .dat（透镜 + extsersic/extgauss 组件、文件地址化为 basename、可优化参数转为退化的 {v, v} 边界、set_secondary hvary 1 使 hubble 成为可优化边界）。
+- 新增可优化的哈勃常数：当 hubble/H0 以 {lo, hi} 边界给出时（如时间延迟宇宙学），它成为一个 DE 维度并在拟合结果中报告。
+- 底层重构（行为一致）：抽出共享的 point_source_loss() 评分函数，供 CPU、批量 GPU 与 MCMC 三条路径统一打分；matching 新增 assign_images()（匈牙利匹配，支持预测数 ≤ 观测数），使缺像惩罚在各路径行为一致；新增的 c2calc_each C 改动为纯增量，不改动任何既有函数签名或行为。
+- 新增测试套件 core/tests/test_extend.py（22 项，全部通过），端到端覆盖扩展源 / FITS 拟合（schema 注册、扩展模式校验、维度路由、加权损失与 c2calc 一致性、点约束文件读写、python 脚本导入、分级缺像惩罚，以及真实 glafic 引擎检查）；test_optimize.py 另加 3 项点源缺像惩罚测试。
+
+
 V0.4.3
 
 - 内置 glafic 同步到上游最新版 v2.1.14（原为 v2.1.10），完整吸收四个版本的上游更新：

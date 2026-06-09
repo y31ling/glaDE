@@ -218,6 +218,10 @@
 #define NPAR_CHI2 5
 /* number of parameters for chi2min */
 #define NPAR_CHI2MIN 5
+/* glade local: number of chi2 components returned by chi2tot_each / c2calc_each
+   [0]=pos [1]=flux [2]=td [3]=prior_point [4]=pixel [5]=prior_ext [6]=prior_lens
+   [7]=range_penalty */
+#define NPAR_CHI2EACH 8
 /* number of parameters for mapprior */
 #define NPAR_MPRIOR 5
 /* number of parameters for lensmodel table */
@@ -558,6 +562,7 @@ void glafic_optimize(int verb);
 void glafic_optpoint(int verb);
 void glafic_optextend(int verb);
 double glafic_c2calc(void);
+double glafic_c2calc_each(double out[]);   /* glade local: per-component chi2 breakdown */
 void glafic_reset_obs_point(int i, int j, int k, double p);
 
 double glafic_getpar_lens(int id, int ip);
@@ -942,6 +947,7 @@ double opt_lens(int flag, int verb);
 double chi2calc(double par[]);
 double chi2calc_nopar(void);
 double chi2tot(double chi2min_point[][NPAR_CHI2], double chi2min_extend[]);
+double chi2tot_each(double out[]);   /* glade local: per-component chi2 breakdown */
 void partopara(double par[]);
 void partopara_all(double par[]);
 int opt_lens_calcndim(void);

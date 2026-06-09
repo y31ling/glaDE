@@ -245,6 +245,58 @@ _reg(ModelSpec(
     desc="External galaxy catalogue (file-based).",
 ))
 
+# ---- extended-source profiles (glafic set_extend) --------------------------
+# These describe a *source* surface-brightness profile (the lensed extended
+# image / Einstein ring), NOT a deflector. They map to glafic's set_extend and
+# live in their own engine stack. The tuple z is the SOURCE redshift; the 7
+# params are para_ext[i][1..7] = (norm, x, y, e, pa, r0, n) where source_all()
+# interprets r0 as the size (effective radius / sigma / radius) and n as the
+# Sersic/Moffat index (unused for gauss/tophat). 'norm' is the peak brightness
+# (flag_extnorm=0) or total flux (flag_extnorm=1). Extended sources are CPU-only.
+_EXT_NORM = _P("norm", desc="amplitude: peak brightness (flag_extnorm=0) or total flux (=1)")
+_EXT_E_PA = (_P("e", desc="ellipticity in [0,1)"), _P("pa", desc="position angle [deg]"))
+
+_reg(ModelSpec(
+    "extsersic", "sersic",
+    (_EXT_NORM, *_XY, *_EXT_E_PA,
+     _P("re", desc="effective radius [arcsec]"),
+     _P("n", desc="Sersic index (e.g. 4=bulge, 1=disk)")),
+    category="extend", gpu=False, required_min=7,
+    desc="Extended source: Sersic surface-brightness profile.",
+))
+_reg(ModelSpec(
+    "extgauss", "gauss",
+    (_EXT_NORM, *_XY, *_EXT_E_PA,
+     _P("sigma", desc="Gaussian width [arcsec]"),
+     _P("_unused", desc="(unused for gauss)")),
+    category="extend", gpu=False, required_min=6,
+    desc="Extended source: 2D Gaussian profile.",
+))
+_reg(ModelSpec(
+    "exttophat", "tophat",
+    (_EXT_NORM, *_XY, *_EXT_E_PA,
+     _P("radius", desc="top-hat radius [arcsec]"),
+     _P("_unused", desc="(unused for tophat)")),
+    category="extend", gpu=False, required_min=6,
+    desc="Extended source: uniform elliptical top-hat.",
+))
+_reg(ModelSpec(
+    "extmoffat", "moffat",
+    (_EXT_NORM, *_XY, *_EXT_E_PA,
+     _P("rd", desc="Moffat scale radius [arcsec]"),
+     _P("beta", desc="Moffat beta index")),
+    category="extend", gpu=False, required_min=7,
+    desc="Extended source: Moffat profile.",
+))
+_reg(ModelSpec(
+    "extjaffe", "jaffe",
+    (_EXT_NORM, *_XY, *_EXT_E_PA,
+     _P("a", desc="Jaffe scale radius [arcsec]"),
+     _P("rco", desc="inner core radius [arcsec]")),
+    category="extend", gpu=False, required_min=6,
+    desc="Extended source: (pseudo-)Jaffe profile.",
+))
+
 # Number of glafic parameter slots after z (p1..p7).
 GLAFIC_NPARAM = 7
 
@@ -253,9 +305,22 @@ BACKENDS = ("cpu", "gpu", "glafic")
 GPU_MODELS = frozenset(k for k, m in MODELS.items() if m.gpu)
 ALL_MODELS = frozenset(MODELS)
 
+# Extended-source models (glafic set_extend). They form a separate engine stack
+# and are only runnable on the CPU/glafic backend.
+EXTEND_CATEGORY = "extend"
+EXTEND_MODELS = frozenset(k for k, m in MODELS.items() if m.category == EXTEND_CATEGORY)
+# Deflector models (set_lens) = everything that is not an extended source.
+LENS_MODELS = frozenset(k for k in MODELS if k not in EXTEND_MODELS)
+
 
 def model(key: str) -> ModelSpec | None:
     return MODELS.get(key)
+
+
+def is_extend_model(key: str) -> bool:
+    """Whether *key* is an extended-source (set_extend) model."""
+    spec = MODELS.get(key)
+    return spec is not None and spec.category == EXTEND_CATEGORY
 
 
 def is_backend(name: str) -> bool:
@@ -283,15 +348,42 @@ OBS_ARRAY_KEYS = (
     "obs_pos_sigma_mas_list",
 )
 OBS_OTHER_KEYS = ("center_offset_x", "center_offset_y", "obs_x_flip")
+
+# ---- extended-source observation keys (CPU extend mode) --------------------
+# File-path scalars (strings). extended_file is the observed FITS image fitted
+# pixel-by-pixel; the others are optional glafic-native passthroughs.
+EXTEND_FILE_KEYS = (
+    "extended_file",     # observed extended-image FITS -> readobs_extend
+    "extend_mask_file",  # optional pixel mask FITS      -> readobs_extend(mask=)
+    "noise_file",        # optional per-pixel noise FITS -> readnoise_extend
+    "constraint_file",   # optional glafic point-constraint file -> readobs_point
+    "prior_file",        # optional glafic prior file    -> parprior
+)
+# Optional extra point-source observation columns (glade arrays) that the legacy
+# four arrays cannot express; only used in extend mode when point obs are given
+# as glade arrays rather than a constraint_file.
+OBS_EXTEND_ARRAY_KEYS = ("obs_td_list", "obs_td_err_list", "obs_parity_list")
+
+# glafic set_secondary engine settings, exposed so an extend run can reproduce a
+# glafic input exactly. Emitted verbatim as 'set_secondary("<key> <value>")'.
+SECONDARY_KEYS = (
+    "chi2_splane", "chi2_checknimg", "chi2_restart", "chi2_usemag",
+    "ran_seed", "obs_gain", "obs_ncomb", "obs_readnoise", "flag_extnorm",
+)
+# Per-component chi2 weights for the extend-mode weighted loss. All == 1 exactly
+# reproduces glafic c2calc; legacy point-only behaviour = W_POS, W_FLUX only.
+WEIGHT_KEYS = ("W_POS", "W_FLUX", "W_TD", "W_EXT", "W_PRIOR")
+
 ALGORITHM_KEYS = (
     "DE_MAXITER", "DE_POPSIZE", "DE_ATOL", "DE_TOL", "DE_SEED", "DE_POLISH",
     "DE_WORKERS", "EARLY_STOPPING", "EARLY_STOP_PATIENCE",
-    "LOSS_COEF_A", "LOSS_COEF_B", "LOSS_PENALTY_PL", "CONSTRAINT_SIGMA",
+    "LOSS_COEF_A", "LOSS_COEF_B", "LOSS_PENALTY_PL", "missing_img_penalty",
+    "CONSTRAINT_SIGMA",
     "PENALTY_COEFFICIENT", "Draw_Graph", "draw_interval", "PRINT_INTERVAL",
     "COMPARE_GRAPH", "SHOW_2SIGMA", "OUTPUT_PREFIX", "glafic_verified",
     "MCMC_ENABLED", "MCMC_NWALKERS", "MCMC_NSTEPS", "MCMC_BURNIN", "MCMC_THIN",
     "MCMC_PERTURBATION", "MCMC_PROGRESS", "MCMC_WORKERS",
-)
+) + WEIGHT_KEYS + SECONDARY_KEYS
 
 # Removed in V0.4.1: the MCMC prior is now always the DE {lower, upper} bounds,
 # so these custom-range keys are obsolete. Old .dat files that still set them are
@@ -300,8 +392,11 @@ DEPRECATED_KEYS = frozenset({
     "MCMC_CUSTOM_RANGE", "MCMC_SEARCH_RADIUS", "MCMC_LOG_M_MIN", "MCMC_LOG_M_MAX",
 })
 
-# canonical alias resolution (the .dat may use glafic's 'lambda')
-SCALAR_ALIASES = {"lambda": "lambda_cosmo"}
+# canonical alias resolution (the .dat may use glafic's 'lambda'; an UPPER-case
+# spelling of the missing-image penalty is accepted for consistency with the
+# other algorithm knobs).
+SCALAR_ALIASES = {"lambda": "lambda_cosmo",
+                  "MISSING_IMG_PENALTY": "missing_img_penalty"}
 
 # Hard-required for a runnable config (no defaults).
 REQUIRED_OBS_KEYS = OBS_ARRAY_KEYS
@@ -318,7 +413,8 @@ def classify_scalar(name: str) -> str:
         return "redshifts"
     if name in SOURCE_KEYS:
         return "source"
-    if name in OBS_ARRAY_KEYS or name in OBS_OTHER_KEYS:
+    if (name in OBS_ARRAY_KEYS or name in OBS_OTHER_KEYS
+            or name in EXTEND_FILE_KEYS or name in OBS_EXTEND_ARRAY_KEYS):
         return "obs"
     if name in ALGORITHM_KEYS:
         return "algorithm"

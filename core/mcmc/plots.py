@@ -10,6 +10,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 
+# Cap the number of points/steps actually drawn so a huge run (many walkers ×
+# steps) does not make plotting OOM/hang. Down-sampling is cosmetic only.
+_MAX_CORNER_POINTS = 40000
+_MAX_TRACE_STEPS = 2000
+
+
 def _disp_labels(labels, is_log):
     out = []
     for lab, lg in zip(labels, is_log):
@@ -23,7 +29,12 @@ def plot_corner(samples, labels, is_log, output_file, truths=None,
     for MCMC-only so no truth line appears. Returns ``output_file``."""
     import corner
     disp = _disp_labels(labels, is_log)
-    fig = corner.corner(np.asarray(samples), labels=disp,
+    samples = np.asarray(samples)
+    if samples.shape[0] > _MAX_CORNER_POINTS:   # cosmetic down-sample for speed
+        idx = np.random.default_rng(0).choice(
+            samples.shape[0], _MAX_CORNER_POINTS, replace=False)
+        samples = samples[idx]
+    fig = corner.corner(samples, labels=disp,
                         quantiles=[0.16, 0.5, 0.84], show_titles=True,
                         title_kwargs={"fontsize": 9}, label_kwargs={"fontsize": 9},
                         truths=(list(truths) if truths is not None else None),
@@ -40,6 +51,10 @@ def plot_trace(chain, labels, is_log, burnin, output_file):
     (nsteps, nwalkers, ndim). Returns ``output_file``."""
     chain = np.asarray(chain)
     nsteps, nwalkers, ndim = chain.shape
+    if nsteps > _MAX_TRACE_STEPS:               # thin the step axis for speed
+        step = int(np.ceil(nsteps / _MAX_TRACE_STEPS))
+        chain = chain[::step]
+        burnin = max(0, burnin // step)
     disp = _disp_labels(labels, is_log)
     fig, axes = plt.subplots(ndim, 1, figsize=(9, 1.7 * ndim + 1), sharex=True,
                              squeeze=False)
@@ -68,8 +83,19 @@ def plot_mcmc(result, out_dir, suptitle: Optional[str] = None) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     corner_path = os.path.join(out_dir, "mcmc_corner.png")
     trace_path = os.path.join(out_dir, "mcmc_trace.png")
-    plot_corner(result.samples, result.param_names, result.is_log, corner_path,
-                truths=result.de_truth, suptitle=suptitle)
-    plot_trace(result.chain, result.param_names, result.is_log, result.burnin,
-               trace_path)
-    return {"corner": corner_path, "trace": trace_path}
+    out: dict = {}
+    # a degenerate chain (e.g. acceptance ~ 0) has ~no spread; corner can't draw
+    # contours. Plot what we can but never let a plot failure abort the run.
+    try:
+        plot_corner(result.samples, result.param_names, result.is_log, corner_path,
+                    truths=result.de_truth, suptitle=suptitle)
+        out["corner"] = corner_path
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] corner plot skipped: {exc}", flush=True)
+    try:
+        plot_trace(result.chain, result.param_names, result.is_log, result.burnin,
+                   trace_path)
+        out["trace"] = trace_path
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] trace plot skipped: {exc}", flush=True)
+    return out

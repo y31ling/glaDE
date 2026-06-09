@@ -38,6 +38,8 @@ class Scene:
     source_x: float
     source_y: float
     components: list[SceneComponent] = field(default_factory=list)
+    # Extended-source components (glafic set_extend); empty in the point-only path.
+    extends: list[SceneComponent] = field(default_factory=list)
 
 
 @dataclass

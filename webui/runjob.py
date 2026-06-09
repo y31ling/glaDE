@@ -74,6 +74,11 @@ def main(argv=None) -> int:
         write_status(state="error", errors=[e.message for e in errors])
         return 2
 
+    # ---- extended-source (FITS) path: CPU only, DE over glafic c2calc -------
+    from core.format.validate import is_extend_mode
+    if is_extend_mode(cfg):
+        return _run_extend(args, cfg, write_status)
+
     obs = build_obs(cfg)
     problem = OptProblem(cfg)
     loss_cfg = LossConfig.from_cfg(cfg)
@@ -107,6 +112,275 @@ def main(argv=None) -> int:
     write_status(state="done")
     print("RUN_COMPLETE", flush=True)
     return 0
+
+
+_EXT_LABELS = ["pos", "flux", "td", "prior_pt", "pixel", "prior_ext",
+               "prior_lens", "penalty"]
+
+
+def _cleanup_spec(spec):
+    """Remove a temp glafic constraint file written from glade obs arrays."""
+    if getattr(spec, "_own_point_file", False) and spec.point_file \
+            and os.path.exists(spec.point_file):
+        try:
+            os.unlink(spec.point_file)
+        except OSError:
+            pass
+
+
+def _extend_figure_and_verify(args, cfg, result, write_status, suptitle):
+    """Render the observed/model/residual figure and run the independent
+    glafic-binary + scipy verification for an extended-source result."""
+    out_png = os.path.join(args.out, "result.png")
+    try:
+        from core.report import make_extend_figure
+        make_extend_figure(result, output_file=out_png, suptitle=suptitle)
+        write_status(triptych="result.png")
+        print(f"  wrote {out_png}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [warn] result figure failed: {exc}", flush=True)
+
+    if bool(cfg.algorithm.get("glafic_verified", True)):
+        _hr("Independent verification (glafic binary c2calc + scipy)")
+        try:
+            from core.verify import verify_extend
+            rep = verify_extend(result, args.out)
+            if "glafic_total_chi2" in rep:
+                print(f"  glafic-binary c2calc total : {rep['glafic_total_chi2']:.4f}",
+                      flush=True)
+                print(f"  glade total (sum of comps) : "
+                      f"{rep.get('glade_total_chi2', float('nan')):.4f}", flush=True)
+                if "chi2_rel_diff" in rep:
+                    print(f"  relative difference        : "
+                          f"{rep['chi2_rel_diff']*100:.3f}%", flush=True)
+            if "glafic_n_images" in rep:
+                print(f"  glafic findimg images      : {rep['glafic_n_images']}",
+                      flush=True)
+            sref = rep.get("scipy_reference", {})
+            if sref.get("ok"):
+                print(f"  scipy source-plane scatter : "
+                      f"{sref['source_plane_scatter_mas']:.3f} mas", flush=True)
+            for w in rep.get("warnings", []):
+                print(f"  [warn] {w}", flush=True)
+            try:
+                write_status(extend_verify=rep)
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [warn] verification failed: {exc}", flush=True)
+
+
+def _run_extend(args, cfg, write_status):
+    """Extended-source CPU run: DE and/or MCMC over glafic's weighted c2calc."""
+    from core.optimize.problem import OptProblem
+
+    if args.backend == "gpu":
+        print("[blocked] extended-source fitting is CPU-only for now; "
+              "select the CPU option.", flush=True)
+        write_status(state="error", errors=["extended-source is CPU-only"])
+        return 2
+
+    base_dir = os.path.dirname(os.path.abspath(args.files[0]))
+    problem = OptProblem(cfg, extend_mode=True)
+    print(f"\noptimizable dimensions ({problem.ndim}): "
+          f"{[d.label for d in problem.dims]}", flush=True)
+    if problem.ndim == 0:
+        print("[blocked] no optimizable {lo,hi} parameters. Widen the {v,v} "
+              "placeholders from an import into real search ranges.", flush=True)
+        write_status(state="error", errors=["no optimizable parameters"])
+        return 2
+
+    write_status(state="running")
+    best_x = None
+
+    # ---- Differential Evolution (findimage / de+mcmc) ----
+    if args.mode in ("findimage", "de+mcmc"):
+        result = _extend_de(args, cfg, base_dir, write_status, problem)
+        best_x = result.x
+        _extend_figure_and_verify(
+            args, cfg, result, write_status,
+            suptitle=f"GLADE extended-source result  loss={result.loss:.1f}")
+        _cleanup_spec(result.extend_spec)
+
+    # ---- MCMC (de+mcmc / mcmc) ----
+    if args.mode in ("de+mcmc", "mcmc"):
+        _extend_mcmc(args, cfg, base_dir, problem, best_x, write_status)
+
+    _hr("DONE")
+    write_status(state="done")
+    print("RUN_COMPLETE", flush=True)
+    return 0
+
+
+def _extend_obs_positions(cfg, base_dir):
+    """Observed SN image positions (x, y arcsec, engine frame) for the iteration
+    overlay, or an empty (0, 2) array if none are available.
+
+    Parsed from the resolved glafic constraint file (already engine-frame) when
+    present, else from glade point arrays; either way the frame matches the
+    optimized component centres so the gold-star overlay lines up.
+    """
+    import numpy as np
+    from core.optimize.extend import read_point_file_positions, resolve_path
+    cfile = resolve_path(cfg.obs.get("constraint_file"), [base_dir, os.getcwd()])
+    if cfile and os.path.exists(cfile):
+        try:
+            return read_point_file_positions(cfile)
+        except Exception:  # noqa: BLE001
+            pass
+    if "obs_positions_mas_list" in cfg.obs:
+        try:
+            from core.optimize.scene import build_obs
+            return build_obs(cfg).positions
+        except Exception:  # noqa: BLE001
+            pass
+    return np.zeros((0, 2), dtype=float)
+
+
+def _extend_de(args, cfg, base_dir, write_status, problem):
+    import time
+    from core.optimize.runner import optimize
+    _hr("Differential Evolution (extended source · glafic c2calc)")
+    t0 = time.time()
+
+    # iteration frames (Draw_Graph / draw_interval) — same knobs as the
+    # point-source path, but plotting the optimizable lens/extend component
+    # centres (the source position is glafic's inner parameter, not a DE dim).
+    draw = int(cfg.algorithm.get("Draw_Graph", 0) or 0)
+    interval = max(1, int(cfg.algorithm.get("draw_interval", 5) or 5))
+    labels = [d.label for d in problem.dims]
+    xy_cols = []
+    for comp in cfg.components:
+        xl, yl = f"{comp.name}.x", f"{comp.name}.y"
+        if xl in labels and yl in labels:
+            xy_cols.append((labels.index(xl), labels.index(yl)))
+    frames_on = bool(draw and xy_cols)
+    frames_dir = os.path.join(args.out, "iterations")
+    obs_xy = _extend_obs_positions(cfg, base_dir)
+    if frames_on:
+        os.makedirs(frames_dir, exist_ok=True)
+        from core.plot import plot_iteration
+        print(f"  drawing a DE-population frame every {interval} iters -> "
+              f"{os.path.join(args.out, 'iterations')}/", flush=True)
+    elif draw and not xy_cols:
+        print("  [note] Draw_Graph is on but no component has BOTH x and y as "
+              "{lo,hi} search dims, so there is nothing to scatter — no frames.",
+              flush=True)
+
+    def on_iter(it, pop, best, energies):
+        if it <= 2 or it % 5 == 0:
+            print(f"  iter {it:4d}   best_loss = {best:.4f}   "
+                  f"elapsed {time.time()-t0:.0f}s", flush=True)
+        if frames_on and it % interval == 0:
+            try:
+                comp_xy = [(pop[:, xi], pop[:, yi]) for xi, yi in xy_cols]
+                plot_iteration(
+                    comp_xy, energies, obs_xy, it,
+                    os.path.join(frames_dir, f"iteration_{it:04d}.png"),
+                    suptitle=f"DE population (extended source) — iteration {it}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"  [warn] frame {it} failed: {exc}", flush=True)
+
+    result = optimize(cfg, backend="cpu", base_dir=base_dir,
+                      on_iteration=on_iter, record_population=False)
+    comp = result.extend_components or []
+    _hr("DE result (extended source)")
+    print(f"  best weighted loss : {result.loss:.4f}   iterations: {result.de.nit}",
+          flush=True)
+    if comp:
+        print(f"  glafic c2calc total: {sum(comp):.4f}", flush=True)
+        print("  components: " + "  ".join(
+            f"{k}={v:.3g}" for k, v in zip(_EXT_LABELS, comp)), flush=True)
+    for k, v in result.fitted.items():
+        print(f"    {k:20s} = {float(v):.6g}", flush=True)
+
+    with open(os.path.join(args.out, "best_params.txt"), "w", encoding="utf-8") as fh:
+        fh.write(f"# GLADE extended-source DE result  loss={result.loss:.8f}\n")
+        if comp:
+            fh.write(f"# glafic c2calc total = {sum(comp):.8f}\n")
+            fh.write("# components: " + ", ".join(
+                f"{k}={v:.6g}" for k, v in zip(_EXT_LABELS, comp)) + "\n")
+        for k, v in result.fitted.items():
+            fh.write(f"{k} = {float(v):.10g}\n")
+
+    status_extra = {"loss": float(result.loss), "iterations": int(result.de.nit),
+                    "fitted": {k: float(v) for k, v in result.fitted.items()}}
+    if comp:
+        status_extra["c2calc_total"] = float(sum(comp))
+        status_extra["components"] = {k: float(v) for k, v in zip(_EXT_LABELS, comp)}
+    write_status(**status_extra)
+    return result
+
+
+def _extend_mcmc(args, cfg, base_dir, problem, best_x, write_status):
+    import numpy as np
+    from core.mcmc import MCMCConfig, plot_mcmc, run_mcmc
+    from core.optimize.extend import ExtendObjective, build_extend_spec
+    from core.optimize.loss import ExtendLossConfig
+    from core.optimize.runner import OptResult
+
+    _hr("MCMC (emcee · extended source · glafic c2calc)")
+    spec = build_extend_spec(cfg, base_dir=base_dir)
+    loss_cfg = ExtendLossConfig.from_cfg(cfg)
+    mcfg = MCMCConfig.from_cfg(cfg)
+    t0 = time.time()
+    seeded = best_x is not None
+    print(f"  walkers={max(mcfg.nwalkers, 2*problem.ndim+2)}  steps={mcfg.nsteps}  "
+          f"burnin={mcfg.burnin}  "
+          f"{'(seeded from DE best)' if seeded else '(uniform prior init)'}",
+          flush=True)
+    print("  note: each step evaluates glafic per walker — extended-source MCMC is "
+          "slow; use modest MCMC_NSTEPS.", flush=True)
+
+    def on_step(k, sampler):
+        acc = float(np.mean(sampler.acceptance_fraction))
+        print(f"  mcmc step {k:4d}/{mcfg.nsteps}   accept={acc:.3f}   "
+              f"elapsed {time.time()-t0:.0f}s", flush=True)
+
+    try:
+        res = run_mcmc(problem, None, loss_cfg, backend="cpu", best_x=best_x,
+                       mcmc_cfg=mcfg, on_step=on_step, extend_spec=spec)
+        print(f"\n  acceptance = {res.acceptance_fraction:.3f}   "
+              f"samples = {res.samples.shape[0]}   ({time.time()-t0:.0f}s)", flush=True)
+        if res.acceptance_fraction < 0.01:
+            print("  [warn] acceptance ~ 0: the chain barely moved — these are NOT "
+                  "a valid posterior. Use de+mcmc (seed from a DE best) and/or "
+                  "fewer steps + narrower {lo,hi} ranges.", flush=True)
+        print("  posterior (16/50/84 percentiles):", flush=True)
+        for name, s in res.summary.items():
+            extra = f"  (linear {s['p50_linear']:.3e})" if "p50_linear" in s else ""
+            print(f"    {name:20s} = {s['p50']:.5g}  "
+                  f"[{s['p16']:.5g}, {s['p84']:.5g}]{extra}", flush=True)
+
+        suptitle = ("MCMC posterior (seeded from DE)" if seeded
+                    else "MCMC posterior (MCMC-only)")
+        plots = plot_mcmc(res, args.out, suptitle=suptitle)
+        with open(os.path.join(args.out, "mcmc_summary.txt"), "w", encoding="utf-8") as fh:
+            fh.write(f"# GLADE extended-source MCMC  "
+                     f"acceptance={res.acceptance_fraction:.4f}\n")
+            for name, s in res.summary.items():
+                fh.write(f"{name} = {s['p50']:.10g}  "
+                         f"[{s['p16']:.10g}, {s['p84']:.10g}]\n")
+        _corner, _trace = plots.get("corner"), plots.get("trace")
+        write_status(mcmc={"acceptance": res.acceptance_fraction,
+                           "n_samples": int(res.samples.shape[0]),
+                           "corner": os.path.basename(_corner) if _corner else None,
+                           "trace": os.path.basename(_trace) if _trace else None,
+                           "summary": res.summary})
+
+        # MCMC-only: render the posterior-median model + verify it
+        if not seeded:
+            median = np.array([res.summary[d.label]["p50"] for d in problem.dims])
+            comp = ExtendObjective(problem, spec, loss_cfg).components_for(median)
+            result = OptResult(
+                x=median, loss=float(loss_cfg.combine(comp)) if comp else float("nan"),
+                fitted=problem.decode(median), scene=problem.make_scene(median),
+                problem=problem, de=None, backend="cpu", extend_spec=spec,
+                extend_components=comp, mode="extend")
+            _extend_figure_and_verify(args, cfg, result, write_status,
+                                      suptitle="GLADE extended-source MCMC median")
+    finally:
+        _cleanup_spec(spec)
 
 
 def _run_de(args, cfg, obs, problem, loss_cfg):
@@ -196,10 +470,11 @@ def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):
         fh.write(f"# GLADE MCMC  backend={args.backend}  acceptance={res.acceptance_fraction:.4f}\n")
         for name, s in res.summary.items():
             fh.write(f"{name} = {s['p50']:.10g}  [{s['p16']:.10g}, {s['p84']:.10g}]\n")
+    _c, _t = plots.get("corner"), plots.get("trace")
     write_status(mcmc={"acceptance": res.acceptance_fraction,
                        "n_samples": int(res.samples.shape[0]),
-                       "corner": os.path.basename(plots["corner"]),
-                       "trace": os.path.basename(plots["trace"]),
+                       "corner": os.path.basename(_c) if _c else None,
+                       "trace": os.path.basename(_t) if _t else None,
                        "summary": res.summary})
 
 

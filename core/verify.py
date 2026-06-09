@@ -167,6 +167,169 @@ def verify_with_glafic(scene: Scene, obs: ObsData, output_dir: str,
 
 
 # --------------------------------------------------------------------------- #
+# extended-source verification: independent glafic-binary c2calc + findimg
+# --------------------------------------------------------------------------- #
+
+def _read_point_file_images(path: str):
+    """Read observed image positions (x, y) from a glafic readobs_point file."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+    out = []
+    i = 0
+    while i < len(lines):
+        raw = lines[i].strip()
+        i += 1
+        if not raw or raw.startswith("#"):
+            continue
+        parts = raw.split()
+        try:
+            nimg = int(parts[1])
+        except (ValueError, IndexError):
+            continue
+        for _ in range(nimg):
+            if i >= len(lines):
+                break
+            row = lines[i].split()
+            i += 1
+            try:
+                out.append((float(row[0]), float(row[1])))
+            except (ValueError, IndexError):
+                pass
+    return out
+
+
+def _write_glafic_extend_input(scene: Scene, spec, path: str, prefix: str) -> None:
+    def pad7(params):
+        return ([float(v) for v in params] + [0.0] * _NPAR)[:_NPAR]
+
+    L = ["# GLADE extended-source verification input", "",
+         f"omega      {scene.omega}", f"lambda     {scene.lam}",
+         f"weos       {scene.weos}", f"hubble     {scene.hubble}",
+         f"prefix     {prefix}",
+         f"xmin       {scene.xmin}", f"ymin       {scene.ymin}",
+         f"xmax       {scene.xmax}", f"ymax       {scene.ymax}",
+         f"pix_ext    {scene.pix_ext}", f"pix_poi    {scene.pix_poi}",
+         f"maxlev     {scene.maxlev}"]
+    for k, v in spec.secondary.items():
+        L.append(f"{k:<10} {v}")
+    L.append("")
+    L.append(f"startup    {len(scene.components)} {len(scene.extends)} {spec.n_point}")
+    for comp in scene.components:
+        nums = " ".join(f"{v:.10e}" for v in [comp.z, *pad7(comp.params)])
+        L.append(f"lens     {comp.glafic_type} {nums}")
+    for comp in scene.extends:
+        nums = " ".join(f"{v:.10e}" for v in [comp.z, *pad7(comp.params)])
+        L.append(f"extend   {comp.glafic_type} {nums}")
+    for ps in spec.point_sources:
+        L.append(f"point    {ps.zs} {ps.init_x:.10e} {ps.init_y:.10e}")
+    L += ["end_startup", "", "start_setopt"]
+    for _ in scene.components:
+        L.append("0 0 0 0 0 0 0 0")        # lens params fixed (glade controls)
+    for _ in scene.extends:
+        L.append("0 0 0 0 0 0 0 0")        # extend params fixed (glade controls)
+    for ps in spec.point_sources:
+        L.append(f"0 {ps.free_x} {ps.free_y}")   # solve SN source position
+    L += ["end_setopt", "", "start_command"]
+    if spec.mask_file:
+        L.append(f"readobs_extend {spec.extended_file} {spec.mask_file}")
+    else:
+        L.append(f"readobs_extend {spec.extended_file}")
+    if spec.noise_file:
+        L.append(f"readnoise_extend {spec.noise_file}")
+    if spec.point_file and spec.n_point > 0:
+        L.append(f"readobs_point {spec.point_file}")
+    if spec.prior_file:
+        L.append(f"parprior {spec.prior_file}")
+    L.append("c2calc")
+    if spec.n_point > 0:
+        L.append("findimg")
+    L += ["quit", ""]
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(L))
+
+
+def verify_extend(opt_result, output_dir: str, prefix: str = "glafic_extverify",
+                  timeout: int = 300) -> dict:
+    """Independently verify an extended-source result with the glafic BINARY.
+
+    Writes the best-fit model (lens + extend + point + secondary + obs) to a
+    glafic input file, runs the standalone binary's ``c2calc`` (no optimize) and
+    ``findimg``, and compares glafic's total chi2 to glade's reported total. Also
+    runs the scipy deflection ground-truth check. Never raises.
+    """
+    report: dict = {"ok": False, "warnings": []}
+    scene = opt_result.scene
+    spec = getattr(opt_result, "extend_spec", None)
+    comps = getattr(opt_result, "extend_components", None)
+    if spec is None:
+        report["warning"] = "not an extended-source result; nothing to verify"
+        report["warnings"].append(report["warning"])
+        return report
+
+    glade_total = float(sum(comps)) if comps is not None else None
+    report["glade_total_chi2"] = glade_total
+
+    bin_path = find_glafic_bin()
+    if not bin_path:
+        report["warnings"].append("glafic binary not found; skipped binary verification")
+    else:
+        os.makedirs(output_dir, exist_ok=True)
+        input_path = os.path.join(output_dir, f"{prefix}.input")
+        _write_glafic_extend_input(scene, spec, input_path, prefix)
+        try:
+            proc = subprocess.run([bin_path, os.path.basename(input_path)],
+                                  cwd=output_dir, capture_output=True, text=True,
+                                  timeout=timeout)
+            blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
+            gchi2 = None
+            for line in blob.splitlines():
+                s = line.strip()
+                if s.startswith("chi^2"):
+                    try:
+                        gchi2 = float(s.split("=")[-1])
+                    except ValueError:
+                        pass
+            if gchi2 is not None:
+                report["ok"] = True
+                report["glafic_total_chi2"] = gchi2
+                if glade_total is not None:
+                    denom = max(abs(glade_total), 1.0)
+                    rel = abs(gchi2 - glade_total) / denom
+                    report["chi2_rel_diff"] = float(rel)
+                    if rel > 0.05:
+                        report["warnings"].append(
+                            f"glafic-binary chi2 {gchi2:.4g} differs from glade's "
+                            f"{glade_total:.4g} by {rel*100:.1f}% (expected ~0)")
+                imgs = _read_glafic_point(os.path.join(output_dir, f"{prefix}_point.dat"))
+                if imgs:
+                    report["glafic_n_images"] = len(imgs)
+            else:
+                report["warnings"].append(
+                    "could not parse chi^2 from glafic binary output")
+        except subprocess.TimeoutExpired:
+            report["warnings"].append(f"glafic binary verification timed out (>{timeout}s)")
+        except Exception as exc:  # noqa: BLE001
+            report["warnings"].append(f"glafic binary verification failed: {exc}")
+
+    # scipy deflection ground truth on the lens, evaluated at the obs image
+    # positions taken from the glafic constraint file (engine frame).
+    if spec.point_file:
+        positions = _read_point_file_images(spec.point_file)
+        if positions:
+            class _Obs:
+                def __init__(self, pos):
+                    self.positions = np.asarray(pos, dtype=float)
+                    self.center_offset = (0.0, 0.0)
+            ref = reference_check(scene, _Obs(positions))
+            report["scipy_reference"] = ref
+            report["warnings"].extend(ref.get("warnings", []))
+    return report
+
+
+# --------------------------------------------------------------------------- #
 # scipy reference: engine-independent ground truth for the Sersic deflection
 # --------------------------------------------------------------------------- #
 

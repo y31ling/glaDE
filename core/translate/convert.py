@@ -8,10 +8,13 @@ from typing import Optional
 from ..format import schema
 from ..format.config import GladeConfig
 from ..format.values import Bounds, Fixed, Unfilled
+import os
+
 from .glafic_io import (
     GlaficLens,
     GlaficModel,
     GlaficObs,
+    parse_glafic_any,
     parse_glafic_input,
     render_glafic_input,
     render_glafic_obs,
@@ -49,16 +52,132 @@ def _midpoint(pv, is_mass: bool) -> float:
 # --------------------------------------------------------------------------- #
 
 def glafic_to_glade(glafic_text: str) -> dict[str, str]:
-    """Translate a glafic input file into glade ``.dat`` text.
+    """Translate a glafic input file *or* python driver script into glade ``.dat``.
 
     Returns ``{"model": <text>, "obs": <text or "">}`` -- model and observation
-    data go into separate documents.
+    data go into separate documents. Extended-source scripts (set_extend /
+    readobs_extend) produce an extend-mode glade config.
     """
-    model = parse_glafic_input(glafic_text)
+    model = parse_glafic_any(glafic_text)
+    if model.extends or model.extended_file:
+        return _render_glade_extend(model)
     return {
         "model": _render_glade_model(model),
         "obs": _render_glade_obs(model.obs) if model.obs else "",
     }
+
+
+def _opt_param(val: float, opt_flag: bool) -> str:
+    """A locked value, or a degenerate ``{v, v}`` for an optimizable param.
+
+    Per the import convention, an optimizable glafic parameter becomes a
+    degenerate ``{v, v}`` bound the user widens into a real search range.
+    """
+    return ("{%s, %s}" % (_num(val), _num(val))) if opt_flag else _num(val)
+
+
+def _render_glade_extend(model: GlaficModel) -> dict[str, str]:
+    """Render an extended-source glafic model into glade model + obs documents."""
+    p = model.primary
+    sec = dict(model.secondary)
+    hvary = int(sec.pop("hvary", 0) or 0)          # -> optimizable hubble
+    # ran_seed/hvary aside, forward only the chi2/noise engine settings glade uses
+    forward = ("chi2_splane", "chi2_checknimg", "chi2_restart", "chi2_usemag",
+               "ran_seed", "obs_gain", "obs_ncomb", "obs_readnoise", "flag_extnorm")
+
+    src_z = model.source_z if model.source_z is not None else 1.0
+    lens_z_val = None
+    if model.lenses:
+        lens_z_val = Counter(round(ll.z, 9) for ll in model.lenses).most_common(1)[0][0]
+
+    # ---- model document -----------------------------------------------------
+    m: list[str] = [
+        "# Translated from a glafic extended-source script by GLADE.",
+        "# Optimizable parameters were written as degenerate {v, v}; WIDEN them",
+        "# into real search ranges before running a DE fit.", "",
+        "# --- constants ---",
+        f"omega = {p.get('omega', 0.3)}",
+        f"lambda_cosmo = {p.get('lambda', 0.7)}",
+        f"weos = {p.get('weos', -1.0)}",
+    ]
+    hub = float(p.get("hubble", 0.7))
+    m.append(f"hubble = {{{_num(hub)}, {_num(hub)}}}" if hvary else f"hubble = {_num(hub)}")
+    for k in ("xmin", "ymin", "xmax", "ymax", "pix_ext", "pix_poi", "maxlev"):
+        if k in p:
+            m.append(f"{k} = {p[k]}")
+    if lens_z_val is not None:
+        m.append(f"lens_z = {_num(lens_z_val)}")
+    m.append(f"source_z = {_num(src_z)}")
+
+    # source (point) position: free flags from setopt_point
+    px = model.source_x if model.source_x is not None else 0.0
+    py = model.source_y if model.source_y is not None else 0.0
+    po = model.point_opt or [0, 0, 0]
+    if model.source_x is not None:
+        m += ["", "# --- point source (SN); {v,v} = solved by glafic ---",
+              f"source_x = {_opt_param(px, len(po) > 1 and po[1] == 1)}",
+              f"source_y = {_opt_param(py, len(po) > 2 and po[2] == 1)}"]
+
+    m += ["", "# --- lens / sub-structure components ---"]
+    counts: Counter = Counter()
+    idx = 0
+    for lens in model.lenses:
+        idx += 1
+        counts[lens.type] += 1
+        spec = schema.model(lens.type)
+        z_tok = ("lens_z" if (lens_z_val is not None and round(lens.z, 9) == lens_z_val)
+                 else _num(lens.z))
+        parts = [str(idx), repr(lens.type), z_tok]
+        for j, val in enumerate(lens.params):
+            opt = bool(lens.opt and j + 1 < len(lens.opt) and lens.opt[j + 1] == 1)
+            parts.append(_opt_param(val, opt))
+        m.append(f"'{lens.type}{counts[lens.type]}': ({', '.join(parts)})")
+
+    m += ["", "# --- extended-source components (host galaxy) ---"]
+    ecounts: Counter = Counter()
+    for ext in model.extends:
+        idx += 1
+        key = f"ext{ext.type}"                      # e.g. 'extsersic'
+        if schema.model(key) is None:
+            key = ext.type                          # fall back to raw name
+        ecounts[key] += 1
+        parts = [str(idx), repr(key), "source_z"]
+        for j, val in enumerate(ext.params):
+            opt = bool(ext.opt and j + 1 < len(ext.opt) and ext.opt[j + 1] == 1)
+            parts.append(_opt_param(val, opt))
+        m.append(f"'{key}{ecounts[key]}': ({', '.join(parts)})")
+
+    m += ["", "# --- per-component loss weights (all 1.0 = exact glafic c2calc) ---",
+          "W_POS = 1.0", "W_FLUX = 1.0", "W_TD = 1.0", "W_EXT = 1.0", "W_PRIOR = 1.0",
+          "# per-missing-image penalty (0 = glafic's flat wrong-count reject)",
+          "missing_img_penalty = 0.0", ""]
+
+    # ---- obs document -------------------------------------------------------
+    o: list[str] = ["# Extended-source observation data translated by GLADE.",
+                    "# File paths are basenames; place the files next to this .dat.", ""]
+    if model.extended_file:
+        o.append(f"extended_file = {_path(model.extended_file)}")
+    if model.mask_file:
+        o.append(f"extend_mask_file = {_path(model.mask_file)}")
+    if model.noise_file:
+        o.append(f"noise_file = {_path(model.noise_file)}")
+    if model.constraint_file:
+        o.append(f"constraint_file = {_path(model.constraint_file)}")
+    if model.prior_file:
+        o.append(f"prior_file = {_path(model.prior_file)}")
+    o.append("")
+    o.append("# --- glafic chi2 / noise engine settings ---")
+    for k in forward:
+        if k in sec:
+            v = sec[k]
+            o.append(f"{k} = {int(v) if float(v).is_integer() else v}")
+    o.append("")
+    return {"model": "\n".join(m), "obs": "\n".join(o)}
+
+
+def _path(p: str) -> str:
+    """Render a file path as a quoted basename (place files next to the .dat)."""
+    return repr(os.path.basename(str(p)))
 
 
 def _render_glade_model(model: GlaficModel) -> str:
