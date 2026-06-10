@@ -10,10 +10,22 @@ substructure searches, Differential Evolution, and MCMC. It wraps a modified
 and the experimental `Rhongomyniad/` GPU lens calculator behind a browser UI and
 command-line tools.
 
-> **V0.4.4 current release**: GLADE now fits extended sources (FITS images). A
-> `.dat` can reference an observed FITS image plus external file addresses
-> (`extended_file`, `constraint_file`, `prior_file`, …) and is optimized on the
-> CPU via glafic's new per-component `c2calc`, with weightable chi2 terms
+> **V0.4.5 current release**: GLADE adds **macOS deployment support** (Apple
+> Silicon and Intel) via a new `bootstrap_macos.sh` one-click installer and a
+> platform-aware multiprocessing layer (`core/parallel.py`) that keeps Linux on
+> `fork` while macOS uses `spawn`, so multi-process DE/MCMC runs safely on a Mac
+> with results identical to Linux. GPU stays optional (CPU fallback on Macs).
+>
+> ⚠️ **The macOS support is UNTESTED**: it has not yet been compiled or run on a
+> real Mac — it was only verified on Linux to not regress existing behavior
+> (core tests 81/81, Linux multiprocessing still `fork`). On a Mac, trust the
+> `import glafic` self-check at the end of `bootstrap_macos.sh`, and please
+> report any build/link issues. See [Update.txt](Update.txt) for details.
+>
+> **V0.4.4**: GLADE fits extended sources (FITS images). A `.dat` can reference
+> an observed FITS image plus external file addresses (`extended_file`,
+> `constraint_file`, `prior_file`, …) and is optimized on the CPU via glafic's
+> per-component `c2calc`, with weightable chi2 terms
 > (`W_POS`/`W_FLUX`/`W_TD`/`W_EXT`/`W_PRIOR`), an optionally optimizable Hubble
 > constant, MCMC support, and a graded `missing_img_penalty` for under-imaged
 > candidates.
@@ -52,10 +64,12 @@ Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
 
 ### System Requirements
 
-- Linux environment with GCC and standard build tools
+- Linux (GCC + standard build tools), or macOS (Xcode Command Line Tools +
+  Homebrew) — see the macOS note below; macOS support is **untested** in v0.4.5
 - Python 3.8 or higher
-- CFITSIO, FFTW3, and GSL for building glafic2
-- Optional CUDA-capable PyTorch environment for GPU runs
+- CFITSIO, FFTW3, and GSL for building glafic2 (apt on Linux, Homebrew on macOS)
+- Optional CUDA-capable PyTorch environment for GPU runs (NVIDIA only; Macs run
+  the optimizer on CPU)
 
 ### Installation
 
@@ -64,11 +78,17 @@ git clone https://github.com/y31ling/glaDE.git
 cd glaDE
 
 # First-time setup: build dependencies, glafic2, Python bindings, and launchers.
-bash bootstrap_linux.sh
+bash bootstrap_linux.sh      # Linux
+
+# macOS (Apple Silicon or Intel) — requires Homebrew + Xcode Command Line Tools.
+# NOTE: untested on a real Mac in v0.4.5; the script self-checks `import glafic`.
+bash bootstrap_macos.sh      # macOS
 ```
 
 The bootstrap script creates `env.sh`, `run_glade.sh`, and `run_webui.sh`, and
-installs the Python dependencies listed in `requirements.txt`.
+installs the Python dependencies listed in `requirements.txt`. The macOS
+installer uses Homebrew for CFITSIO/FFTW/GSL (no source build) and selects the
+`spawn` multiprocessing start method (Linux keeps `fork`).
 
 ### Launch the WebUI
 
@@ -231,6 +251,7 @@ also require built glafic bindings and, for GPU, a working PyTorch/CUDA setup.
 
 | version | comments |
 |:---|:---|
+| 0.4.5 | macOS deployment support was added: a `bootstrap_macos.sh` one-click installer (Homebrew deps, macOS glafic build) and a platform-aware multiprocessing layer (`core/parallel.py`) that keeps Linux on `fork` and uses `spawn` on macOS so multi-process DE/MCMC is safe and result-identical. **Untested on a real Mac**; Linux behavior is unchanged (core tests 81/81). |
 | 0.4.4 | Extended-source (FITS) CPU fitting was added: a `.dat` can reference a FITS image and external file addresses and is optimized via glafic's new per-component `c2calc` with weightable terms, an optimizable Hubble constant, MCMC support, and a graded missing-image penalty. |
 | 0.4.3 | The bundled glafic was synced to upstream v2.1.14, preserving GLADE's King model (renumbered to #27 to avoid the new `acnfw`), the tolerance override, and the vendored build. |
 | 0.4.2 | GPU result plots now reuse the optimizer's batched solver images and add informational glafic plus scipy-exact verification. |

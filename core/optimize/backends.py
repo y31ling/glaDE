@@ -55,11 +55,19 @@ class EngineBackend:
 
 def _import_glafic():
     import multiprocessing
-    if multiprocessing.get_start_method(allow_none=True) != "fork":
-        try:
-            multiprocessing.set_start_method("fork", force=True)
-        except RuntimeError:
-            pass
+
+    from ..parallel import preferred_start_method
+    # On Linux force a fork pool (the historical default, unchanged) so scipy's
+    # DE worker pool inherits the process cheaply. On macOS the preferred method
+    # is "spawn" -- forking after the native glafic/BLAS libs are loaded triggers
+    # the CoreFoundation fork-safety abort -- so we leave the platform default in
+    # place; the engine is rebuilt lazily per worker either way (see core.parallel).
+    if preferred_start_method() == "fork":
+        if multiprocessing.get_start_method(allow_none=True) != "fork":
+            try:
+                multiprocessing.set_start_method("fork", force=True)
+            except RuntimeError:
+                pass
     import glafic  # noqa: PLC0415
     return glafic
 

@@ -69,8 +69,10 @@ def run_mcmc(problem: OptProblem, obs: ObsData, loss_cfg,
         log_prob = ExtendLogProbability(problem, extend_spec, loss_cfg)
         if cfg.workers != 1:
             import multiprocessing as mp
+
+            from ..parallel import get_pool_context
             n = mp.cpu_count() if cfg.workers in (-1, 0) else cfg.workers
-            pool = mp.get_context("fork").Pool(n)
+            pool = get_pool_context().Pool(n)
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, pool=pool)
     elif use_batched:
         log_prob = BatchedGPULogProbability(problem, obs, loss_cfg)
@@ -80,8 +82,10 @@ def run_mcmc(problem: OptProblem, obs: ObsData, loss_cfg,
         log_prob = LogProbability(problem, obs, loss_cfg, eng)
         if eng != "gpu" and cfg.workers != 1:
             import multiprocessing as mp
+
+            from ..parallel import get_pool_context
             n = mp.cpu_count() if cfg.workers in (-1, 0) else cfg.workers
-            pool = mp.get_context("fork").Pool(n)
+            pool = get_pool_context().Pool(n)
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, pool=pool)
 
     # --- initial-walker feasibility ---------------------------------------

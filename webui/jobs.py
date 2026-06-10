@@ -13,6 +13,8 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -73,6 +75,20 @@ class JobManager:
 
     # -- terminal spawning ---------------------------------------------------
     def _spawn_terminal(self, bash_cmd: str, title: str):
+        # macOS: there is no gnome-terminal/x-terminal-emulator. Open Terminal.app
+        # on a throwaway .command script (avoids AppleScript quoting issues) so a
+        # real window pops up just like the Linux path; the job still tees to
+        # job.log, which the WebUI streams over SSE. This branch only runs on
+        # macOS, so the Linux behaviour below is untouched.
+        if sys.platform == "darwin":
+            fd, script_path = tempfile.mkstemp(prefix="glade_", suffix=".command")
+            with os.fdopen(fd, "w") as fh:
+                fh.write("#!/bin/bash\n")
+                fh.write(f"# {title}\n")
+                fh.write(bash_cmd + "\n")
+            os.chmod(script_path, 0o755)
+            p = subprocess.Popen(["open", "-a", "Terminal", script_path])
+            return "Terminal.app", p.pid
         if shutil.which("gnome-terminal"):
             p = subprocess.Popen(
                 ["gnome-terminal", "--title", title, "--", "bash", "-lc", bash_cmd])

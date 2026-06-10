@@ -1,3 +1,14 @@
+V0.4.5
+
+- 新增 macOS 部署支持（Apple Silicon 与 Intel）。
+  ⚠️ 重要声明：本版本的 macOS 支持【尚未在真实 Mac 上编译与运行测试】，目前仅在 Linux 上验证了"不破坏既有逻辑"。首次在 Mac 上使用请以 bootstrap_macos.sh 末尾的 import glafic 自检结果为准；若遇到编译/链接问题，请反馈以便微调 Makefile。
+  - 新增一键部署脚本 bootstrap_macos.sh：通过 Homebrew 安装 cfitsio / fftw / gsl（不再从源码编译），用 brew --prefix 自动适配 Apple Silicon(/opt/homebrew) 与 Intel(/usr/local)，生成 macOS 版 glafic Makefile（cc + -bundle -undefined dynamic_lookup，不链接 libpython、无 OpenMP），编译 glafic 二进制与 Python 扩展，建立 venv / 安装依赖、注册 .pth，并生成 env.sh / run_glade.sh / run_webui.sh。
+  - DE 与 MCMC 的多进程改为平台感知（新增 core/parallel.py）：Linux 继续使用 fork（行为逐字不变），macOS 改用 spawn——在已加载 Accelerate BLAS 与 glafic 扩展之后再 fork 会触发 macOS 的 fork-safety 崩溃。由于优化目标 / 似然对象本就可 pickle、且每个 worker 惰性重建 glafic 引擎，spawn 与 fork 结果一致；DE 固定随机种子且 updating=deferred、MCMC 的 RNG 在主进程，故并行结果不变。仍沿用 DE_WORKERS / MCMC_WORKERS（-1 = 全核）。
+  - WebUI 作业执行新增 macOS 分支：在 macOS 上通过 Terminal.app 弹出真实终端窗口运行作业（与 Linux 的 gnome-terminal 体验一致），Linux 路径完全不变。
+- 对 Linux 无任何影响：core 测试 81/81 全部通过，Linux 多进程仍为 fork；所有 macOS 相关分支均以平台判断隔离。
+- GPU 在 macOS 上为可选项：无 CUDA 时自动回退 CPU（不崩溃），暂未接入 Apple Metal / MPS。
+
+
 V0.4.4
 
 - 新增扩展源（FITS 图像）拟合：.dat 现在可引用一张观测 FITS 图与若干外部文件地址（extended_file / extend_mask_file / noise_file / constraint_file / prior_file），由 glafic 在 CPU 上对 Sersic 等扩展源做逐像素拟合，运行时自动识别并切换到扩展源优化路径。

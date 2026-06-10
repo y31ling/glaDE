@@ -1,3 +1,14 @@
+V0.4.5
+
+- Added macOS deployment support (Apple Silicon and Intel).
+  ⚠️ IMPORTANT: the macOS support in this release has NOT yet been compiled or run on a real Mac; it was only verified on Linux to not break existing behavior. On first use on a Mac, rely on the `import glafic` self-check at the end of bootstrap_macos.sh, and please report any build/link issues so the Makefile can be tuned.
+  - New one-click installer bootstrap_macos.sh: installs cfitsio / fftw / gsl via Homebrew (no source build), auto-adapts to Apple Silicon (/opt/homebrew) and Intel (/usr/local) via brew --prefix, writes a macOS glafic Makefile (cc + -bundle -undefined dynamic_lookup, no libpython link, no OpenMP), builds the glafic binary and Python extension, sets up the venv / installs deps, registers the .pth, and generates env.sh / run_glade.sh / run_webui.sh.
+  - DE and MCMC multiprocessing is now platform-aware (new core/parallel.py): Linux stays on fork (byte-identical behavior) and macOS switches to spawn -- forking after the Accelerate BLAS and glafic extension are loaded triggers macOS's fork-safety abort. Because the optimization objective / likelihood objects are already picklable and rebuild the glafic engine lazily per worker, spawn is result-identical to fork; DE uses a fixed seed with updating=deferred and emcee's RNG lives in the parent, so parallel results are unchanged. DE_WORKERS / MCMC_WORKERS (-1 = all cores) are honored as before.
+  - WebUI job execution gained a macOS branch: on macOS it opens a real Terminal.app window to run the job (matching the Linux gnome-terminal experience); the Linux path is untouched.
+- No impact on Linux: the core test suite passes 81/81 and Linux multiprocessing remains fork; all macOS-specific branches are isolated behind a platform check.
+- GPU is optional on macOS: with no CUDA it falls back to CPU (no crash); Apple Metal / MPS is not yet wired up.
+
+
 V0.4.4
 
 - Added extended-source (FITS image) fitting: a .dat can now reference an observed FITS image and several external file addresses (extended_file / extend_mask_file / noise_file / constraint_file / prior_file), letting glafic fit extended sources (Sersic etc.) pixel-by-pixel on the CPU; the extended-source optimization path is auto-detected and switched to at run time.
