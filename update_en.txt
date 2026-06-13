@@ -1,3 +1,17 @@
+V0.5.1
+
+- Repository cleanup: internal development files were removed from version control (git rm --cached + .gitignore; local files untouched): 4 glafic upstream-issue drafts/debug notes, the GPU-MCMC exploration report (its findings live in the V0.5.0 changelog), the exploration-phase dev scripts tools/MCMC_GPU.py / tools/mcmc_gpu_v_2.py, a stray "glafic_optimize copy.py", and the deprecated pre-V0.4 web/ UI (superseded by webui/). Kept: the source/ image/animation assets (material for the future WebUI), the legacy CLI entry points referenced by the bootstrap scripts, the documented tools, and the frozen legacy/ archive.
+
+V0.5.0 - Rhongomyniad major update (consolidates the unreleased V0.4.6 / V0.4.7 / V0.4.8)
+
+The Rhongomyniad PyTorch/CUDA GPU engine takes its first real version name since the V0.3.0 beta. Highlights (see Update.txt for the full per-stage details):
+- Full GPU/CPU behaviour parity: the extended-source (FITS) pipeline runs on the GPU; 15 new GPU lens models (every deflector except the file-based 'gals', plus all 5 extended-source profiles); all 24 kernels accept per-candidate tensor parameters; cross-verified against scipy-exact references and a glafic TOL_ROMBERG_JHK=1e-8 rebuild (the GPU quadrature is more accurate than glafic's Romberg Sersic).
+- Generalized batched GPU: ANY optimizable lens model is now evaluated whole-DE-population batched (a free 20-dim main-lens fit drops from ~21 s to ~0.86 s per generation, ~27x); optimizable source positions supported; pure point-mass configs keep bit-identical same-seed DE trajectories on the legacy pipeline.
+- gpu_precision = 64 / 48 / 32: mixed-precision mode 48 (fp32 deflection fields + fp64 Newton refine) delivers fp32 speed at fp64 accuracy (loss parity 3e-15) and is the recommended setting for Schramm-heavy models; precision-aware chunk defaults; verified via scipy back-projection and glafic calcimage lens-equation residuals (tools/verify_gpu_precision.py).
+- MCMC-GPU rail: batched CUDA likelihood (emcee vectorize=True) with tiered auto-walker tuning and prior-box-first evaluation.
+- .dat format: user-defined shared variables ({lo,hi} variable = ONE shared search dimension across components), the parity-insensitive abs_mag magnification convention (default True; |mu| chi2 and |mu| triptych panel), Nl/Ns component classification suffixes, and the gpu_precision/abs_mag keys.
+- Hardening from multi-agent adversarial reviews (4 major findings fixed) and a test suite grown to 134 tests.
+
 V0.4.5
 
 - Added macOS deployment support (Apple Silicon and Intel).

@@ -164,3 +164,18 @@ memory.md
 Rhongomyniad/rhongomyniad/_tab_cache/
 # one-off tensorization verification artifact (not referenced by any test)
 Rhongomyniad/tests/_tensorize_ref.npz
+
+# ==================== V0.5.1 cleanup ====================
+# internal dev notes / upstream glafic issue drafts (kept local only)
+glafic_issue*.md
+glafic_*_bug_report.md
+glafic_upstream_issue_draft.md
+GPU_MCMC_exploration.md
+# deprecated pre-V0.4 web UI (superseded by webui/; the source/ assets are
+# kept — they are material for the future webui)
+web/
+# GPU-MCMC exploration dev scripts (findings preserved in the V0.5.0 changelog)
+tools/MCMC_GPU.py
+tools/mcmc_gpu_v_2.py
+# stray editor duplicates
+* copy.py

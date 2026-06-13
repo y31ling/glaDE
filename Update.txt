@@ -1,3 +1,12 @@
+V0.5.1
+
+- 仓库清理：把开发期内部文件移出版本控制（git rm --cached + .gitignore，本地文件保留不动）：
+  - glafic 上游 issue 草稿/调试笔记 4 件（glafic_issue1_segfault.md、glafic_issue2_relrange_psf.md、glafic_relrange_psf_bug_report.md、glafic_upstream_issue_draft.md）与 GPU-MCMC 探索报告 GPU_MCMC_exploration.md（结论已沉淀进 V0.5.0 变更日志）；
+  - 探索期开发脚本 tools/MCMC_GPU.py、tools/mcmc_gpu_v_2.py 与杂散副本 "tools/glafic_optimize copy.py"（新增 "* copy.py" 忽略规则防再犯）；
+  - 废弃的 V0.4 之前旧 WebUI（web/，已被 webui/ 取代）。
+  - 保留：source/ 下的图像/动画素材（为未来 WebUI 准备）、main.py/runner.py/injector.py/runtime_env.py（bootstrap 与 README 引用的 legacy CLI 入口）、tools 下有文档的工具（TOOLS_OVERVIEW.md 所列）、legacy/ 冻结档案。
+  - 另：Rhongomyniad/_tab_cache/（自动构建的查表缓存）与一次性测试产物已在 V0.5.0 入 ignore。
+
 V0.5.0 - Rhongomyniad 正式版大更新（整合未发布的 V0.4.6 / V0.4.7 / V0.4.8）
 
 Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据正式版本名。
