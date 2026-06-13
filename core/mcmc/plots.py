@@ -10,10 +10,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 
-# Cap the number of points/steps actually drawn so a huge run (many walkers ×
-# steps) does not make plotting OOM/hang. Down-sampling is cosmetic only.
+# Cap the number of points/steps/walkers actually drawn so a huge run (many
+# walkers × steps, e.g. the 1024-walker GPU-batched MCMC) does not make
+# plotting OOM/hang. Down-sampling is cosmetic only.
 _MAX_CORNER_POINTS = 40000
 _MAX_TRACE_STEPS = 2000
+_MAX_TRACE_WALKERS = 256
 
 
 def _disp_labels(labels, is_log):
@@ -55,6 +57,10 @@ def plot_trace(chain, labels, is_log, burnin, output_file):
         step = int(np.ceil(nsteps / _MAX_TRACE_STEPS))
         chain = chain[::step]
         burnin = max(0, burnin // step)
+    if nwalkers > _MAX_TRACE_WALKERS:           # draw a walker subset for speed
+        idx = np.random.default_rng(0).choice(nwalkers, _MAX_TRACE_WALKERS,
+                                              replace=False)
+        chain = chain[:, idx, :]
     disp = _disp_labels(labels, is_log)
     fig, axes = plt.subplots(ndim, 1, figsize=(9, 1.7 * ndim + 1), sharex=True,
                              squeeze=False)

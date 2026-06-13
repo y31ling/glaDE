@@ -91,7 +91,7 @@ _reg(ModelSpec(
 ))
 _reg(ModelSpec(
     "serspot", "serspot",
-    MODELS["sers"].params, category="lens", gpu=False, required_min=3,
+    MODELS["sers"].params, category="lens", gpu=True, required_min=3,
     desc="Sersic (potential form).",
 ))
 
@@ -113,12 +113,12 @@ _reg(ModelSpec(
     (_P("mass", is_mass=True, desc="virial mass [Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("alpha", desc="inner slope (NFW=1)")),
-    category="substructure", gpu=False, required_min=3,
+    category="substructure", gpu=True, required_min=3,
     desc="Generalized NFW. Used with alpha=1 as the legacy 'nfw' sub-structure.",
 ))
 _reg(ModelSpec(
     "gnfwpot", "gnfwpot", MODELS["gnfw"].params,
-    category="substructure", gpu=False, required_min=3,
+    category="substructure", gpu=True, required_min=3,
     desc="Generalized NFW (potential form).",
 ))
 _reg(ModelSpec(
@@ -126,19 +126,19 @@ _reg(ModelSpec(
     (_P("mass", is_mass=True, desc="halo mass [Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("t", desc="truncation parameter")),
-    category="substructure", gpu=False, required_min=3,
+    category="substructure", gpu=True, required_min=3,
     desc="Truncated NFW.",
 ))
 _reg(ModelSpec(
     "tnfwpot", "tnfwpot", MODELS["tnfw"].params,
-    category="substructure", gpu=False, required_min=3,
+    category="substructure", gpu=True, required_min=3,
     desc="Truncated NFW (potential form).",
 ))
 _reg(ModelSpec(
     "anfw", "anfw",
     (_P("mass", is_mass=True, desc="mass [Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration")),
-    category="substructure", gpu=False, required_min=3,
+    category="substructure", gpu=True, required_min=3,
     desc="Analytic (CSE-approximated) NFW.",
 ))
 
@@ -157,16 +157,16 @@ _reg(ModelSpec(
     "hern", "hern",
     (_P("mass", is_mass=True, desc="total mass [Msun]"), *_XY, *_E_PA,
      _P("rb", desc="scale radius [arcsec]")),
-    category="lens", gpu=False, required_min=3,
+    category="lens", gpu=True, required_min=3,
     desc="Hernquist (density form).",
 ))
 _reg(ModelSpec(
     "hernpot", "hernpot", MODELS["hern"].params,
-    category="lens", gpu=False, required_min=3, desc="Hernquist (potential form).",
+    category="lens", gpu=True, required_min=3, desc="Hernquist (potential form).",
 ))
 _reg(ModelSpec(
     "ahern", "ahern", MODELS["hern"].params,
-    category="lens", gpu=False, required_min=3, desc="Analytic Hernquist.",
+    category="lens", gpu=True, required_min=3, desc="Analytic Hernquist.",
 ))
 
 # ---- Einasto ----------------------------------------------------------------
@@ -175,11 +175,11 @@ _reg(ModelSpec(
     (_P("mass", is_mass=True, desc="mass [Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("alpha", desc="Einasto index")),
-    category="lens", gpu=False, required_min=3, desc="Einasto (density form).",
+    category="lens", gpu=True, required_min=3, desc="Einasto (density form).",
 ))
 _reg(ModelSpec(
     "einpot", "einpot", MODELS["ein"].params,
-    category="lens", gpu=False, required_min=3, desc="Einasto (potential form).",
+    category="lens", gpu=True, required_min=3, desc="Einasto (potential form).",
 ))
 
 # ---- power law --------------------------------------------------------------
@@ -191,12 +191,12 @@ _reg(ModelSpec(
     (_P("zs_fid", desc="fiducial source redshift"), *_XY, *_E_PA,
      _P("re", is_mass=True, desc="Einstein radius [arcsec]"),
      _P("gamma", desc="3D density slope in [1,3]")),
-    category="lens", gpu=False, required_min=3, uncertain=True,
+    category="lens", gpu=True, required_min=3, uncertain=True,
     desc="Power-law (density form).",
 ))
 _reg(ModelSpec(
     "powpot", "powpot", MODELS["pow"].params,
-    category="lens", gpu=False, required_min=3, desc="Power-law (potential form).",
+    category="lens", gpu=True, required_min=3, desc="Power-law (potential form).",
 ))
 
 # ---- perturbations / external (irregular layout: best-effort labels) -------
@@ -223,7 +223,7 @@ _reg(ModelSpec(
     (_P("zs_fid", desc="fiducial source redshift"), *_XY,
      _P("gamma", is_mass=True, desc="quadrupole strength"),
      _P("theta_gamma", desc="quadrupole position angle [deg]")),
-    category="lens", gpu=False, required_min=3, uncertain=True,
+    category="lens", gpu=True, required_min=3, uncertain=True,
     desc="Cluster quadrupole.",
 ))
 _reg(ModelSpec(
@@ -233,7 +233,7 @@ _reg(ModelSpec(
      _P("theta_gamma", desc="multipole position angle [deg]"),
      _P("m", desc="multipole order"),
      _P("n", desc="power-law exponent")),
-    category="lens", gpu=False, required_min=3, uncertain=True,
+    category="lens", gpu=True, required_min=3, uncertain=True,
     desc="m-th order multipole.",
 ))
 
@@ -252,7 +252,7 @@ _reg(ModelSpec(
 # params are para_ext[i][1..7] = (norm, x, y, e, pa, r0, n) where source_all()
 # interprets r0 as the size (effective radius / sigma / radius) and n as the
 # Sersic/Moffat index (unused for gauss/tophat). 'norm' is the peak brightness
-# (flag_extnorm=0) or total flux (flag_extnorm=1). Extended sources are CPU-only.
+# (flag_extnorm=0) or total flux (flag_extnorm=1).
 _EXT_NORM = _P("norm", desc="amplitude: peak brightness (flag_extnorm=0) or total flux (=1)")
 _EXT_E_PA = (_P("e", desc="ellipticity in [0,1)"), _P("pa", desc="position angle [deg]"))
 
@@ -261,7 +261,7 @@ _reg(ModelSpec(
     (_EXT_NORM, *_XY, *_EXT_E_PA,
      _P("re", desc="effective radius [arcsec]"),
      _P("n", desc="Sersic index (e.g. 4=bulge, 1=disk)")),
-    category="extend", gpu=False, required_min=7,
+    category="extend", gpu=True, required_min=7,
     desc="Extended source: Sersic surface-brightness profile.",
 ))
 _reg(ModelSpec(
@@ -269,7 +269,7 @@ _reg(ModelSpec(
     (_EXT_NORM, *_XY, *_EXT_E_PA,
      _P("sigma", desc="Gaussian width [arcsec]"),
      _P("_unused", desc="(unused for gauss)")),
-    category="extend", gpu=False, required_min=6,
+    category="extend", gpu=True, required_min=6,
     desc="Extended source: 2D Gaussian profile.",
 ))
 _reg(ModelSpec(
@@ -277,7 +277,7 @@ _reg(ModelSpec(
     (_EXT_NORM, *_XY, *_EXT_E_PA,
      _P("radius", desc="top-hat radius [arcsec]"),
      _P("_unused", desc="(unused for tophat)")),
-    category="extend", gpu=False, required_min=6,
+    category="extend", gpu=True, required_min=6,
     desc="Extended source: uniform elliptical top-hat.",
 ))
 _reg(ModelSpec(
@@ -285,7 +285,7 @@ _reg(ModelSpec(
     (_EXT_NORM, *_XY, *_EXT_E_PA,
      _P("rd", desc="Moffat scale radius [arcsec]"),
      _P("beta", desc="Moffat beta index")),
-    category="extend", gpu=False, required_min=7,
+    category="extend", gpu=True, required_min=7,
     desc="Extended source: Moffat profile.",
 ))
 _reg(ModelSpec(
@@ -293,7 +293,7 @@ _reg(ModelSpec(
     (_EXT_NORM, *_XY, *_EXT_E_PA,
      _P("a", desc="Jaffe scale radius [arcsec]"),
      _P("rco", desc="inner core radius [arcsec]")),
-    category="extend", gpu=False, required_min=6,
+    category="extend", gpu=True, required_min=6,
     desc="Extended source: (pseudo-)Jaffe profile.",
 ))
 
@@ -306,7 +306,7 @@ GPU_MODELS = frozenset(k for k, m in MODELS.items() if m.gpu)
 ALL_MODELS = frozenset(MODELS)
 
 # Extended-source models (glafic set_extend). They form a separate engine stack
-# and are only runnable on the CPU/glafic backend.
+# (runnable on the CPU/glafic backends and, since V0.50, on the GPU backend).
 EXTEND_CATEGORY = "extend"
 EXTEND_MODELS = frozenset(k for k, m in MODELS.items() if m.category == EXTEND_CATEGORY)
 # Deflector models (set_lens) = everything that is not an extended source.
@@ -377,7 +377,13 @@ WEIGHT_KEYS = ("W_POS", "W_FLUX", "W_TD", "W_EXT", "W_PRIOR")
 ALGORITHM_KEYS = (
     "DE_MAXITER", "DE_POPSIZE", "DE_ATOL", "DE_TOL", "DE_SEED", "DE_POLISH",
     "DE_WORKERS", "EARLY_STOPPING", "EARLY_STOP_PATIENCE",
+    # GPU compute precision for the batched GPU paths: 64 = fp64, 48 = mixed
+    # (fp32 fields/triangle test + fp64 Newton refine), 32 = fp32.
+    "gpu_precision",
     "LOSS_COEF_A", "LOSS_COEF_B", "LOSS_PENALTY_PL", "missing_img_penalty",
+    # abs_mag: compare (and plot) magnifications by absolute value
+    # (parity-insensitive); False = signed comparison.
+    "abs_mag",
     "CONSTRAINT_SIGMA",
     "PENALTY_COEFFICIENT", "Draw_Graph", "draw_interval", "PRINT_INTERVAL",
     "COMPARE_GRAPH", "SHOW_2SIGMA", "OUTPUT_PREFIX", "glafic_verified",
@@ -396,7 +402,8 @@ DEPRECATED_KEYS = frozenset({
 # spelling of the missing-image penalty is accepted for consistency with the
 # other algorithm knobs).
 SCALAR_ALIASES = {"lambda": "lambda_cosmo",
-                  "MISSING_IMG_PENALTY": "missing_img_penalty"}
+                  "MISSING_IMG_PENALTY": "missing_img_penalty",
+                  "GPU_PRECISION": "gpu_precision"}
 
 # Hard-required for a runnable config (no defaults).
 REQUIRED_OBS_KEYS = OBS_ARRAY_KEYS

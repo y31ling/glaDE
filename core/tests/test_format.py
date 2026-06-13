@@ -118,6 +118,53 @@ def test_component_multiline_with_bounds():
     assert c.is_optimizable()
 
 
+def test_component_index_suffix_overrides_category():
+    text = (
+        "lens_z = 0.216\n"
+        "'anfw1': (3l, 'anfw', lens_z, 3.6e11, -2.9e-3, 2.7e-2, 0.46, 26.6, 29.4)\n"
+        "'sers1': (4s, 'sers', lens_z, 2.1e10, 0.0, 0.0)\n"
+        "'point1': (5, 'point', lens_z, 1e6, -0.18, -0.33)\n"
+    )
+    pf = parse_text(text)
+    anfw, sers, point = pf.components
+    assert anfw.raw_index == 3 and anfw.category_override == "lens"
+    assert sers.raw_index == 4 and sers.category_override == "substructure"
+    assert point.raw_index == 5 and point.category_override is None
+    # the suffix is classification-only: params parse exactly as before
+    assert all(isinstance(p, Fixed) for p in anfw.params)
+    assert len(anfw.params) == 6
+
+
+def test_component_index_suffix_spacing_case_multiline():
+    pf = parse_text("'a1': ( 3L ,\n  'anfw', 0.216, 1e11, 0.0, 0.0)")
+    c = pf.components[0]
+    assert c.raw_index == 3 and c.category_override == "lens"
+    pf = parse_text("'b1': (7S, 'point', 0.216, 1e6, 0.0, 0.0)")
+    assert pf.components[0].category_override == "substructure"
+
+
+def test_component_index_unknown_suffix_rejected():
+    assert _expect_syntax_error("'a1': (3x, 'point', 0.216, 1e6, 0.0, 0.0)")
+
+
+def test_component_index_suffix_survives_merge_reindex():
+    f1 = parse_text("'anfw1': (3l, 'anfw', 0.2, 1e11, 0.0, 0.0, 0.4, 20.0, 29.0)\n"
+                    "'point1': (4, 'point', 0.2, 1e6, 0.1, 0.1)", path="f1.dat")
+    cfg, issues = merge([f1])
+    assert not has_errors(issues)
+    assert [c.index for c in cfg.components] == [1, 2]
+    assert cfg.components[0].category_override == "lens"
+    assert cfg.components[1].category_override is None
+
+
+def test_category_suffix_on_extend_model_warns():
+    pf = parse_text(
+        "'ext1': (1s, 'extsersic', 1.0, 1.0, 0.0, 0.0, 0.2, 10.0, 0.3, 1.0)")
+    cfg, _ = merge([pf])
+    issues = validate(cfg)
+    assert any(i.code == "category_suffix_ignored" for i in issues)
+
+
 def test_forward_or_cross_file_ref_is_deferred():
     # lens_z defined AFTER the tuple -> stays a Ref until merge
     text = (
@@ -298,7 +345,9 @@ def test_unknown_model_blocks():
 
 
 def test_gpu_unsupported_model_blocks_only_on_gpu():
-    text = _GOOD + "'g1': (3, 'gnfw', lens_z, 1e9, 0.1, 0.1, 0, 0, 5.0, 1.0)\n"
+    # V0.50: nearly every model runs on the GPU now; 'gals' (file-based
+    # catalogue) is the remaining CPU-only one
+    text = _GOOD + "'g1': (3, 'gals', lens_z, 1.0)\n"
     _, issues_gpu = lint_text(text, backend="gpu", with_defaults=True)
     _, issues_cpu = lint_text(text, backend="cpu", with_defaults=True)
     assert any(i.code == "gpu_unsupported" for i in issues_gpu)
@@ -381,6 +430,104 @@ def test_pow_schema_has_zsfid_and_mass_on_re():
     # 're' (index 5) is the mass-like / log-searched parameter
     assert spec.mass_positions == (5,)
     assert S.model("powpot").params == spec.params
+
+
+# --------------------------------------------------------------------------- #
+# user-defined shared variables
+# --------------------------------------------------------------------------- #
+
+_VAR_BASE = """
+lens_z = 0.216
+lens_x = {-0.1, 0.1}
+'sers1': (1, 'sers', lens_z, {1e9,1e12}, lens_x, {-0.1,0.1}, 0.2, 30.0, 0.4, 1.0)
+'sers2': (2, 'sers', lens_z, {1e9,1e12}, lens_x, {-0.05,0.05}, 0.2, 30.0, 0.4, 1.0)
+"""
+
+
+def test_user_var_resolves_to_shared_bounds():
+    from core.format.values import SharedBounds
+    cfg, issues = merge([parse_text(_VAR_BASE)])
+    assert not any(i.is_error for i in issues), [str(i) for i in issues]
+    p1 = cfg.components[0].params[1]
+    p2 = cfg.components[1].params[1]
+    assert isinstance(p1, SharedBounds) and isinstance(p2, SharedBounds)
+    assert p1.name == p2.name == "lens_x"
+    assert (p1.lo, p1.hi) == (-0.1, 0.1)
+    assert isinstance(p1, Bounds)            # subclasses Bounds (is_optimizable etc.)
+    assert cfg.user_vars == {"lens_x": Bounds(-0.1, 0.1)}
+
+
+def test_user_var_fixed_value_still_inlines():
+    cfg, issues = merge([parse_text(_VAR_BASE.replace("lens_x = {-0.1, 0.1}",
+                                                      "lens_x = 0.05"))])
+    assert not any(i.is_error for i in issues)
+    assert cfg.components[0].params[1] == Fixed(0.05)
+    assert cfg.components[1].params[1] == Fixed(0.05)
+    assert cfg.user_vars == {}
+
+
+def test_user_var_unknown_reference_still_errors():
+    cfg, issues = merge([parse_text(_VAR_BASE.replace("lens_x = {-0.1, 0.1}\n", ""))])
+    assert any(i.code == "unresolved_ref" for i in issues)
+
+
+def test_user_var_cannot_reference_optimizable_schema_scalar():
+    txt = _VAR_BASE.replace("lens_x = {-0.1, 0.1}", "source_x = {-0.1, 0.1}") \
+                   .replace("lens_x,", "source_x,")
+    cfg, issues = merge([parse_text(txt)])
+    errs = [i for i in issues if i.code == "unresolved_ref"]
+    assert errs and "optimizable scalar" in errs[0].message
+
+
+def test_user_var_mixed_mass_linear_usage_is_error():
+    txt = """
+lens_z = 0.216
+v1 = {0.01, 0.1}
+'sers1': (1, 'sers', lens_z, v1, 0.0, 0.0, 0.2, 30.0, 0.4, 1.0)
+'sers2': (2, 'sers', lens_z, 1e10, v1, 0.0, 0.2, 30.0, 0.4, 1.0)
+"""
+    cfg, issues = merge([parse_text(txt)])
+    issues.extend(validate(cfg))
+    assert any(i.code == "var_mixed_usage" for i in issues)
+
+
+def test_user_var_unused_warns():
+    cfg, issues = merge([parse_text("typo_x = {-0.1, 0.1}\nlens_z = 0.216\n"
+                                    "'p1': (1, 'point', lens_z, 1e6, 0.0, 0.0)")])
+    issues.extend(validate(cfg))
+    assert any(i.code == "var_unused" and not i.is_error for i in issues)
+
+
+def test_user_var_in_list_scalar_gets_clear_error():
+    cfg, issues = merge([parse_text(
+        "v = {1.0, 2.0}\nlens_z = 0.216\n"
+        "obs_positions_mas_list = [[v, 0.4]]\n"
+        "'p1': (1, 'point', lens_z, 1e6, v, 0.0)")])
+    issues.extend(validate(cfg))
+    msgs = [i.message for i in issues if i.code == "unresolved_ref"]
+    assert msgs and "component tuples" in msgs[0]
+
+
+def test_user_var_schema_scalar_ref_single_error():
+    txt = _VAR_BASE.replace("lens_x = {-0.1, 0.1}", "source_x = {-0.1, 0.1}") \
+                   .replace("lens_x,", "source_x,")
+    cfg, issues = merge([parse_text(txt)])
+    issues.extend(validate(cfg))
+    errs = [i for i in issues if i.code == "unresolved_ref"]
+    # one precise merge-time error per reference site, no contradictory
+    # "unknown name" duplicate from the component check
+    assert len(errs) == 2 and all("optimizable scalar" in e.message for e in errs)
+
+
+def test_user_var_cross_file_reference():
+    pf_vars = parse_text("lens_z = 0.216\nlens_x = {-0.1, 0.1}", path="vars.dat")
+    pf_comp = parse_text(
+        "'sers1': (1, 'sers', lens_z, 1e10, lens_x, 0.0, 0.2, 30.0, 0.4, 1.0)",
+        path="comp.dat")
+    from core.format.values import SharedBounds
+    cfg, issues = merge([pf_vars, pf_comp])
+    assert not any(i.is_error for i in issues), [str(i) for i in issues]
+    assert isinstance(cfg.components[0].params[1], SharedBounds)
 
 
 # --------------------------------------------------------------------------- #

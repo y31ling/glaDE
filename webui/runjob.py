@@ -29,6 +29,38 @@ def _hr(title: str) -> None:
     print("\n" + "=" * 64 + f"\n{title}\n" + "=" * 64, flush=True)
 
 
+def _make_frame_cb(args, cfg, problem, obs_xy, suptitle_fmt):
+    """Per-iteration corner-frame renderer honouring Draw_Graph/draw_interval.
+
+    Returns ``(frame_fn or None, interval)``; ``frame_fn(it, pop, energies)``
+    writes ``iterations/iteration_%04d.png`` — the legacy-format corner over
+    every DE dimension (see :func:`core.plot.plot_iteration_corner`).
+    """
+    draw = int(cfg.algorithm.get("Draw_Graph", 0) or 0)
+    interval = max(1, int(cfg.algorithm.get("draw_interval", 5) or 5))
+    if not draw or problem.ndim == 0:
+        return None, interval
+    from core.plot import plot_iteration_corner
+    frames_dir = os.path.join(args.out, "iterations")
+    os.makedirs(frames_dir, exist_ok=True)
+    labels = [d.label for d in problem.dims]
+    is_log = [d.log for d in problem.dims]
+    bounds = problem.bounds
+    print(f"  drawing a DE-population corner frame every {interval} iters -> "
+          f"{frames_dir}/", flush=True)
+
+    xy_pairs = problem.xy_dim_pairs()
+
+    def frame(it, pop, energies):
+        plot_iteration_corner(
+            pop, energies, labels, bounds, it,
+            os.path.join(frames_dir, f"iteration_{it:04d}.png"),
+            is_log=is_log, obs_positions_arcsec=obs_xy,
+            suptitle=suptitle_fmt.format(it=it), xy_pairs=xy_pairs)
+
+    return frame, interval
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="GLADE run worker")
     ap.add_argument("--backend", required=True, choices=["cpu", "gpu", "glafic"])
@@ -74,7 +106,22 @@ def main(argv=None) -> int:
         write_status(state="error", errors=[e.message for e in errors])
         return 2
 
-    # ---- extended-source (FITS) path: CPU only, DE over glafic c2calc -------
+    # fail fast with a clear message when the GPU stack is absent — otherwise
+    # the batched likelihood only fails later, masked as "zero likelihood
+    # everywhere" (a misleading prior/range diagnosis).
+    if args.backend == "gpu":
+        try:
+            import torch  # noqa: F401
+        except Exception as exc:  # noqa: BLE001
+            print(f"\n[blocked] the GPU backend needs PyTorch (Rhongomyniad) but "
+                  f"importing torch failed: {exc}", flush=True)
+            print("  install torch, or use the CPU/Glafic rail ('MCMC' instead "
+                  "of 'MCMC-GPU' for sampling).", flush=True)
+            write_status(state="error",
+                         errors=["gpu backend unavailable (torch import failed)"])
+            return 2
+
+    # ---- extended-source (FITS) path: DE/MCMC over the c2calc loss ----------
     from core.format.validate import is_extend_mode
     if is_extend_mode(cfg):
         return _run_extend(args, cfg, write_status)
@@ -116,6 +163,88 @@ def main(argv=None) -> int:
 
 _EXT_LABELS = ["pos", "flux", "td", "prior_pt", "pixel", "prior_ext",
                "prior_lens", "penalty"]
+
+# GPU-batched MCMC ensemble size when MCMC_NWALKERS was left at its default.
+# emcee's StretchMove updates half the ensemble per likelihood call, so the
+# default 32 walkers feed the batched CUDA kernel only 16 candidates at a time
+# (GPU ~97% idle, ~2.6x a 24-core CPU pool); 1024 walkers measured ~100x on the
+# batched point-source likelihood. See GPU_MCMC_exploration.md.
+_GPU_MCMC_DEFAULT_NWALKERS = 1024
+
+
+def _gpu_batchable(cfg, extend=False):
+    """``(ok, reason)`` of the batched-GPU-likelihood predicate for ``cfg``."""
+    if extend:
+        from core.optimize.batched_extend import can_batch_extend_gpu
+        return can_batch_extend_gpu(cfg)
+    from core.optimize.batched import can_batch_gpu
+    return can_batch_gpu(cfg)
+
+
+def _point_batch_is_legacy(cfg) -> bool:
+    """Whether a batchable point config takes the single-pass analytic
+    point-mass pipeline (the configuration the 1024-walker benchmark was
+    measured on) rather than the chunked tensor-kernel path."""
+    from core.optimize.batched import _legacy_eligible
+    return _legacy_eligible(cfg)
+
+
+def gpu_mcmc_auto_walkers(cfg, extend=False):
+    """The walker count a GPU MCMC run will auto-apply because MCMC_NWALKERS
+    was left unset, or ``None`` when no auto-raise would happen. Used by the
+    WebUI confirm dialog so the displayed default matches what actually runs."""
+    if "MCMC_NWALKERS" not in cfg.applied_defaults:
+        return None
+    if not _gpu_batchable(cfg, extend)[0]:
+        return None
+    # The ~100x @ 1024-walkers benchmark holds for the single-pass analytic
+    # point pipeline. The generalized tensor-kernel path is chunked (the GPU
+    # saturates at the chunk size), so more walkers only add per-step cost —
+    # leave the ensemble size to the user there.
+    if not extend and not _point_batch_is_legacy(cfg):
+        return None
+    return _GPU_MCMC_DEFAULT_NWALKERS
+
+
+def _tune_mcmc_for_gpu(args, cfg, mcfg, extend=False):
+    """Adjust/annotate an MCMC config for the GPU backend.
+
+    Returns ``(mcfg, gpu_batched)``. When the batched CUDA likelihood applies
+    and MCMC_NWALKERS was not set explicitly, the ensemble is raised to
+    ``_GPU_MCMC_DEFAULT_NWALKERS``; otherwise only guidance is printed.
+    """
+    if args.backend != "gpu":
+        return mcfg, False
+    ok, reason = _gpu_batchable(cfg, extend)
+    if not ok:
+        print(f"  [warn] batched GPU likelihood unavailable ({reason}); "
+              f"falling back to per-walker GPU evaluation, which is usually "
+              f"slower than the CPU pool. Consider the CPU 'MCMC' rail unless "
+              f"the per-evaluation cost is high.", flush=True)
+        return mcfg, False
+    print("  GPU-batched likelihood active (emcee vectorize=True: half the "
+          "ensemble per CUDA call).", flush=True)
+    if "MCMC_NWALKERS" in cfg.applied_defaults:
+        auto = gpu_mcmc_auto_walkers(cfg, extend)
+        if auto is not None:
+            from dataclasses import replace
+            print(f"  MCMC_NWALKERS not set -> using the GPU default of "
+                  f"{auto} walkers (the CPU default of 32 "
+                  f"leaves the GPU idle); set MCMC_NWALKERS to override.",
+                  flush=True)
+            return replace(mcfg, nwalkers=auto), True
+        print(f"  MCMC_NWALKERS not set -> keeping {mcfg.nwalkers}: this "
+              f"config batches through the chunked tensor-kernel path (the "
+              f"GPU saturates at the chunk size), so extra walkers add "
+              f"posterior coverage at proportional per-step cost; set "
+              f"MCMC_NWALKERS explicitly for a denser ensemble.", flush=True)
+        return mcfg, True
+    if mcfg.nwalkers < 256 and (extend or _point_batch_is_legacy(cfg)):
+        print(f"  [hint] MCMC_NWALKERS={mcfg.nwalkers} underuses the GPU "
+              f"(~2.6x a 24-core CPU pool at 32 walkers vs ~100x at 1024+); "
+              f"consider raising it — more walkers also improve posterior "
+              f"coverage.", flush=True)
+    return mcfg, True
 
 
 def _cleanup_spec(spec):
@@ -171,14 +300,11 @@ def _extend_figure_and_verify(args, cfg, result, write_status, suptitle):
 
 
 def _run_extend(args, cfg, write_status):
-    """Extended-source CPU run: DE and/or MCMC over glafic's weighted c2calc."""
-    from core.optimize.problem import OptProblem
+    """Extended-source run: DE and/or MCMC over the weighted c2calc loss.
 
-    if args.backend == "gpu":
-        print("[blocked] extended-source fitting is CPU-only for now; "
-              "select the CPU option.", flush=True)
-        write_status(state="error", errors=["extended-source is CPU-only"])
-        return 2
+    backend=cpu/glafic drives glafic per candidate; backend=gpu drives
+    Rhongomyniad (batched over the population when the config allows)."""
+    from core.optimize.problem import OptProblem
 
     base_dir = os.path.dirname(os.path.abspath(args.files[0]))
     problem = OptProblem(cfg, extend_mode=True)
@@ -240,48 +366,35 @@ def _extend_obs_positions(cfg, base_dir):
 def _extend_de(args, cfg, base_dir, write_status, problem):
     import time
     from core.optimize.runner import optimize
-    _hr("Differential Evolution (extended source · glafic c2calc)")
+    _hr(f"Differential Evolution (extended source · backend={args.backend})")
+    if args.backend == "gpu":
+        ok, reason = _gpu_batchable(cfg, extend=True)
+        print("  GPU-batched objective active (whole DE population per CUDA "
+              "pass)." if ok else
+              f"  [warn] batched GPU objective unavailable ({reason}); "
+              f"evaluating per candidate on the GPU (single process).",
+              flush=True)
     t0 = time.time()
 
     # iteration frames (Draw_Graph / draw_interval) — same knobs as the
-    # point-source path, but plotting the optimizable lens/extend component
-    # centres (the source position is glafic's inner parameter, not a DE dim).
-    draw = int(cfg.algorithm.get("Draw_Graph", 0) or 0)
-    interval = max(1, int(cfg.algorithm.get("draw_interval", 5) or 5))
-    labels = [d.label for d in problem.dims]
-    xy_cols = []
-    for comp in cfg.components:
-        xl, yl = f"{comp.name}.x", f"{comp.name}.y"
-        if xl in labels and yl in labels:
-            xy_cols.append((labels.index(xl), labels.index(yl)))
-    frames_on = bool(draw and xy_cols)
-    frames_dir = os.path.join(args.out, "iterations")
+    # point-source path: the legacy-format full-parameter corner (the source
+    # position is glafic's inner parameter, not a DE dim, so it never appears).
     obs_xy = _extend_obs_positions(cfg, base_dir)
-    if frames_on:
-        os.makedirs(frames_dir, exist_ok=True)
-        from core.plot import plot_iteration
-        print(f"  drawing a DE-population frame every {interval} iters -> "
-              f"{os.path.join(args.out, 'iterations')}/", flush=True)
-    elif draw and not xy_cols:
-        print("  [note] Draw_Graph is on but no component has BOTH x and y as "
-              "{lo,hi} search dims, so there is nothing to scatter — no frames.",
-              flush=True)
+    frame, interval = _make_frame_cb(
+        args, cfg, problem, obs_xy,
+        "DE population (extended source) — iteration {it}")
 
     def on_iter(it, pop, best, energies):
         if it <= 2 or it % 5 == 0:
             print(f"  iter {it:4d}   best_loss = {best:.4f}   "
                   f"elapsed {time.time()-t0:.0f}s", flush=True)
-        if frames_on and it % interval == 0:
+        if frame is not None and it % interval == 0:
             try:
-                comp_xy = [(pop[:, xi], pop[:, yi]) for xi, yi in xy_cols]
-                plot_iteration(
-                    comp_xy, energies, obs_xy, it,
-                    os.path.join(frames_dir, f"iteration_{it:04d}.png"),
-                    suptitle=f"DE population (extended source) — iteration {it}")
+                frame(it, pop, energies)
             except Exception as exc:  # noqa: BLE001
                 print(f"  [warn] frame {it} failed: {exc}", flush=True)
 
-    result = optimize(cfg, backend="cpu", base_dir=base_dir,
+    result = optimize(cfg, backend=args.backend, base_dir=base_dir,
                       on_iteration=on_iter, record_population=False)
     comp = result.extend_components or []
     _hr("DE result (extended source)")
@@ -319,18 +432,22 @@ def _extend_mcmc(args, cfg, base_dir, problem, best_x, write_status):
     from core.optimize.loss import ExtendLossConfig
     from core.optimize.runner import OptResult
 
-    _hr("MCMC (emcee · extended source · glafic c2calc)")
+    _hr(f"MCMC (emcee · extended source · backend={args.backend})")
     spec = build_extend_spec(cfg, base_dir=base_dir)
     loss_cfg = ExtendLossConfig.from_cfg(cfg)
     mcfg = MCMCConfig.from_cfg(cfg)
+    mcfg, gpu_batched = _tune_mcmc_for_gpu(args, cfg, mcfg, extend=True)
     t0 = time.time()
     seeded = best_x is not None
     print(f"  walkers={max(mcfg.nwalkers, 2*problem.ndim+2)}  steps={mcfg.nsteps}  "
           f"burnin={mcfg.burnin}  "
           f"{'(seeded from DE best)' if seeded else '(uniform prior init)'}",
           flush=True)
-    print("  note: each step evaluates glafic per walker — extended-source MCMC is "
-          "slow; use modest MCMC_NSTEPS.", flush=True)
+    if not gpu_batched:
+        eng = ("Rhongomyniad (single process)" if args.backend == "gpu"
+               else "glafic")
+        print(f"  note: each step evaluates {eng} per walker — extended-source "
+              "MCMC is slow; use modest MCMC_NSTEPS.", flush=True)
 
     def on_step(k, sampler):
         acc = float(np.mean(sampler.acceptance_fraction))
@@ -338,7 +455,8 @@ def _extend_mcmc(args, cfg, base_dir, problem, best_x, write_status):
               f"elapsed {time.time()-t0:.0f}s", flush=True)
 
     try:
-        res = run_mcmc(problem, None, loss_cfg, backend="cpu", best_x=best_x,
+        mc_backend = args.backend if args.backend in ("cpu", "glafic", "gpu") else "cpu"
+        res = run_mcmc(problem, None, loss_cfg, backend=mc_backend, best_x=best_x,
                        mcmc_cfg=mcfg, on_step=on_step, extend_spec=spec)
         print(f"\n  acceptance = {res.acceptance_fraction:.3f}   "
               f"samples = {res.samples.shape[0]}   ({time.time()-t0:.0f}s)", flush=True)
@@ -385,32 +503,27 @@ def _extend_mcmc(args, cfg, base_dir, problem, best_x, write_status):
 
 def _run_de(args, cfg, obs, problem, loss_cfg):
     from core.optimize import optimize
-    _hr("Differential Evolution")
+    _hr(f"Differential Evolution (backend={args.backend})")
+    if args.backend == "gpu":
+        ok, reason = _gpu_batchable(cfg)
+        print("  GPU-batched objective active (whole DE population per CUDA "
+              "pass)." if ok else
+              f"  [warn] batched GPU objective unavailable ({reason}); "
+              f"evaluating per candidate on the GPU (single process) — "
+              f"usually no faster than the CPU pool; consider the CPU rail.",
+              flush=True)
     t0 = time.time()
 
-    draw = int(cfg.algorithm.get("Draw_Graph", 0) or 0)
-    interval = max(1, int(cfg.algorithm.get("draw_interval", 5) or 5))
-    labels = [d.label for d in problem.dims]
-    xy_cols = []
-    for comp in cfg.components:
-        xl, yl = f"{comp.name}.x", f"{comp.name}.y"
-        if xl in labels and yl in labels:
-            xy_cols.append((labels.index(xl), labels.index(yl)))
-    frames_on = bool(draw and xy_cols and args.backend == "cpu")
-    frames_dir = os.path.join(args.out, "iterations")
-    if frames_on:
-        os.makedirs(frames_dir, exist_ok=True)
-        from core.plot import plot_iteration
+    frame, interval = _make_frame_cb(args, cfg, problem, obs.positions,
+                                     "DE population — iteration {it}")
 
     def on_iter(it, pop, best, energies):
         if it <= 2 or it % 5 == 0:
             print(f"  iter {it:4d}   best_loss = {best:.4f}   "
                   f"elapsed {time.time()-t0:.0f}s", flush=True)
-        if frames_on and it % interval == 0:
+        if frame is not None and it % interval == 0:
             try:
-                comp_xy = [(pop[:, xi], pop[:, yi]) for xi, yi in xy_cols]
-                plot_iteration(comp_xy, energies, obs.positions, it,
-                               os.path.join(frames_dir, f"iteration_{it:04d}.png"))
+                frame(it, pop, energies)
             except Exception as exc:  # noqa: BLE001
                 print(f"  [warn] frame {it} failed: {exc}", flush=True)
 
@@ -430,8 +543,9 @@ def _run_de(args, cfg, obs, problem, loss_cfg):
 def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):
     import numpy as np
     from core.mcmc import MCMCConfig, plot_mcmc, run_mcmc
-    _hr("MCMC (emcee)")
+    _hr(f"MCMC (emcee · backend={args.backend})")
     mcfg = MCMCConfig.from_cfg(cfg)
+    mcfg, _gpu_batched = _tune_mcmc_for_gpu(args, cfg, mcfg)
     t0 = time.time()
 
     def on_step(k, sampler):

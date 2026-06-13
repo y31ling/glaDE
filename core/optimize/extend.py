@@ -406,18 +406,21 @@ def render_images(engine, scene: Scene, spec: ExtendSpec, prefix: str):
 
 
 class ExtendObjective:
-    """Picklable DE objective for the extended-source CPU path.
+    """Picklable DE objective for the extended-source path.
 
-    Each call: candidate -> scene -> drive glafic -> c2calc_each -> weighted loss.
+    Each call: candidate -> scene -> drive the engine -> c2calc_each ->
+    weighted loss. ``backend`` selects the engine module: ``'cpu'``/``'glafic'``
+    drive glafic, ``'gpu'`` drives Rhongomyniad (which mirrors the same API).
     The engine module is rebuilt lazily per worker (so scipy's process pool can
     fan it out, exactly like the point-only :class:`Objective`).
     """
 
     def __init__(self, problem: OptProblem, spec: ExtendSpec,
-                 loss_cfg: ExtendLossConfig):
+                 loss_cfg: ExtendLossConfig, backend: str = "cpu"):
         self.problem = problem
         self.spec = spec
         self.loss_cfg = loss_cfg
+        self.backend_name = backend if isinstance(backend, str) else "cpu"
         self._engine = None
 
     def __getstate__(self):
@@ -427,8 +430,8 @@ class ExtendObjective:
 
     def _engine_module(self):
         if self._engine is None:
-            from .backends import _import_glafic
-            self._engine = _import_glafic()
+            from .backends import _ENGINES
+            self._engine = _ENGINES[self.backend_name]()
         return self._engine
 
     def components_for(self, candidate) -> Optional[tuple]:

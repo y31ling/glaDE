@@ -14,13 +14,27 @@ from .api import (
     startup_setnum,
     set_lens,
     set_point,
+    set_extend,
+    set_secondary,
+    set_psf,
+    setopt_point,
     model_init,
     calcimage,
     point_solve,
     findimg,
     findimg_i,
+    readobs_extend,
+    readnoise_extend,
+    readobs_point,
+    parprior,
+    c2calc,
+    c2calc_each,
+    get_nxy_ext,
+    writeimage,
     getpar_lens,
     getpar_point,
+    getpar_extend,
+    getpar_sky,
     getpar_omega,
     getpar_lambda,
     getpar_hubble,
@@ -37,4 +51,4 @@ from .api import (
     supported_models,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.50"

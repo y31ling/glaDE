@@ -90,8 +90,13 @@ def plot_triptych(img_numbers, delta_pos_mas, sigma_pos_mas,
                   subhalos: Optional[Sequence] = None,
                   output_file: str = "triptych.png",
                   suptitle: str = "GLADE result",
-                  show_2sigma: bool = False):
-    """Render and save the 3-panel result figure. Returns ``output_file``."""
+                  show_2sigma: bool = False,
+                  abs_mag: bool = True):
+    """Render and save the 3-panel result figure. Returns ``output_file``.
+
+    ``abs_mag`` mirrors the loss convention: the magnification panel shows
+    |mu| (all bars upward from 0); ``False`` keeps the signed values.
+    """
     img_numbers = np.asarray(img_numbers)
     delta_pos_mas = np.asarray(delta_pos_mas, dtype=float)
     obs_pos = np.asarray(obs_positions_arcsec, dtype=float)
@@ -119,18 +124,28 @@ def plot_triptych(img_numbers, delta_pos_mas, sigma_pos_mas,
     ax = axes[1]
     idx = np.arange(len(img_numbers))
     w = 0.22
-    ax.bar(idx - w, np.asarray(mu_obs, dtype=float), width=w,
-           yerr=np.asarray(mu_obs_err, dtype=float), capsize=3, label="μ_obs",
+    mo = np.asarray(mu_obs, dtype=float)
+    mp = np.asarray(mu_pred, dtype=float)
+    ma = np.asarray(mu_at_obs_pred, dtype=float)
+    if abs_mag:
+        mo, mp, ma = np.abs(mo), np.abs(mp), np.abs(ma)
+    ax.bar(idx - w, mo, width=w,
+           yerr=np.asarray(mu_obs_err, dtype=float), capsize=3,
+           label="|μ_obs|" if abs_mag else "μ_obs",
            color="skyblue", edgecolor="black", linewidth=1.5)
-    ax.bar(idx, np.asarray(mu_pred, dtype=float), width=w, hatch="//",
-           label="μ_pred", color="lightgreen", edgecolor="black", linewidth=1.5)
-    ax.errorbar(idx + w, np.asarray(mu_at_obs_pred, dtype=float), fmt="o",
-                markersize=8, label="μ@obs", color="red", linewidth=2)
+    ax.bar(idx, mp, width=w, hatch="//",
+           label="|μ_pred|" if abs_mag else "μ_pred",
+           color="lightgreen", edgecolor="black", linewidth=1.5)
+    ax.errorbar(idx + w, ma, fmt="o", markersize=8,
+                label="|μ@obs|" if abs_mag else "μ@obs",
+                color="red", linewidth=2)
     ax.set_xticks(idx)
     ax.set_xticklabels([str(int(i)) for i in img_numbers])
     ax.set_xlabel("Image Number", fontsize=12, fontweight="bold")
-    ax.set_ylabel("μ", fontsize=12, fontweight="bold")
+    ax.set_ylabel("|μ|" if abs_mag else "μ", fontsize=12, fontweight="bold")
     ax.set_title("Magnification", fontsize=12, fontweight="bold")
+    if abs_mag:
+        ax.set_ylim(bottom=0.0)
     ax.grid(True, linestyle=":", linewidth=0.8, alpha=0.7)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), frameon=True,
               fontsize=9, ncol=3)
@@ -154,7 +169,8 @@ def plot_triptych_compare(img_numbers, delta_baseline, delta_optimized,
                           subhalos: Optional[Sequence] = None,
                           output_file: str = "triptych_compare.png",
                           suptitle: str = "GLADE: baseline vs optimized",
-                          show_2sigma: bool = False):
+                          show_2sigma: bool = False,
+                          abs_mag: bool = True):
     """Baseline-vs-optimized 3-panel comparison figure."""
     img_numbers = np.asarray(img_numbers)
     idx = np.arange(len(img_numbers))
@@ -184,20 +200,30 @@ def plot_triptych_compare(img_numbers, delta_baseline, delta_optimized,
     # middle: magnification comparison
     ax = axes[1]
     w = 0.25
-    ax.bar(idx - w, np.asarray(mu_obs, dtype=float), width=w,
-           yerr=np.asarray(mu_obs_err, dtype=float), capsize=3, label="μ_obs",
+    mo = np.asarray(mu_obs, dtype=float)
+    mb = np.asarray(mu_pred_baseline, dtype=float)
+    mp = np.asarray(mu_pred_optimized, dtype=float)
+    if abs_mag:
+        mo, mb, mp = np.abs(mo), np.abs(mb), np.abs(mp)
+    ax.bar(idx - w, mo, width=w,
+           yerr=np.asarray(mu_obs_err, dtype=float), capsize=3,
+           label="|μ_obs|" if abs_mag else "μ_obs",
            color="skyblue", edgecolor="black", linewidth=1.5)
-    ax.bar(idx, np.asarray(mu_pred_baseline, dtype=float), width=w,
-           label="μ_baseline", color="lightgray", edgecolor="black",
+    ax.bar(idx, mb, width=w,
+           label="|μ_baseline|" if abs_mag else "μ_baseline",
+           color="lightgray", edgecolor="black",
            linewidth=1.5, hatch="\\\\")
-    ax.bar(idx + w, np.asarray(mu_pred_optimized, dtype=float), width=w,
-           label="μ_optimized", color="lightgreen", edgecolor="black",
+    ax.bar(idx + w, mp, width=w,
+           label="|μ_optimized|" if abs_mag else "μ_optimized",
+           color="lightgreen", edgecolor="black",
            linewidth=1.5, hatch="//")
     ax.set_xticks(idx)
     ax.set_xticklabels([str(int(i)) for i in img_numbers])
     ax.set_xlabel("Image Number", fontsize=12, fontweight="bold")
-    ax.set_ylabel("μ", fontsize=12, fontweight="bold")
+    ax.set_ylabel("|μ|" if abs_mag else "μ", fontsize=12, fontweight="bold")
     ax.set_title("Magnification", fontsize=12, fontweight="bold")
+    if abs_mag:
+        ax.set_ylim(bottom=0.0)
     ax.grid(True, linestyle=":", linewidth=0.8, alpha=0.7)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), fontsize=8, ncol=3)
 

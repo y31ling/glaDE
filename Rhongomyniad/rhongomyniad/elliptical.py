@@ -103,12 +103,17 @@ def _compute_both(
     q: torch.Tensor,
     integrand_builder: Callable[[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor],
     smallcore: float,
+    lnmin=None,
 ):
     """
     Returns (result_linear, result_log, uu).
 
     `integrand_builder(u, equ, xi, kappa_at_xi)` returns the integrand
     value f(u).  This lets us reuse the same machinery for j, k, i kernels.
+
+    ``lnmin`` overrides the log-rule lower bound u_min (default
+    ``1e-4 * uu``); gnfw/ein with steep inner slopes use
+    ``smallcore^2 * uu`` instead (mass.c:1455-1461 / 2833-2838).
     """
     device = x.device
     dtype = x.dtype
@@ -135,7 +140,7 @@ def _compute_both(
     # du = e^l dl  -> integrand *= u.
     # u_min = 1e-4 * uu (same factor as glafic mass.c:1108).
     # When uu > 0.1 we still compute the log branch but it's overwritten below.
-    u_min = 1.0e-4 * uu
+    u_min = (1.0e-4 * uu) if lnmin is None else (lnmin + torch.zeros_like(uu))
     # Protect against degenerate points where uu -> inf (would push u_min > 1).
     u_min = torch.clamp(u_min, max=1.0 - 1.0e-12)
     lmin = torch.log(torch.clamp(u_min, min=K.OFFSET_LOG))    # shape (...)
@@ -160,11 +165,25 @@ def _compute_both(
     return result_linear, result_log, uu
 
 
+def _select(lin, logr, uu, use_linear):
+    """Default switch: linear when uu > 0.1 (glafic's standard rule); callers
+    with steep inner slopes (gnfw/ein, alpha > 1) pass a custom boolean mask
+    (possibly per-candidate)."""
+    if use_linear is None:
+        return torch.where(uu > 0.1, lin, logr)
+    if use_linear is False:
+        return logr
+    if use_linear is True:
+        return lin
+    return torch.where(use_linear & (uu > 0.1), lin, logr)
+
+
 def ell_integ_j(
     kernel: Callable[[torch.Tensor], torch.Tensor],
     n: int,
     x: torch.Tensor, y: torch.Tensor, q: torch.Tensor,
     smallcore: float,
+    use_linear=None, lnmin=None,
 ) -> torch.Tensor:
     """
     J_n(x, y) = int_0^1 kappa(xi(u)) / equ^{n+1/2} du   (mass.c:3006-3027).
@@ -173,8 +192,8 @@ def ell_integ_j(
     """
     def integrand(u, equ, xi, kap):                          # f(u) = kappa/equ^(n+1/2)
         return kap / _nhalf(equ, n)
-    lin, logr, uu = _compute_both(kernel, x, y, q, integrand, smallcore)
-    return torch.where(uu > 0.1, lin, logr)
+    lin, logr, uu = _compute_both(kernel, x, y, q, integrand, smallcore, lnmin)
+    return _select(lin, logr, uu, use_linear)
 
 
 def ell_integ_k(
@@ -182,6 +201,7 @@ def ell_integ_k(
     n: int,
     x: torch.Tensor, y: torch.Tensor, q: torch.Tensor,
     smallcore: float,
+    use_linear=None, lnmin=None,
 ) -> torch.Tensor:
     """
     K_n(x, y) = int_0^1 u * dkappa(xi(u)) / (2*xi*equ^{n+1/2}) du  (mass.c:2974-3004).
@@ -190,14 +210,15 @@ def ell_integ_k(
         # guard against xi==0 from the smallcore; xi has smallcore^2 in xi^2.
         denom = 2.0 * xi * _nhalf(equ, n)
         return u * dkap / denom
-    lin, logr, uu = _compute_both(dkernel, x, y, q, integrand, smallcore)
-    return torch.where(uu > 0.1, lin, logr)
+    lin, logr, uu = _compute_both(dkernel, x, y, q, integrand, smallcore, lnmin)
+    return _select(lin, logr, uu, use_linear)
 
 
 def ell_integ_i(
     dphi_kernel: Callable[[torch.Tensor], torch.Tensor],
     x: torch.Tensor, y: torch.Tensor, q: torch.Tensor,
     smallcore: float,
+    use_linear=None, lnmin=None,
 ) -> torch.Tensor:
     """
     I(x, y) = int_0^1 xi * dphi(xi(u)) / (u * equ^{1/2}) du  (mass.c:3038-3066).
@@ -207,8 +228,8 @@ def ell_integ_i(
         # Integrand returned: xi * dphi / f = xi * dphi / (u * sqrt(equ)).
         denom = u * _nhalf(equ, 0)
         return xi * dphi / denom
-    lin, logr, uu = _compute_both(dphi_kernel, x, y, q, integrand, smallcore)
-    return torch.where(uu > 0.1, lin, logr)
+    lin, logr, uu = _compute_both(dphi_kernel, x, y, q, integrand, smallcore, lnmin)
+    return _select(lin, logr, uu, use_linear)
 
 
 # ---- coordinate rotation helpers (mass.c:3090-3103) --------------------

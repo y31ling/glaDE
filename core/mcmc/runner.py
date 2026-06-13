@@ -32,8 +32,9 @@ def run_mcmc(problem: OptProblem, obs: ObsData, loss_cfg,
              on_step: Optional[Callable[[int, object], None]] = None,
              extend_spec=None) -> MCMCResult:
     """Run emcee. For an extended-source problem (``problem.extend_mode`` with an
-    ``extend_spec``), the likelihood is ``-0.5 * weighted c2calc loss`` (CPU only,
-    via a fork pool); otherwise the point-source ``ml_loss`` path is used."""
+    ``extend_spec``), the likelihood is ``-0.5 * weighted c2calc loss`` — glafic
+    via a fork pool on CPU, or Rhongomyniad on GPU (vectorized over walkers when
+    the config allows); otherwise the point-source ``ml_loss`` path is used."""
     import emcee
 
     cfg = mcmc_cfg or MCMCConfig()
@@ -64,7 +65,18 @@ def run_mcmc(problem: OptProblem, obs: ObsData, loss_cfg,
     if is_gpu:
         from ..optimize.batched import can_batch_gpu
         use_batched = can_batch_gpu(problem.cfg)[0]
-    if extend:
+    if extend and backend == "gpu":
+        from ..optimize.batched_extend import can_batch_extend_gpu
+        from .log_prob import BatchedExtendGPULogProbability, ExtendLogProbability
+        if can_batch_extend_gpu(problem.cfg)[0]:
+            log_prob = BatchedExtendGPULogProbability(problem, extend_spec, loss_cfg)
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, vectorize=True)
+            use_batched = True
+        else:
+            log_prob = ExtendLogProbability(problem, extend_spec, loss_cfg,
+                                            backend="gpu")
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob)  # single proc
+    elif extend:
         from .log_prob import ExtendLogProbability
         log_prob = ExtendLogProbability(problem, extend_spec, loss_cfg)
         if cfg.workers != 1:

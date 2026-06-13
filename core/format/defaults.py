@@ -44,6 +44,11 @@ DEFAULTS: dict[str, object] = {
     "DE_WORKERS": -1,
     "EARLY_STOPPING": True,
     "EARLY_STOP_PATIENCE": 30,
+    # GPU compute precision for the batched GPU paths (point masses AND the
+    # generalized model path): 64 = fp64, 48 = mixed (fp32 fields/triangle
+    # test, fp64 Newton refine), 32 = fp32. Consumer-card fp64 runs at 1/64
+    # rate, so 48/32 speed up Schramm-heavy models (sers/nfw/...) the most.
+    "gpu_precision": 64,
     # loss
     "LOSS_COEF_A": 4,
     "LOSS_COEF_B": 1,
@@ -52,6 +57,10 @@ DEFAULTS: dict[str, object] = {
     # observed, the loss gains (n_obs - n_pred) * this. 0.0 = disabled (a
     # short-imaged candidate is hard-rejected, the historical behaviour).
     "missing_img_penalty": 0.0,
+    # compare (and plot) magnifications by ABSOLUTE value: obs 30 vs model -29
+    # differ by 1, not 59 (near-critical parity flips are not punished).
+    # False restores the signed, parity-sensitive comparison.
+    "abs_mag": True,
     "CONSTRAINT_SIGMA": 1,
     "PENALTY_COEFFICIENT": 1000,
     # plotting / output

@@ -14,26 +14,32 @@ calls `calcimage`, `point_solve`, `findimg`). Optimisers, MCMC, extended-
 source rendering, FITS I/O, GUI commands, etc. are out of scope — those
 belong in the `glade` wrapper that sits on top.
 
-## Supported lens models (v1)
+## Supported lens models (V0.50)
 
-| glafic name | Parameter layout (`p[0..7]`)                          | Backend                   |
-|-------------|-------------------------------------------------------|---------------------------|
-| `point`     | `z, M, x0, y0, -, -, -, -`                            | closed form               |
-| `sie`       | `z, sig_v, x0, y0, e, pa, s_core, -`                  | closed form               |
-| `pert`      | `z, zs_fid, x0, y0, g, tg, -, k`                      | closed form               |
-| `nfwpot`    | `z, M, x0, y0, e, pa, c, -`                           | closed form (u-transform) |
-| `nfw`       | `z, M, x0, y0, e, pa, c, -`                           | Schramm (1990) integrals  |
-| `king`      | `z, M, x0, y0, e, pa, rc, c=log10(rt/rc)`             | Schramm integrals         |
-| `jaffe`     | `z, sig_v, x0, y0, e, pa, a_outer, rco_inner`         | two SIEs                  |
-| `gaupot`    | `z, zs_fid, x0, y0, e, pa, sigma, kap0`               | closed form (u-transform) |
+| glafic name | Mechanism | Module |
+|-------------|-----------|--------|
+| `point`, `sie`, `pert`, `jaffe` (two SIEs) | closed form | `lens_models.py` |
+| `nfwpot`, `gaupot` | closed form (u-transform) | `lens_models.py` |
+| `nfw`, `king`, `sers` | Schramm (1990) integrals, 256-node GL | `lens_models.py` |
+| `hern`, `pow` | Schramm integrals | `models_closed.py` |
+| `hernpot`, `powpot`, `serspot` | closed radial (u-transform) | `models_closed.py` |
+| `clus3`, `mpole` | closed form | `models_closed.py` |
+| `tnfw` | Schramm integrals (closed radial) | `models_tnfw_cse.py` |
+| `tnfwpot` | u-transform | `models_tnfw_cse.py` |
+| `anfw`, `ahern` | CSE series (app_ell.c port) | `models_tnfw_cse.py` |
+| `gnfw`, `gnfwpot`, `ein`, `einpot` | table-interpolated radials (same grids as gnfw_tab.c/ein_tab.c, built at ~1e-9 with vectorised GL, cached in `_tab_cache/`) | `models_tab.py` |
 
 All parameter orderings, sign conventions, unit factors, and `smallcore`
-regularisations match glafic's `mass.c`. `jaffe` returns zeros when `a < rco`,
-matching glafic.
+regularisations match glafic's `mass.c`. Every kernel is TENSOR-PARAM safe:
+parameters may be per-candidate tensors of shape `(C,1,1)`, enabling the
+batched whole-population objectives in `core/optimize/batched*.py`.
 
-Not yet supported: `gals`, `clus3`, `mpole`, `hernpot`, `hern`, `powpot`,
-`pow`, `gnfwpot`, `gnfw`, `serspot`, `sers`, `tnfwpot`, `tnfw`, `einpot`,
-`ein`, `anfw`, `ahern`, `crline`.
+Extended sources (`sersic/gauss/tophat/moffat/jaffe` via `set_extend`) and the
+full extended-source FITS chi2 (`readobs_extend`/`c2calc_each`, glafic
+opt_extend.c port incl. the sub-pixel integration rule and the source-plane /
+image-plane point-constraint solve) live in `sources.py` + `extend.py`.
+
+Not supported: `gals` (file-based catalogue), `acnfw`, `crline`, multi-plane.
 
 ## API surface
 
@@ -189,8 +195,6 @@ individual cell's work faster. Two paths forward:
 * **Single lens plane only.** Multi-plane lensing (glafic's `gen_lensplane`
   pipeline) is not yet implemented; `model_init` will raise if two lenses
   are registered at redshifts differing by more than `TOL_ZS = 10⁻⁶`.
-* **No Gaussian-Einsatz table**. `ein_tab.c` / `gnfw_tab.c` lookup tables
-  are unused — those models aren't implemented yet.
 * **CPU fallback**. Runs fine if `torch.cuda.is_available()` is false, but
   you lose the main performance advantage.
 * **Image finder**. The uniform grid may miss pairs of images that lie

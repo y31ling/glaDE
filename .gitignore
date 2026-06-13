@@ -159,3 +159,8 @@ InputFiles/*
 
 # session handoff note for a future Claude Code (local only, not shipped)
 memory.md
+
+# Rhongomyniad table-interpolation caches (auto-built on first use)
+Rhongomyniad/rhongomyniad/_tab_cache/
+# one-off tensorization verification artifact (not referenced by any test)
+Rhongomyniad/tests/_tensorize_ref.npz

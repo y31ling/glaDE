@@ -5,12 +5,13 @@ the run. Backend-capability checks only apply when a backend is given.
 """
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 from . import schema
 from .config import GladeConfig
 from .diagnostics import ERROR, WARNING, Issue
-from .values import Bounds, Component, Fixed, Ref, Unfilled
+from .values import Bounds, Component, Fixed, Ref, SharedBounds, Unfilled
 
 
 def _check_unfilled_scalars(cfg: GladeConfig, issues: list[Issue]) -> None:
@@ -26,9 +27,14 @@ def _check_unfilled_scalars(cfg: GladeConfig, issues: list[Issue]) -> None:
                 f"before running", source_file=cfg.provenance.get(name)))
         elif isinstance(val, Ref):
             where = f"'{name}'" if depth == 0 else f"an element of '{name}'"
+            if isinstance(cfg.get(val.name), Bounds):
+                msg = (f"{where} references '{val.name}', a {{lo, hi}} "
+                       f"variable; optimizable variables can only be "
+                       f"referenced from component tuples")
+            else:
+                msg = f"{where} references unknown name '{val.name}'"
             issues.append(Issue(
-                ERROR, "unresolved_ref",
-                f"{where} references unknown name '{val.name}'",
+                ERROR, "unresolved_ref", msg,
                 source_file=cfg.provenance.get(name)))
         elif isinstance(val, (list, tuple)):
             for v in val:
@@ -42,6 +48,40 @@ def _check_unfilled_scalars(cfg: GladeConfig, issues: list[Issue]) -> None:
                 f"'{name}' was removed in V0.4.1 and is ignored; the MCMC prior is "
                 f"always the DE {{lower, upper}} bounds",
                 source_file=cfg.provenance.get(name)))
+
+
+def _check_user_vars(cfg: GladeConfig, issues: list[Issue]) -> None:
+    """A shared {lo, hi} variable is ONE search dimension: it must be used
+    either only in mass-like (log10-searched) parameter slots or only in
+    linear ones — a mixed usage cannot have a single consistent search space."""
+    usage: dict[str, set[bool]] = {}
+    for comp in cfg.components:
+        spec = schema.model(comp.type)
+        if isinstance(comp.z, SharedBounds):
+            usage.setdefault(comp.z.name, set()).add(False)
+        for j, p in enumerate(comp.params):
+            if not isinstance(p, SharedBounds):
+                continue
+            is_mass = bool(spec and j < len(spec.params) and spec.params[j].is_mass)
+            usage.setdefault(p.name, set()).add(is_mass)
+    for name, kinds in usage.items():
+        if len(kinds) > 1:
+            issues.append(Issue(
+                ERROR, "var_mixed_usage",
+                f"variable '{name}' is referenced by both mass-like "
+                f"(log10-searched) and linear parameters; one shared variable "
+                f"cannot serve both — define two variables"))
+
+    # a {lo, hi} variable defined but never referenced is inert: it gets no
+    # search dimension and never appears in the fit output — warn loudly
+    # (it is most likely a typo in either the definition or the references).
+    defined = {n for n, v in cfg.other.items() if isinstance(v, Bounds)}
+    for name in sorted(defined - set(usage)):
+        issues.append(Issue(
+            WARNING, "var_unused",
+            f"variable '{name}' = {{lo, hi}} is defined but never referenced "
+            f"by a component; it is ignored (no search dimension)",
+            source_file=cfg.provenance.get(name)))
 
 
 def is_extend_mode(cfg: GladeConfig) -> bool:
@@ -118,7 +158,8 @@ def _check_obs(cfg: GladeConfig, issues: list[Issue]) -> None:
 
 
 def _check_component(comp: Component, backend: Optional[str],
-                     distinct_z: set, issues: list[Issue]) -> None:
+                     distinct_z: set, issues: list[Issue],
+                     known_scalars: frozenset = frozenset()) -> None:
     spec = schema.model(comp.type)
     if spec is None:
         issues.append(Issue(
@@ -133,12 +174,18 @@ def _check_component(comp: Component, backend: Optional[str],
                             f"component '{comp.name}' redshift z is unfilled",
                             source_file=comp.source_file, lineno=comp.lineno))
     elif isinstance(comp.z, Ref):
-        issues.append(Issue(ERROR, "unresolved_ref",
-                            f"component '{comp.name}' redshift references unknown "
-                            f"'{comp.z.name}'",
-                            source_file=comp.source_file, lineno=comp.lineno))
+        # a Ref to a KNOWN scalar already got a precise merge-time error
+        # (e.g. "references the optimizable scalar ..."); don't double-report
+        if schema.SCALAR_ALIASES.get(comp.z.name, comp.z.name) not in known_scalars:
+            issues.append(Issue(ERROR, "unresolved_ref",
+                                f"component '{comp.name}' redshift references unknown "
+                                f"'{comp.z.name}'",
+                                source_file=comp.source_file, lineno=comp.lineno))
     elif isinstance(comp.z, Fixed):
-        distinct_z.add(round(comp.z.value, 9))
+        # extend models carry the SOURCE redshift, not a lens plane, so they
+        # must not feed the multi-plane check
+        if not schema.is_extend_model(comp.type):
+            distinct_z.add(round(comp.z.value, 9))
 
     # parameter count
     n = len(comp.params)
@@ -164,10 +211,11 @@ def _check_component(comp: Component, backend: Optional[str],
                 f"component '{comp.name}' parameter '{pname}' is unfilled ({p})",
                 source_file=comp.source_file, lineno=comp.lineno))
         elif isinstance(p, Ref):
-            issues.append(Issue(
-                ERROR, "unresolved_ref",
-                f"component '{comp.name}' parameter '{pname}' references unknown "
-                f"'{p.name}'", source_file=comp.source_file, lineno=comp.lineno))
+            if schema.SCALAR_ALIASES.get(p.name, p.name) not in known_scalars:
+                issues.append(Issue(
+                    ERROR, "unresolved_ref",
+                    f"component '{comp.name}' parameter '{pname}' references unknown "
+                    f"'{p.name}'", source_file=comp.source_file, lineno=comp.lineno))
 
     # mass-like parameters must be positive to allow log10 search
     for mi in spec.mass_positions:
@@ -196,6 +244,17 @@ def _check_component(comp: Component, backend: Optional[str],
             f"parameter labels; verify the parameter order against glafic docs",
             source_file=comp.source_file, lineno=comp.lineno))
 
+    # an 'Nl'/'Ns' index suffix classifies deflectors only; an extended-source
+    # profile is neither a lens nor a sub-structure marker
+    if comp.category_override is not None and spec.category == schema.EXTEND_CATEGORY:
+        issues.append(Issue(
+            WARNING, "category_suffix_ignored",
+            f"component '{comp.name}' ('{comp.type}') is an extended-source "
+            f"profile; its index suffix "
+            f"'{comp.raw_index}{ 'l' if comp.category_override == 'lens' else 's' }' "
+            f"is ignored",
+            source_file=comp.source_file, lineno=comp.lineno))
+
 
 def validate(cfg: GladeConfig, backend: Optional[str] = None) -> list[Issue]:
     issues: list[Issue] = []
@@ -208,10 +267,12 @@ def validate(cfg: GladeConfig, backend: Optional[str] = None) -> list[Issue]:
 
     _check_unfilled_scalars(cfg, issues)
     _check_obs(cfg, issues)
+    _check_user_vars(cfg, issues)
 
+    known_scalars = frozenset(cfg.all_scalars())
     distinct_z: set = set()
     for comp in cfg.components:
-        _check_component(comp, backend, distinct_z, issues)
+        _check_component(comp, backend, distinct_z, issues, known_scalars)
 
     if not cfg.components:
         issues.append(Issue(ERROR, "no_components",
@@ -222,5 +283,14 @@ def validate(cfg: GladeConfig, backend: Optional[str] = None) -> list[Issue]:
             WARNING, "multi_plane",
             "components span multiple lens redshifts; the GPU backend "
             "(Rhongomyniad) is single-plane and may reject this configuration"))
+
+    gp = cfg.algorithm.get("gpu_precision")
+    if gp is not None and not (isinstance(gp, (int, float))
+                               and math.isfinite(gp)
+                               and int(gp) in (64, 48, 32)):
+        issues.append(Issue(
+            ERROR, "bad_gpu_precision",
+            f"gpu_precision = {gp!r}: expected 64 (fp64), 48 (mixed: fp32 "
+            f"fields + fp64 Newton refine) or 32 (fp32)"))
 
     return issues

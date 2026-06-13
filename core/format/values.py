@@ -44,6 +44,24 @@ class Bounds:
 
 
 @dataclass(frozen=True)
+class SharedBounds(Bounds):
+    """A reference to a named user-defined ``{lo, hi}`` variable.
+
+    ``my_var = {-0.1, 0.1}`` followed by component parameters written as
+    ``my_var`` resolves each reference to one ``SharedBounds``: every
+    referencing parameter SHARES a single search dimension (the fitted value
+    is common to all of them). Subclasses :class:`Bounds` so every
+    "is this optimizable" check keeps working unchanged; consumers that build
+    per-parameter dimensions must check ``SharedBounds`` FIRST.
+    """
+
+    name: str = ""
+
+    def __str__(self) -> str:  # pragma: no cover - cosmetic
+        return f"{self.name}{{%r, %r}}" % (self.lo, self.hi)
+
+
+@dataclass(frozen=True)
 class Unfilled:
     """An unresolved template placeholder (``$float`` / ``$int`` ...)."""
 
@@ -68,7 +86,7 @@ class Ref:
         return self.name
 
 
-# A component / source parameter.
+# A component / source parameter (SharedBounds is a Bounds subclass).
 ParamValue = Union[Fixed, Bounds, Unfilled, Ref]
 
 
@@ -82,6 +100,9 @@ class Component:
     params: list[ParamValue]          # p1..pk in glafic order
     category: str = "lens"            # 'lens' | 'substructure' (authoring hint only)
     raw_index: Optional[int] = None   # the literal N as written (advisory)
+    # 'lens' | 'substructure' from an index suffix ('3l' / '3s'); None = use the
+    # model's default classification (schema category / optimizability).
+    category_override: Optional[str] = None
     index: Optional[int] = None       # globally recomputed 1-based index
     source_file: Optional[str] = None
     lineno: Optional[int] = None

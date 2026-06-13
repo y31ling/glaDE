@@ -11,6 +11,26 @@ Formulas taken verbatim from glafic's mass.c.  Parameter layouts match
 
 Supported in this module (v1):
     point    sie     pert    nfwpot    nfw    king    jaffe    gaupot
+
+Tensor-param support
+--------------------
+Every physical parameter ``p[i]`` may be either a python float OR a torch
+tensor broadcastable against ``tx``/``ty`` (e.g. shape (C,1,1) against tx of
+shape (C,ny,nx)), so a batched objective can evaluate C candidates in one
+call.  Conventions:
+
+  * When a parameter is a float, the code path is BIT-IDENTICAL to the
+    original scalar implementation (same math.* calls, same branch order).
+  * When a parameter is a tensor, python-level value branches are replaced
+    by ``torch.where`` with both branches guarded so no NaN/Inf leaks from
+    the unused branch.
+  * Parameter validation (raise on invalid) only fires for float params;
+    tensor params skip validation — the caller is expected to pre-filter
+    invalid candidates with a range penalty.
+  * EXCEPTIONS (must remain scalar floats, because they feed scipy distance
+    integrals): redshifts — ``zs_fid`` (p[1] of pert and gaupot) and the
+    lens/source redshifts held by LensContext.  Everything else (masses,
+    centers, e, pa, scale radii, n, sigma, kap0, gamma, c) may be tensors.
 """
 
 from __future__ import annotations
@@ -63,6 +83,61 @@ class LensContext:
 
 
 # ---------------------------------------------------------------------------
+# Tensor-param helpers.
+#
+# Each physical parameter may be a python float or a torch tensor (see module
+# docstring).  These helpers keep the float fast path byte-for-byte identical
+# to the original scalar implementation while transparently supporting
+# tensors.
+# ---------------------------------------------------------------------------
+def _pf(v):
+    """Parameter cast: keep torch tensors as-is, cast everything else to float."""
+    return v if torch.is_tensor(v) else float(v)
+
+
+def _is_t(*vs) -> bool:
+    """True if any argument is a torch tensor."""
+    return any(torch.is_tensor(v) for v in vs)
+
+
+def _t_sqrt(v):
+    return torch.sqrt(v) if torch.is_tensor(v) else math.sqrt(v)
+
+
+def _t_log(v):
+    return torch.log(v) if torch.is_tensor(v) else math.log(v)
+
+
+def _t_sin(v):
+    return torch.sin(v) if torch.is_tensor(v) else math.sin(v)
+
+
+def _t_cos(v):
+    return torch.cos(v) if torch.is_tensor(v) else math.cos(v)
+
+
+def _t_floor_at(v, lo: float):
+    """max(v, lo) — tensor-aware, identical to `if v < lo: v = lo` for floats."""
+    if torch.is_tensor(v):
+        return torch.clamp(v, min=lo)
+    return lo if v < lo else v
+
+
+def _full_b(ref: torch.Tensor, v):
+    """torch.full_like(ref, v) that also accepts a broadcastable tensor `v`."""
+    if torch.is_tensor(v):
+        return torch.broadcast_to(v, torch.broadcast_shapes(v.shape, ref.shape))
+    return torch.full_like(ref, v)
+
+
+def _q_tensor(q, like: torch.Tensor) -> torch.Tensor:
+    """Axis ratio as a tensor on `like`'s device/dtype (pass-through if tensor)."""
+    if torch.is_tensor(q):
+        return q
+    return torch.tensor(q, dtype=like.dtype, device=like.device)
+
+
+# ---------------------------------------------------------------------------
 # Utility: rotation trig consistent with glafic.
 #
 # Two different sign conventions are used in glafic depending on the model.
@@ -73,23 +148,31 @@ class LensContext:
 # and `pa_trig` is used for *elliptical density* models (nfw/king/...) where
 #       si = sin(-pa * pi/180)
 #       co = cos(-pa * pi/180)
-# We preserve both so numerical behaviour matches.
+# We preserve both so numerical behaviour matches.  `pa_deg` may be a float
+# or a tensor.
 # ---------------------------------------------------------------------------
-def pa_minus_90_trig(pa_deg: float) -> tuple[float, float]:
+def pa_minus_90_trig(pa_deg):
     arg = -(pa_deg - 90.0) * math.pi / 180.0
+    if torch.is_tensor(arg):
+        return torch.sin(arg), torch.cos(arg)
     return math.sin(arg), math.cos(arg)
 
 
-def pa_trig(pa_deg: float) -> tuple[float, float]:
+def pa_trig(pa_deg):
     arg = -pa_deg * math.pi / 180.0
+    if torch.is_tensor(arg):
+        return torch.sin(arg), torch.cos(arg)
     return math.sin(arg), math.cos(arg)
 
 
 # ---------------------------------------------------------------------------
 # 1) Point mass  (mass.c:634-673)  — parameter layout p[1]=M
 # ---------------------------------------------------------------------------
-def re2_point(m: float, ctx: LensContext) -> float:
-    """Einstein radius squared [arcsec^2] for a point mass M [M_sun]."""
+def re2_point(m, ctx: LensContext):
+    """Einstein radius squared [arcsec^2] for a point mass M [M_sun].
+
+    `m` may be a float or a tensor (pure arithmetic, broadcasts).
+    """
     d = ctx.dis_ls / (K.COVERH_MPCH * ctx.dis_ol * ctx.dis_os)
     return (2.0 * (K.R_SCHWARZ * m / K.MPC2METER) * d) / (K.ARCSEC2RADIAN ** 2)
 
@@ -100,8 +183,8 @@ def kapgam_point(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
     """
     p = (z, M, x0, y0, ...) — p[1]=M, p[2..3]=center
     """
-    m = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    if m < 0.0:
+    m = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    if not torch.is_tensor(m) and m < 0.0:
         raise ValueError("point mass must be non-negative")
 
     re2 = re2_point(m, ctx)
@@ -116,14 +199,14 @@ def kapgam_point(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
     if not need_kg:
         return ax, ay, None, None, None, None
 
-    kap = torch.zeros_like(tx)
+    kap = torch.zeros_like(ax)
     # At r=0 glafic returns a special-case gamma: re2/(2*smallcore^2).
     sc2 = smallcore * smallcore
     near_center = r2 < sc2
     gam1_reg = (re2 / (r2 * r2)) * (dy * dy - dx * dx)
     gam2_reg = (re2 / (r2 * r2)) * (-2.0 * dx * dy)
-    gam1 = torch.where(near_center, torch.full_like(tx, re2 / (2.0 * sc2)), gam1_reg)
-    gam2 = torch.where(near_center, torch.full_like(tx, re2 / (2.0 * sc2)), gam2_reg)
+    gam1 = torch.where(near_center, _full_b(tx, re2 / (2.0 * sc2)), gam1_reg)
+    gam2 = torch.where(near_center, _full_b(tx, re2 / (2.0 * sc2)), gam2_reg)
 
     phi = None
     if need_phi:
@@ -143,6 +226,9 @@ def fac_pert(ctx: LensContext, zs_fid: float) -> float:
     """
     Distance-ratio renormalisation so the (k,g) are referenced to zs_fid.
     Matches mass.c:510-523.
+
+    NOTE: zs_fid must remain a scalar float — it feeds the scipy distance
+    integral in Cosmology.angulard.
     """
     if ctx.zl >= zs_fid:
         raise ValueError("pert: zs_fid must exceed lens redshift")
@@ -153,12 +239,13 @@ def fac_pert(ctx: LensContext, zs_fid: float) -> float:
 def kapgam_pert(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                 p: tuple, smallcore: float = K.DEF_SMALLCORE,
                 need_kg: bool = True, need_phi: bool = True):
-    zs_fid = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    g = float(p[4]); tg = float(p[5]); k = float(p[7])
+    # zs_fid (p[1]) must remain a scalar float (distance integral).
+    zs_fid = float(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    g = _pf(p[4]); tg = _pf(p[5]); k = _pf(p[7])
     fac = fac_pert(ctx, zs_fid)
 
-    co = math.cos(2.0 * (tg - 90.0) * math.pi / 180.0)
-    si = math.sin(2.0 * (tg - 90.0) * math.pi / 180.0)
+    co = _t_cos(2.0 * (tg - 90.0) * math.pi / 180.0)
+    si = _t_sin(2.0 * (tg - 90.0) * math.pi / 180.0)
 
     dx = tx - x0
     dy = ty - y0
@@ -168,9 +255,9 @@ def kapgam_pert(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
     if not need_kg:
         return ax, ay, None, None, None, None
 
-    kap = torch.full_like(tx, k * fac)
-    gam1 = torch.full_like(tx, -g * fac * co)
-    gam2 = torch.full_like(tx, -g * fac * si)
+    kap = _full_b(tx, k * fac)
+    gam1 = _full_b(tx, -g * fac * co)
+    gam2 = _full_b(tx, -g * fac * si)
     phi = None
     if need_phi:
         phi = 0.5 * (dx * dx + dy * dy) * kap \
@@ -183,31 +270,52 @@ def kapgam_pert(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
 # 3) SIE — Singular Isothermal Ellipsoid  (mass.c:740-888)
 #    p[1]=sigma_v[km/s]  p[2..3]=center  p[4]=e  p[5]=pa  p[6]=s_core
 # ---------------------------------------------------------------------------
-def facq_sie(q: float) -> float:
+def facq_sie(q) -> float:
     """glafic's 1/sqrt(q) normalization (mass.c:872-888)."""
-    return 1.0 / math.sqrt(q)
+    return 1.0 / _t_sqrt(q)
 
 
-def b_sie(ctx: LensContext, sig_kms: float, q: float) -> float:
+def b_sie(ctx: LensContext, sig_kms, q):
     ss = sig_kms / K.C_LIGHT_KMS
     return facq_sie(q) * (4.0 * math.pi * ss * ss * ctx.dis_ls / ctx.dis_os) / K.ARCSEC2RADIAN
 
 
-def _alpha_sie_dl(x: torch.Tensor, y: torch.Tensor, s: float, q: float):
-    """Dimensionless SIE deflection (rotated/body frame)."""
-    if (1.0 - q) > 1.0e-5:
-        sq = math.sqrt(1.0 - q * q)
-        psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
-        ax = (q / sq) * torch.atan(sq * x / (psi + s))
-        ay = (q / sq) * torch.atanh(sq * y / (psi + q * q * s))
-    else:
-        psi = torch.sqrt(s * s + x * x + y * y)
-        ax = x / (psi + s)
-        ay = y / (psi + s)
+def _alpha_sie_dl(x: torch.Tensor, y: torch.Tensor, s, q):
+    """Dimensionless SIE deflection (rotated/body frame).
+
+    `s` and `q` may be floats or tensors.  When `q` is a tensor the
+    elliptical/spherical branch is selected per-element with torch.where
+    (the elliptical branch is evaluated with q clamped to [0, 1-1e-5] so the
+    unused near-spherical region cannot produce NaN/Inf).
+    """
+    if not torch.is_tensor(q):
+        if (1.0 - q) > 1.0e-5:
+            sq = math.sqrt(1.0 - q * q)
+            psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
+            ax = (q / sq) * torch.atan(sq * x / (psi + s))
+            ay = (q / sq) * torch.atanh(sq * y / (psi + q * q * s))
+        else:
+            psi = torch.sqrt(s * s + x * x + y * y)
+            ax = x / (psi + s)
+            ay = y / (psi + s)
+        return ax, ay
+
+    # Tensor q: compute both branches with guarded inputs, blend per-element.
+    q_ell = torch.clamp(q, min=0.0, max=1.0 - 1.0e-5)
+    sq = torch.sqrt(1.0 - q_ell * q_ell)
+    psi_e = torch.sqrt(q_ell * q_ell * (s * s + x * x) + y * y)
+    ax_e = (q_ell / sq) * torch.atan(sq * x / (psi_e + s))
+    ay_e = (q_ell / sq) * torch.atanh(sq * y / (psi_e + q_ell * q_ell * s))
+    psi_s = torch.sqrt(s * s + x * x + y * y)
+    ax_s = x / (psi_s + s)
+    ay_s = y / (psi_s + s)
+    mask = (1.0 - q) > 1.0e-5
+    ax = torch.where(mask, ax_e, ax_s)
+    ay = torch.where(mask, ay_e, ay_s)
     return ax, ay
 
 
-def _ddphi_sie_dl(x: torch.Tensor, y: torch.Tensor, s: float, q: float):
+def _ddphi_sie_dl(x: torch.Tensor, y: torch.Tensor, s, q):
     """Hessian in the rotated frame (mass.c:830-842)."""
     psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
     f = (1.0 + q * q) * s * s + 2.0 * psi * s + x * x + y * y
@@ -221,7 +329,7 @@ def _phi_sie_dl(x: torch.Tensor, y: torch.Tensor, s: float, q: float,
                 ax_body: torch.Tensor, ay_body: torch.Tensor):
     """SIE potential (mass.c:817-828)."""
     psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
-    aa = math.log((1.0 + q) * s) - torch.log(
+    aa = _t_log((1.0 + q) * s) - torch.log(
         torch.sqrt((psi + s) * (psi + s) + (1.0 - q * q) * x * x))
     return x * ax_body + y * ay_body + q * s * aa
 
@@ -229,15 +337,16 @@ def _phi_sie_dl(x: torch.Tensor, y: torch.Tensor, s: float, q: float,
 def kapgam_sie(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                p: tuple, smallcore: float = K.DEF_SMALLCORE,
                need_kg: bool = True, need_phi: bool = True):
-    sig = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5]); s = float(p[6])
+    sig = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5]); s = _pf(p[6])
 
-    if sig < 0.0: raise ValueError("sie sigma must be non-negative")
-    if not (0.0 <= e < 1.0): raise ValueError("sie e must be in [0, 1)")
+    if not _is_t(sig, e):
+        if sig < 0.0: raise ValueError("sie sigma must be non-negative")
+        if not (0.0 <= e < 1.0): raise ValueError("sie e must be in [0, 1)")
 
     q = 1.0 - e
     bb = b_sie(ctx, sig, q)
-    if s < smallcore: s = smallcore
+    s = _t_floor_at(s, smallcore)
 
     si, co = pa_minus_90_trig(pa)
 
@@ -276,7 +385,11 @@ def kapgam_sie(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
 # 4) NFW "nfwpot" — elliptical POTENTIAL (mass.c:894-935)
 #    p[1]=M  p[2..3]=center  p[4]=e  p[5]=pa  p[6]=c
 # ---------------------------------------------------------------------------
-def _hnfw(c: float) -> float:
+def _hnfw(c):
+    if torch.is_tensor(c):
+        c_safe = torch.clamp(c, min=0.0)
+        full = torch.log(1.0 + c_safe) - c_safe / (1.0 + c_safe)
+        return torch.where(c < 1.0e-6, 0.5 * c * c, full)
     if c < 1.0e-6:
         return 0.5 * c * c
     return math.log(1.0 + c) - c / (1.0 + c)
@@ -407,11 +520,12 @@ def kapgam_nfwpot(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                   p: tuple, smallcore: float = K.DEF_SMALLCORE,
                   need_kg: bool = True, need_phi: bool = True,
                   nfw_users: int = K.DEF_NFW_USERS):
-    m = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5]); c = float(p[6])
-    if m <= 0.0: raise ValueError("nfwpot: m must be positive")
-    if not (0.0 <= e < 1.0): raise ValueError("nfwpot: e in [0,1)")
-    if c <= 0.0: raise ValueError("nfwpot: c must be positive")
+    m = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5]); c = _pf(p[6])
+    if not _is_t(m, e, c):
+        if m <= 0.0: raise ValueError("nfwpot: m must be positive")
+        if not (0.0 <= e < 1.0): raise ValueError("nfwpot: e in [0,1)")
+        if c <= 0.0: raise ValueError("nfwpot: c must be positive")
 
     bb, tt = _calc_bbtt_nfw(m, c, ctx, nfw_users=nfw_users)
     si, co = pa_trig(pa)
@@ -446,21 +560,22 @@ def kapgam_nfw(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                p: tuple, smallcore: float = K.DEF_SMALLCORE,
                need_kg: bool = True, need_phi: bool = True,
                nfw_users: int = K.DEF_NFW_USERS):
-    m = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5]); c = float(p[6])
-    if m <= 0.0: raise ValueError("nfw: m must be positive")
-    if not (0.0 <= e < 1.0): raise ValueError("nfw: e in [0,1)")
-    if c <= 0.0: raise ValueError("nfw: c must be positive")
+    m = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5]); c = _pf(p[6])
+    if not _is_t(m, e, c):
+        if m <= 0.0: raise ValueError("nfw: m must be positive")
+        if not (0.0 <= e < 1.0): raise ValueError("nfw: e in [0,1)")
+        if c <= 0.0: raise ValueError("nfw: c must be positive")
 
     q = 1.0 - e
     bb, tt = _calc_bbtt_nfw(m, c, ctx, nfw_users=nfw_users)
-    tt = tt / math.sqrt(q)
+    tt = tt / _t_sqrt(q)
     si, co = pa_trig(pa)
 
     # Rotate into body frame (mass.c:1095-1096).
     bx = (co * (tx - x0) - si * (ty - y0)) / tt
     by = (si * (tx - x0) + co * (ty - y0)) / tt
-    q_t = torch.tensor(q, dtype=tx.dtype, device=tx.device)
+    q_t = _q_tensor(q, tx)
 
     j1 = ell_integ_j(_kappa_nfw_dl, 1, bx, by, q_t, smallcore)
     j0 = ell_integ_j(_kappa_nfw_dl, 0, bx, by, q_t, smallcore)
@@ -495,13 +610,15 @@ def kapgam_nfw(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
 # 6) King profile (mass.c:3105-3266)
 #    p[1]=M  p[2..3]=center  p[4]=e  p[5]=pa  p[6]=rc  p[7]=c  (c = log10(rt/rc))
 # ---------------------------------------------------------------------------
-def _king_helpers(c_param: float) -> tuple[float, float, float]:
-    xt = 10.0 ** c_param
-    st = math.sqrt(1.0 + xt * xt)
+def _king_helpers(c_param):
+    if torch.is_tensor(c_param):
+        xt = torch.pow(10.0, c_param)
+    else:
+        xt = 10.0 ** c_param
+    st = _t_sqrt(1.0 + xt * xt)
     f0 = 1.0 / st
-    norm = math.log(st) - 1.5 + 2.0 * f0 - 0.5 * f0 * f0
-    if norm < K.OFFSET_LOG:
-        norm = K.OFFSET_LOG
+    norm = _t_log(st) - 1.5 + 2.0 * f0 - 0.5 * f0 * f0
+    norm = _t_floor_at(norm, K.OFFSET_LOG)
     return xt, f0, norm
 
 
@@ -550,23 +667,24 @@ def _make_king_kernels(xt: float, f0: float, norm: float,
 def kapgam_king(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                 p: tuple, smallcore: float = K.DEF_SMALLCORE,
                 need_kg: bool = True, need_phi: bool = True):
-    m = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5])
-    rc = float(p[6]); c_param = float(p[7])
-    if m < 0.0: raise ValueError("king: m >= 0")
-    if not (0.0 <= e < 1.0): raise ValueError("king: e in [0,1)")
-    if rc <= 0.0: raise ValueError("king: rc > 0")
-    if c_param < 0.0: raise ValueError("king: c >= 0")
+    m = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5])
+    rc = _pf(p[6]); c_param = _pf(p[7])
+    if not _is_t(m, e, rc, c_param):
+        if m < 0.0: raise ValueError("king: m >= 0")
+        if not (0.0 <= e < 1.0): raise ValueError("king: e in [0,1)")
+        if rc <= 0.0: raise ValueError("king: rc > 0")
+        if c_param < 0.0: raise ValueError("king: c >= 0")
 
     q = 1.0 - e
     xt, f0, norm = _king_helpers(c_param)
     bb = _b_func_king(m, rc, ctx)
-    tt = rc / math.sqrt(q)
+    tt = rc / _t_sqrt(q)
 
     si, co = pa_trig(pa)
     bx = (co * (tx - x0) - si * (ty - y0)) / tt
     by = (si * (tx - x0) + co * (ty - y0)) / tt
-    q_t = torch.tensor(q, dtype=tx.dtype, device=tx.device)
+    q_t = _q_tensor(q, tx)
 
     kappa_fn, dkappa_fn, dphi_fn = _make_king_kernels(xt, f0, norm, smallcore)
 
@@ -629,21 +747,23 @@ def _sie_body(dx, dy, bb, s, q, si, co, need_kg, need_phi):
 def kapgam_jaffe(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                  p: tuple, smallcore: float = K.DEF_SMALLCORE,
                  need_kg: bool = True, need_phi: bool = True):
-    sig = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5])
-    a_out = float(p[6]); rco = float(p[7])
-    if sig < 0.0: raise ValueError("jaffe sigma>=0")
-    if rco < 0.0: raise ValueError("jaffe rco>=0")
-    if a_out <= 0.0: raise ValueError("jaffe a>0")
-    if rco < smallcore: rco = smallcore
+    sig = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5])
+    a_out = _pf(p[6]); rco = _pf(p[7])
+    tensorial = _is_t(sig, e, a_out, rco)
+    if not tensorial:
+        if sig < 0.0: raise ValueError("jaffe sigma>=0")
+        if rco < 0.0: raise ValueError("jaffe rco>=0")
+        if a_out <= 0.0: raise ValueError("jaffe a>0")
+        if not (0.0 <= e < 1.0): raise ValueError("jaffe e in [0,1)")
+    rco = _t_floor_at(rco, smallcore)
 
-    if a_out <= rco:
+    if not tensorial and a_out <= rco:
         # glafic returns all zeros in this regime.
         z = torch.zeros_like(tx)
         if not need_kg: return z, z, None, None, None, None
         return z, z, z, z, z, (z if need_phi else None)
 
-    if not (0.0 <= e < 1.0): raise ValueError("jaffe e in [0,1)")
     q = 1.0 - e
     bb = b_sie(ctx, sig, q)
     si, co = pa_minus_90_trig(pa)
@@ -651,17 +771,24 @@ def kapgam_jaffe(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
 
     ax1, ay1, k1, g11, g21, ph1 = _sie_body(dx, dy, bb, rco, q, si, co, need_kg, need_phi)
     ax2, ay2, k2, g12, g22, ph2 = _sie_body(dx, dy, bb, a_out, q, si, co, need_kg, need_phi)
-    ax = ax1 - ax2
-    ay = ay1 - ay2
+
+    def _z(v):
+        # per-candidate a_out <= rco -> all-zero output (glafic regime check)
+        if not tensorial:
+            return v
+        return torch.where(torch.as_tensor(a_out <= rco), torch.zeros_like(v), v)
+
+    ax = _z(ax1 - ax2)
+    ay = _z(ay1 - ay2)
 
     if not need_kg:
         return ax, ay, None, None, None, None
-    kap = k1 - k2
-    gam1 = g11 - g12
-    gam2 = g21 - g22
+    kap = _z(k1 - k2)
+    gam1 = _z(g11 - g12)
+    gam2 = _z(g21 - g22)
     phi = None
     if need_phi:
-        phi = ph1 - ph2
+        phi = _z(ph1 - ph2)
     return ax, ay, kap, gam1, gam2, phi
 
 
@@ -669,13 +796,22 @@ def kapgam_jaffe(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
 # 7.5) Sersic density (mass.c:2154-2222)
 #    p[1]=M_total  p[2..3]=center  p[4]=e  p[5]=pa  p[6]=r_e  p[7]=n
 # ---------------------------------------------------------------------------
-def _bn_sers(n: float) -> float:
+def _bn_sers(n):
     """Sersic bn coefficient (mass.c:2060-2075).
 
     Asymptotic expansion (Ciotti & Bertin 1999) for n > 0.36; polynomial fit
     (MacArthur et al. 2003) below.  Agreement with glafic to 1e-15.
+    `n` may be a float or a tensor.
     """
     n2 = n * n; n3 = n2 * n; n4 = n3 * n
+    if torch.is_tensor(n):
+        n_safe = torch.clamp(n, min=1.0e-12)
+        big = (2.0 * n - (1.0 / 3.0) + (4.0 / 405.0) / n_safe
+               + (46.0 / 25515.0) / (n_safe * n_safe)
+               + (131.0 / 1148175.0) / (n_safe ** 3)
+               - (2194697.0 / 30690717750.0) / (n_safe ** 4))
+        sml = 0.01945 - 0.8902 * n + 10.95 * n2 - 19.67 * n3 + 13.43 * n4
+        return torch.where(n > 0.36, big, sml)
     if n > 0.36:
         return (2.0 * n - (1.0 / 3.0)
                 + (4.0 / 405.0) / n
@@ -685,18 +821,22 @@ def _bn_sers(n: float) -> float:
     return 0.01945 - 0.8902 * n + 10.95 * n2 - 19.67 * n3 + 13.43 * n4
 
 
-def _bnn_sers(n: float) -> float:
+def _bnn_sers(n):
     """bn^(-n), used as the dimensionless-scale factor bnn (mass.c:2077-2092)."""
+    if torch.is_tensor(n):
+        return torch.pow(_bn_sers(n), -n)
     return _bn_sers(n) ** (-n)
 
 
-def _gam2n1_sers(n: float) -> float:
+def _gam2n1_sers(n):
     """Γ(2n + 1)."""
+    if torch.is_tensor(n):
+        return torch.exp(torch.lgamma(2.0 * n + 1.0))
     import scipy.special as sp
     return float(sp.gamma(2.0 * n + 1.0))
 
 
-def _b_func_sers(m: float, tt_dimless: float, n: float, ctx: LensContext) -> float:
+def _b_func_sers(m, tt_dimless, n, ctx: LensContext):
     """Sersic normalisation bb (mass.c:2048-2058).
 
     m: total mass [M_sun]
@@ -707,30 +847,32 @@ def _b_func_sers(m: float, tt_dimless: float, n: float, ctx: LensContext) -> flo
     return (m * ctx.inv_sigma_crit / (math.pi * rr * rr)) / gam
 
 
-def _make_sers_kernels(n: float):
-    """Build (kappa, dkappa, dphi) kernels for Sersic of index n."""
+def _make_sers_kernels(n):
+    """Build (kappa, dkappa, dphi) kernels for Sersic of index n
+    (n may be a float or a broadcastable tensor)."""
     inv_n = 1.0 / n
     gam_fac = _gam2n1_sers(n)
 
     def kappa(x: torch.Tensor) -> torch.Tensor:
         # κ(x) = exp(-x^(1/n))  (mass.c:2113-2120)
         xs = torch.clamp(x, min=1.0e-300)
-        return torch.exp(-xs.pow(inv_n))
+        return torch.exp(-torch.pow(xs, inv_n))
 
     def dkappa(x: torch.Tensor) -> torch.Tensor:
         # dκ/dx = -x^(1/n) * exp(-x^(1/n)) / (x * n)  (mass.c:2122-2129)
         xs = torch.clamp(x, min=1.0e-300)
-        xx = xs.pow(inv_n)
+        xx = torch.pow(xs, inv_n)
         return -xx * torch.exp(-xx) / (xs * n)
 
     def dphi(x: torch.Tensor) -> torch.Tensor:
         # dφ/dx = Γ(2n+1) · P(2n, x^(1/n)) / x   (mass.c:2131-2138)
         xs = torch.clamp(x, min=1.0e-300)
-        xx = xs.pow(inv_n)
+        xx = torch.pow(xs, inv_n)
         # torch.special.gammainc is the regularised lower incomplete γ,
         # matching GSL's gsl_sf_gamma_inc_P exactly.
-        return gam_fac * torch.special.gammainc(
-            torch.tensor(2.0 * n, dtype=x.dtype, device=x.device), xx) / xs
+        a = n * 2.0 if torch.is_tensor(n) else torch.tensor(
+            2.0 * n, dtype=x.dtype, device=x.device)
+        return gam_fac * torch.special.gammainc(a, xx) / xs
 
     return kappa, dkappa, dphi
 
@@ -738,23 +880,24 @@ def _make_sers_kernels(n: float):
 def kapgam_sers(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                 p: tuple, smallcore: float = K.DEF_SMALLCORE,
                 need_kg: bool = True, need_phi: bool = True):
-    m = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5])
-    re = float(p[6]); n = float(p[7])
-    if m < 0.0: raise ValueError("sers m>=0")
-    if not (0.0 <= e < 1.0): raise ValueError("sers e in [0,1)")
-    if re <= 0.0: raise ValueError("sers re>0")
-    if not (0.06 <= n <= 20.0): raise ValueError(f"sers n in [0.06, 20.0], got {n}")
+    m = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5])
+    re = _pf(p[6]); n = _pf(p[7])
+    if not _is_t(m, e, re, n):
+        if m < 0.0: raise ValueError("sers m>=0")
+        if not (0.0 <= e < 1.0): raise ValueError("sers e in [0,1)")
+        if re <= 0.0: raise ValueError("sers re>0")
+        if not (0.06 <= n <= 20.0): raise ValueError(f"sers n in [0.06, 20.0], got {n}")
 
     q = 1.0 - e
     tt_dimless = re * _bnn_sers(n)               # scale factor, arcsec
     bb = _b_func_sers(m, tt_dimless, n, ctx)
-    tt = tt_dimless / math.sqrt(q)
+    tt = tt_dimless / _t_sqrt(q)
 
     si, co = pa_trig(pa)
     bx = (co * (tx - x0) - si * (ty - y0)) / tt
     by = (si * (tx - x0) + co * (ty - y0)) / tt
-    q_t = torch.tensor(q, dtype=tx.dtype, device=tx.device)
+    q_t = _q_tensor(q, tx)
 
     kappa_fn, dkappa_fn, dphi_fn = _make_sers_kernels(n)
 
@@ -827,11 +970,13 @@ def _phi_gau_dl(x: torch.Tensor) -> torch.Tensor:
 def kapgam_gaupot(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
                   p: tuple, smallcore: float = K.DEF_SMALLCORE,
                   need_kg: bool = True, need_phi: bool = True):
-    zs_fid = float(p[1]); x0 = float(p[2]); y0 = float(p[3])
-    e = float(p[4]); pa = float(p[5])
-    sig = float(p[6]); kap0 = float(p[7])
-    if sig <= 0.0: raise ValueError("gaupot sigma>0")
-    if not (0.0 <= e < 1.0): raise ValueError("gaupot e in [0,1)")
+    # zs_fid (p[1]) must remain a scalar float (distance integral).
+    zs_fid = float(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5])
+    sig = _pf(p[6]); kap0 = _pf(p[7])
+    if not _is_t(sig, e):
+        if sig <= 0.0: raise ValueError("gaupot sigma>0")
+        if not (0.0 <= e < 1.0): raise ValueError("gaupot e in [0,1)")
 
     fac = fac_pert(ctx, zs_fid) * kap0
     si, co = pa_trig(pa)
@@ -872,6 +1017,24 @@ _MODEL_DISPATCH = {
 }
 
 
+def _register_extra_models() -> None:
+    """Merge the additional model families (ported in sibling modules) into
+    the dispatcher: models_closed (hern/pow/serspot/clus3/mpole + pot forms),
+    models_tnfw_cse (tnfw/tnfwpot/anfw/ahern), models_tab (gnfw/ein + pot
+    forms, table-interpolated radials).  A missing/broken module is skipped so
+    a partial build still exposes everything that does work."""
+    import importlib
+    for mod_name in ("models_closed", "models_tnfw_cse", "models_tab"):
+        try:
+            mod = importlib.import_module(f".{mod_name}", __package__)
+        except Exception:  # noqa: BLE001 - optional family not present
+            continue
+        _MODEL_DISPATCH.update(getattr(mod, "KERNELS", {}))
+
+
+_register_extra_models()
+
+
 def supported_models() -> tuple[str, ...]:
     return tuple(_MODEL_DISPATCH.keys())
 
@@ -880,6 +1043,6 @@ def dispatch(model_name: str):
     fn = _MODEL_DISPATCH.get(model_name)
     if fn is None:
         raise NotImplementedError(
-            f"lens model '{model_name}' is not implemented in Rhongomyniad v1. "
+            f"lens model '{model_name}' is not implemented in Rhongomyniad. "
             f"supported: {sorted(_MODEL_DISPATCH.keys())}")
     return fn

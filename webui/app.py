@@ -163,16 +163,42 @@ def templates():
 # --------------------------------------------------------------------------- #
 # run (validate -> confirm defaults -> spawn terminal -> SSE)
 # --------------------------------------------------------------------------- #
+# MCMC-only rails and the engine each one drives. 'mcmc-gpu' samples with the
+# batched CUDA likelihood (emcee vectorize=True) when the config allows it —
+# see GPU_MCMC_exploration.md for when that pays off.
+_MCMC_RAILS = {"mcmc": "cpu", "mcmc-gpu": "gpu"}
+
+
+def _rail_engine(rail_backend: str) -> str:
+    """The engine a FindImage rail choice validates/runs against."""
+    return _MCMC_RAILS.get(rail_backend, rail_backend)
+
+
 def _resolve_engine_mode(rail_backend: str, cfg) -> tuple[str, str]:
     """Map a FindImage rail choice to (engine, mode).
 
     'mcmc' rail -> MCMC-only on the CPU/glafic engine.
+    'mcmc-gpu' rail -> MCMC-only on the GPU engine (batched when possible).
     'cpu'/'gpu'/'glafic' -> DE; also MCMC afterwards iff MCMC_ENABLED is set.
     """
-    if rail_backend == "mcmc":
-        return "cpu", "mcmc"
+    if rail_backend in _MCMC_RAILS:
+        return _MCMC_RAILS[rail_backend], "mcmc"
     mode = "de+mcmc" if bool(cfg.algorithm.get("MCMC_ENABLED", False)) else "findimage"
     return rail_backend, mode
+
+
+def _display_defaults(cfg, engine: str, mode: str) -> dict:
+    """The applied-defaults dict for the confirm dialog. Shows the value a GPU
+    MCMC run will actually use when the worker auto-raises an unset
+    MCMC_NWALKERS (see webui.runjob._tune_mcmc_for_gpu)."""
+    out = {name: cfg.all_scalars().get(name) for name in cfg.applied_defaults}
+    if engine == "gpu" and mode in ("mcmc", "de+mcmc") and "MCMC_NWALKERS" in out:
+        from core.format.validate import is_extend_mode
+        from webui.runjob import gpu_mcmc_auto_walkers
+        auto = gpu_mcmc_auto_walkers(cfg, extend=is_extend_mode(cfg))
+        if auto:
+            out["MCMC_NWALKERS"] = f"{auto} (auto-raised for the batched GPU sampler)"
+    return out
 
 
 @app.route("/api/run/check", methods=["POST"])
@@ -184,13 +210,13 @@ def run_check():
     from core.optimize.problem import OptProblem
     data = request.get_json(force=True)
     rail = data["backend"]
-    engine = "cpu" if rail == "mcmc" else rail
+    engine = _rail_engine(rail)
     files = [os.path.join(INPUT_DIR, p) for p in data["files"]]
     cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
     extend = is_extend_mode(cfg)
     _engine, mode = _resolve_engine_mode(rail, cfg)
-    defaulted = {name: cfg.all_scalars().get(name) for name in cfg.applied_defaults}
+    defaulted = _display_defaults(cfg, _engine, mode)
     return jsonify({
         "ok": not errors,
         "mode": "extend" if extend else mode,
@@ -209,19 +235,21 @@ def run_start():
     rail = data["backend"]
     rel_files = data["files"]
     force = bool(data.get("force"))
-    engine = "cpu" if rail == "mcmc" else rail
+    engine = _rail_engine(rail)
     files = [os.path.join(INPUT_DIR, p) for p in rel_files]
 
     cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
     if errors:
-        return jsonify({"ok": False, "errors": errors}), 400
+        # 200 (like needs_confirm) so the front-end renders the error list;
+        # a 4xx would surface only as a generic "BAD REQUEST" message.
+        return jsonify({"ok": False, "errors": errors}), 200
+    _engine, mode = _resolve_engine_mode(rail, cfg)
     if cfg.applied_defaults and not force:
         return jsonify({"ok": False, "needs_confirm": True,
-                        "defaulted": {k: _jsonable(cfg.all_scalars().get(k))
-                                      for k in cfg.applied_defaults}}), 200
+                        "defaulted": {k: _jsonable(v) for k, v in
+                                      _display_defaults(cfg, _engine, mode).items()}}), 200
 
-    _engine, mode = _resolve_engine_mode(rail, cfg)
     job = jobs.start(engine, [os.path.join("InputFiles", p) for p in rel_files],
                      mode=mode, force=True)
     return jsonify({"ok": True, "job_id": job.id, "terminal": job.terminal, "mode": mode})

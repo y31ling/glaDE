@@ -7,7 +7,7 @@ from typing import Any, Optional
 from . import schema
 from .defaults import DEFAULTS
 from .diagnostics import ERROR, Issue
-from .values import Component, Fixed, ParsedFile, Ref
+from .values import Bounds, Component, Fixed, ParsedFile, Ref, SharedBounds
 
 
 @dataclass
@@ -24,6 +24,9 @@ class GladeConfig:
     components: list[Component] = field(default_factory=list)
     provenance: dict[str, str] = field(default_factory=dict)
     applied_defaults: list[str] = field(default_factory=list)
+    # user-defined {lo, hi} variables actually referenced from component
+    # tuples (name -> Bounds); every reference shares ONE search dimension.
+    user_vars: dict[str, Any] = field(default_factory=dict)
 
     _SECTIONS = ("cosmology", "grid", "redshifts", "source", "obs", "algorithm", "other")
 
@@ -107,6 +110,15 @@ def merge(parsed_files: list[ParsedFile]) -> tuple[GladeConfig, list[Issue]]:
 
     symbols = _symbol_table(merged)
 
+    # user-defined {lo, hi} variables: any non-schema scalar holding Bounds is
+    # referencable from component tuples; every reference shares ONE search
+    # dimension. Schema scalars (source_x, ...) stay un-referencable when
+    # optimizable — they already own their own dimension.
+    bounds_vars: dict[str, Bounds] = {
+        canon: entry[0] for canon, entry in merged.items()
+        if isinstance(entry[0], Bounds) and schema.classify_scalar(canon) == "other"
+    }
+
     # 2) build config sections (resolving any references nested inside lists)
     cfg = GladeConfig()
     for canon, (val, fname, _raw) in merged.items():
@@ -118,8 +130,31 @@ def merge(parsed_files: list[ParsedFile]) -> tuple[GladeConfig, list[Issue]]:
     # 3) concatenate + resolve + re-index components
     def _resolve(pv, comp: Component, what: str):
         if isinstance(pv, Ref):
+            canon = schema.SCALAR_ALIASES.get(pv.name, pv.name)
+            if canon in bounds_vars:
+                b = bounds_vars[canon]
+                cfg.user_vars[canon] = b
+                return SharedBounds(b.lo, b.hi, name=canon)
             if pv.name in symbols:
                 return Fixed(symbols[pv.name])
+            if canon in merged and isinstance(merged[canon][0], Bounds):
+                issues.append(Issue(
+                    ERROR, "unresolved_ref",
+                    f"component '{comp.name}' {what} references the optimizable "
+                    f"scalar '{pv.name}'; only fixed scalars or custom {{lo, hi}} "
+                    f"variables can be referenced",
+                    source_file=comp.source_file, lineno=comp.lineno,
+                ))
+                return pv
+            if canon in merged:
+                issues.append(Issue(
+                    ERROR, "unresolved_ref",
+                    f"component '{comp.name}' {what} references '{pv.name}', "
+                    f"whose value is not a number or {{lo, hi}} bounds and "
+                    f"cannot be referenced",
+                    source_file=comp.source_file, lineno=comp.lineno,
+                ))
+                return pv
             issues.append(Issue(
                 ERROR, "unresolved_ref",
                 f"component '{comp.name}' {what} references unknown name "

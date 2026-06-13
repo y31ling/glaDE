@@ -236,6 +236,13 @@ def _eval_expr(expr_text: str, symbols: dict[str, float], lineno: int,
 _COMPONENT_RE = re.compile(r"""^\s*(['"])(?P<name>.*?)\1\s*:\s*(?P<rest>\(.*)$""",
                            re.DOTALL)
 
+# Optional category suffix on the component index: '3l' forces the component to
+# be treated as a main LENS, '3s' as a SUB-STRUCTURE (e.g. in the result
+# triptych); a plain number keeps the model's default classification. The
+# suffix is stripped before AST parsing ('3l' is not valid Python).
+_INDEX_SUFFIX_RE = re.compile(r"^(\(\s*)(\d+)\s*([A-Za-z])(?=\s*,)")
+_CATEGORY_SUFFIXES = {"l": "lens", "s": "substructure"}
+
 
 def _find_top_assign(stmt: str) -> int:
     """Index of the top-level ``=`` (not ``==``/``<=``/...), or -1."""
@@ -283,6 +290,19 @@ def _wrap_param(v: Any, lineno: int, path: str | None, what: str):
 
 def _parse_component(name: str, rest: str, lineno: int, path: str | None,
                      symbols: dict[str, float]) -> Component:
+    category_override = None
+    m = _INDEX_SUFFIX_RE.match(rest)
+    if m:
+        suffix = m.group(3)
+        if suffix.lower() not in _CATEGORY_SUFFIXES:
+            raise GladeSyntaxError(
+                f"unknown component index suffix '{m.group(2)}{suffix}'; use "
+                f"'{m.group(2)}l' (treat as lens), '{m.group(2)}s' (treat as "
+                f"sub-structure) or a plain number (default classification)",
+                lineno, path)
+        category_override = _CATEGORY_SUFFIXES[suffix.lower()]
+        rest = m.group(1) + m.group(2) + rest[m.end():]
+
     value = _eval_expr(rest, symbols, lineno, path)
     if not isinstance(value, tuple):
         raise GladeSyntaxError("component value must be a (...) tuple", lineno, path)
@@ -312,6 +332,7 @@ def _parse_component(name: str, rest: str, lineno: int, path: str | None,
         z=z_wrapped,
         params=params,
         raw_index=raw_index,
+        category_override=category_override,
         source_file=path,
         lineno=lineno,
     )
@@ -340,8 +361,13 @@ def _parse_assignment(stmt: str, eq: int, lineno: int, path: str | None,
     out: list[Assignment] = []
     for name, val in zip(targets, values):
         if isinstance(val, Ref):
+            # the parser is file-local: the name may simply not be a numeric
+            # scalar defined ABOVE in this file (e.g. a {lo, hi} variable,
+            # which can only be referenced from component tuples).
             raise GladeSyntaxError(
-                f"'{name}' references unknown name '{val.name}'", lineno, path)
+                f"'{name}' references '{val.name}', which is not a previously "
+                f"defined numeric scalar in this file; a {{lo, hi}} variable "
+                f"can only be referenced from component tuples", lineno, path)
         # feed numeric scalars into the symbol table for later references
         if isinstance(val, (int, float)) and not isinstance(val, bool):
             symbols[name] = float(val)

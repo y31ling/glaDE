@@ -1,3 +1,89 @@
+V0.50 - Rhongomyniad 正式版大更新（整合未发布的 V0.4.6 / V0.4.7 / V0.4.8）
+
+Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据正式版本名。
+本版把 GPU 后端从"点质量批量 + 模型子集"升级为与 CPU 全行为对齐、任意可优化
+模型整代批量、精度可调的完整引擎。总览（明细按开发阶段保留在下方）：
+- GPU/CPU 全对齐（原 V0.4.6）：扩展源（FITS）拟合全流程 GPU 化；新增 15 个 GPU
+  透镜模型（除文件型 gals 外全部 deflector + 全部 5 种扩展源剖面）；全部 24 个
+  kernel 张量参数化；scipy-exact + glafic@1e-8 交叉验证证实 GPU 比 glafic 更准。
+- MCMC-GPU 档与 Nl/Ns 分类后缀（原 V0.4.7）：FindImage 新增批量 CUDA 似然采样
+  （自动 walker 调优），.dat 组件索引支持 3l/3s 强制 lens/sub-structure 分类。
+- GPU 完全适配（原 V0.4.8）：任意可优化透镜模型整代批量（自由主透镜 ~21 s/代 →
+  0.86 s/代，~27×）；gpu_precision = 64/48/32 混合精度（推荐 48：fp32 速度、
+  fp64 精度）；.dat 自定义共享变量（lens_x = {lo,hi} 绑定多组件同一维度）；
+  abs_mag 宇称不敏感放大率比较；纯点质量旧路径同种子 DE 轨迹逐位回归保障。
+
+―――― V0.4.8 阶段明细（未单独发布，并入 V0.50）――――
+
+- 新增 .dat 算法键 abs_mag（默认 True）——放大率按绝对值比较与展示：
+  - True（默认）：点源损失的 chi2_mag 用 |μ| 比较（宇称不敏感：obs=30 vs model=−29 差 1 而非 59）——临界线附近模型宇称极易翻转，符号敏感比较会重罚本来良好的匹配；三联图放大率面板同步显示 |μ|（柱全部正向上、y 轴 0 起、图例 |μ_obs|/|μ_pred|/|μ@obs|）。False 恢复符号敏感比较与带符号面板。
+  - 一致性保证：匹配像与观测同号时两种约定的 chi2 逐位相同（||a|−|b|| = |a−b|），故良好拟合不受影响；实测 pm_gpu_test / pm_nfw_4sub 同种子 DE 轨迹在默认 True 下不变，abs_mag=False 与改动前逐位一致。损失改动集中在 ml_loss（DE / MCMC / 批量 GPU / glafic_verified 复算全部经由它与同一 LossConfig，自动一致）；select_images 的"丢最暗像"本就按 |μ|。extend 路径保持 glafic 自身 chi2_usemag/宇称语义（SPEC 已注明）。
+  - 测试 +2：ml_loss 两种约定单元（含用户给定数字 30/−29→1）与 .dat 接线；三联图两种模式渲染。模板 DE_CPU/DE_GPU 增加 abs_mag 行，SPEC.md 增补说明。
+
+- 新增 .dat 自定义变量（编辑器/解析器全链路支持）：
+  - 任何非 schema 键名的赋值即定义变量，可在组件元组中引用。定值变量（lens_x = 0.05）在每个引用处代入数值（沿用既有 Ref 机制）；**可优化变量（lens_x = {-0.1, 0.1}）成为一个共享搜索维度**：所有引用它的参数拟合为同一个值（典型用途：多组件绑定共同中心），corner 图与拟合输出中以变量名出现一次。想要各自独立搜索时照旧内联写 {lo,hi}。
+  - 实现：merge 时把对非 schema {lo,hi} 标量的 Ref 解析为新值类型 SharedBounds（Bounds 子类，带变量名）——所有 isinstance(p, Bounds) 检查（is_optimizable / can_batch_gpu / 质量正性校验 / translate 中点导出等）自动兼容；OptProblem 按首次使用位置建一个 ('var', name) 维度并在 make_scene 时对所有引用处注入同一值（组件 z 也可引用）；两个批量 GPU slot 构建器同步映射；含共享变量的纯点配置自动走广义批量路径（legacy 标签映射无法表达共享维度）。
+  - 规则与校验：质量类槽位引用 → 按 log10 搜索；同一变量混用于质量类与线性槽位 → 校验错误 var_mixed_usage；引用可优化的 schema 标量（如 source_x = {lo,hi}）→ 明确报错（它们已拥有自己的维度）；跨多文件定义/引用可用；未定义引用照旧 unresolved_ref。SPEC.md 新增 "User-defined variables" 一节。
+  - 测试：format +6（解析/定值/跨文件/混用/未知引用/schema 标量引用）、optimize +1（共享维度 + 同值注入 + log10 质量变量）、batched +1（批量 vs 逐候选损失一致，按像数门控——调试中证实逐候选 adaptive finder 会漏掉批量均匀细网格找到的真像，精确反投影确认，属 finder 先天差异与本特性无关）；e2e：3 组件共享 lens_x 的 GPU 批量 DE（18 维而非 20 维，拟合输出直接报告 lens_x）。
+
+- GPU 完全适配（批量 GPU 推广到任意可优化透镜模型，memory.md §12 约定的大更新）：
+  - 问题：此前 can_batch_gpu 仅在"全部可优化组件为点质量 + 源位置固定"时才走整代批量 CUDA 路径，自由主透镜拟合（如 nfw_only.dat：sers1+sers2+anfw1 全部 20 参数可优化）落到逐候选 GPU（实测 ~115–139 ms/候选，~21 s/代，GPU 几乎空转），CPU 池也只快 ~1.35×。
+  - 现在 core/optimize/batched.py 的 BatchedGPUObjective 支持任何 GPU 模型的可优化组件：每代把可优化参数解码为逐候选 (C,1,1) 张量（mass 维 10**log10 解码），经 V0.4.6 已张量参数化的 24 个 kernel（sum_lensmodel）整代批量求偏转场；锁定组件的偏转场照旧只在细网格上缓存一次；批量三角测试 + 8 步 Newton 求像与逐候选共享同一 point_source_loss（含分级缺像惩罚）。源位置 source_x/source_y 现在也可为 {lo,hi}（逐候选张量进入透镜方程右端与三角测试）。
+  - 种群按 GLADE_GPU_CHUNK 分块（含 Schramm 256 节点积分模型 nfw/king/sers/hern/pow/gnfw/tnfw/ein 时默认 32，否则 128；与 batched_extend 共用常量，已移至 batched.py 统一定义）。RTX 4080 SUPER 16GB 实测 chunk=32 峰值显存 5.6 GB，chunk=96 起超显存溢出到共享内存反而雪崩（310 ms/候选），默认值即甜点。
+  - can_batch_gpu 同步放宽/收紧：接受任意 schema.supports('gpu') 模型与可优化源位置；新增拒绝项（均回退逐候选并打印原因）——无 GPU kernel 的模型（gals）、可优化组件红移、多透镜平面、pert/gaupot/pow/powpot/clus3/mpole 的 p1=zs_fid 可优化（kernel 内 float() 强转、必须保持标量；此前会整 chunk 静默 INVALID）、hubble 可优化照旧拒绝（点源损失无时延，h 是死维度）。顺带堵住旧路径的潜在洞：点质量组件 z 可优化时此前会成为静默无效的搜索维度，现在显式拒绝。
+  - 逐位回归保障：纯点质量配置（pm_gpu_test.dat、pm_nfw_4sub.dat）自动走原 analytic 管线（代码逐字保留），11 代同种子 DE 轨迹（best 序列、整代种群、最优解）与改动前逐位一致。
+  - 数值验证：nfw_only.dat 上批量 vs 逐候选 GPU 同候选损失一致至机器精度（8 个随机候选 rel ≤ 1.2e-16）；同种子初代种群 best 与用户原始逐候选日志精确吻合（324910.1046）；scipy-exact Sersic 偏转校验 8.6e-10 arcsec。
+  - 性能（nfw_only.dat，20 维、180 候选/代，RTX 4080 SUPER）：~21 s/代 → 2.3 s/代（13 ms/候选，~10×逐候选 GPU、~6.5×16 核 CPU 池）；600 代全程从 ~3.5 h 降至 ~23 min。瓶颈已是消费卡 fp64 超越函数 1/64 速率墙（GPU_MCMC_exploration.md §1），fp32 开关留作后续候选。
+  - MCMC-GPU / 结果图自动受益：BatchedGPULogProbability 与 report.make_triptych 的 images_for 共用同一谓词与求解器，自由主透镜配置现在也走批量 MCMC 并由批量求解器渲染结果图。walker 自动调优分层：未设 MCMC_NWALKERS 时仅 legacy 单趟点质量管线自动 1024（实测基准的适用范围）；广义分块路径 GPU 在 chunk 尺寸即饱和、更多 walker 只线性放大每步成本，故保留默认值并打印权衡提示（确认对话框经 gpu_mcmc_auto_walkers 同步）。
+  - 多智能体对抗审查后的修复（27 个审查/验证智能体，15 项确认发现全部处理，含 1 项 major）：MCMC 批量似然先过先验盒再进 kernel（越界 walker 的任意参数此前会直达张量核——e≥1 产生 NaN、pow 提案可能卡 TM15 级数 10 万次迭代；BatchedGPU 与 BatchedExtendGPU 两个 log-prob 同改，盒内后验逐位不变）；批量目标兜底异常新增一次性 [warn] 诊断（此前 CUDA OOM 等只表现为 loss 恒 1e15 且无任何输出）；GLADE_GPU_CHUNK 非法值不再静默废掉整代（改为告警+回退默认）；can_batch_gpu 的 lens_z 缺省解析与 _build_cache 镜像（消除"谓词接受、构建抛错、全代 INVALID"的缝隙）；修复新测试文件的三处自身缺陷（rhongomyniad 路径缺失导致 4 项 torch 测试静默跳过假 PASS、chunk 环境变量未保存恢复、zs_fid 断言运算符优先级）并新增 legacy↔广义交叉一致性回归（同一点质量配置强制走两条路径，rtol 1e-9，当前实测 0 差）。
+  - 文案与测试同步：runjob 回退提示去掉过时的 "for analytic models" 限定；模板 DE_GPU 注释更新为"除 gals 外全部 deflector 模型 + 批量前提条件"；test_mcmc_gpu_rail 的不可批量夹具改用可优化 hubble（可优化源位置已不再是回退条件），新增广义路径不自动调 walker 的断言；新增 core/tests/test_batched_general.py（17 项：谓词接受/拒绝矩阵、模式选择、批量 vs 逐候选损失一致、可优化源位置、分块不变性、legacy↔广义交叉一致、gpu_precision 校验与各档一致性，CPU torch 即可运行）。
+- 新增 .dat 算法键 gpu_precision（默认 64）——批量 GPU 计算精度，直击消费卡 fp64 超越函数 1/64 速率墙：
+  - 64 = 全程 fp64（默认，行为与此前完全一致）；48 = 混合精度：偏转场 + 三角测试相用 fp32（Schramm 求积的显存/算力大头），Newton 精修与放大率保 fp64，候选解码（10**logM）恒在 fp64 再降转；32 = 全程 fp32。legacy 点质量管线与广义路径都识别该键（默认 64 时所有降转都是无操作，逐位回归不受影响，已实测确认）。非法值（如 50）为校验错误 bad_gpu_precision。extend 批量路径本轮不消费该键（保持 fp64，SPEC 已注明）。
+  - 实测（nfw_only.dat，RTX 4080 SUPER）：64 档 12.7 ms/候选 → 48/32 档 4.8 ms/候选（再 ×2.7；相对 V0.4.7 逐候选 GPU 累计 ~27×，~21 s/代 → 0.86 s/代）。48 与 64 损失一致至 2.9e-15（fp32 种子经 fp64 Newton 收敛到同一根，像位置漂移 0 µas）；32 损失偏差中位 1.3e-8 / 最大 1.1e-6，像位置漂移 0.25 µas——均远低于 mas 级观测误差。结论：48 = "fp32 的速度、fp64 的精度"，是 Schramm 重型模型的推荐档。
+  - chunk 精度感知：fp32 场相把每候选字节数减半，GLADE_GPU_CHUNK 缺省值随之翻倍（重型 32→64、轻型 128→256），显存包络与 fp64 档持平（实测 5.6 GB）。chunk 扫描（48 档）：32=6.4 ms/候选(2.8GB)、64=4.8(5.6GB)、96=4.2(8.4GB)、128=4.2(11.2GB 平台期)、180=52(15.8GB 溢出共享内存雪崩)——手动设 GLADE_GPU_CHUNK=96 可再榨 ~13%，代价是显存余量变薄。
+  - 验证（tools/verify_gpu_precision.py，scipy + glafic@1e-5 双对照）：三档找到的像经 glafic 自身 calcimage 反验，透镜方程残差 64/48 = 3.8e-5 mas、32 = 2.0e-4 mas（亚 µas 级，即三档的像在 glafic 物理下同样成立）；scipy-exact 反投影散布三档一致（0.040 mas，由参考自身在该参数角的精度地板主导）。
+  - 诊断附带发现（记录在 memory.md，与本特性无关）：(1) glafic findimg 的粗到细搜索会漏掉其自身 calcimage 确认存在的近边界真像（pix_poi=0.2 粗胞三角测试错过折叠则不细化；GLADE 批量 finder 用均匀细网格无此问题）；(2) verify.py 的 scipy Sersic 参考在 n≈0.74/1.41 参数角与两个独立引擎（glafic Romberg 与 GL-256，彼此一致到 3e-8″）同时偏差 3.1e-5″——疑似参考积分自身精度极限，待查（SN 参数角为正常的 1.39e-9″）。
+  - gpu_precision 的对抗审查修复（21 个审查/验证智能体，确认项全部处理，含 1 项 major）：fp32 去重容差失效——fp64 标定的放大率量纲化合并判据（10·DEF_MAX_POI_TOL²=1e-19）在 fp32 Newton 只收敛到 ~ulp 时永不合并重复种子的像，幻影重像曾污染 pm_gpu_test 全范围采样下 ~6.5% 候选的损失（吞掉缺像惩罚/翻成 INVALID）；修复为 dtype 门控的 128×fp32-ulp 绝对位置下限（64/48 档判据逐位不变），实测 8100 候选幻影 0 个，新增回归测试 test_gpu_precision_fp32_dedup_no_phantom_images。其余：legacy 场相质量解码改为先 fp64 解码再降转（与既有不变量一致）；validate 对 gpu_precision=inf 不再抛 OverflowError；新增 GPU_PRECISION 大写别名（与 MISSING_IMG_PENALTY 先例一致）；三个精度测试加最小有效候选护栏 + 近临界 |mag|<100 守卫（fp32 场相对近临界候选的已知敏感性）；验证工具修复：已设 gpu_precision 的 .dat 不再重复赋值报错、legacy 配置的代表候选搜索走正确管线、glafic.quit() 进 finally、全无效种群不再崩溃。fp32 档已知特性：近临界候选损失噪声可达 1e-4~5e-2 相对量级（中位 5e-6）——推荐档仍为 48（与 64 一致至 1e-14 量级）。
+
+―――― V0.4.7 阶段明细（未单独发布，并入 V0.50）――――
+
+- FindImage 新增 MCMC-GPU 档位（落地 GPU_MCMC_exploration.md 的结论）：
+  - Backend 栏新增 "MCMC-GPU"（emcee · batched CUDA），映射为 engine=gpu + mode=mcmc：点源配置满足批量条件（全部可优化组件为点质量、源位置与 hubble 固定）时走 BatchedGPULogProbability（emcee vectorize=True，整个半族群一次 CUDA 批量）；扩展源配置满足 can_batch_extend_gpu 时走 BatchedExtendGPULogProbability。
+  - 自动 walker 调优：未显式设置 MCMC_NWALKERS 时，GPU 批量路径自动取 1024 walkers（默认 32 时半族群每批只有 16 个候选，GPU >97% 空转，仅 ~2.6×；1024+ 实测对 24 核 CPU 池 ~100–120×）。显式设置且 <256 时打印提示但不改动。
+  - 配置不可批量时（如可优化的非点质量组件 / 可优化源位置）打印明确回退警告（逐 walker GPU 评估通常慢于 CPU 池），建议改用 CPU 'MCMC' 档，除非单次评估本身昂贵（nfw/king/sers 类 Romberg 模型）。
+  - de+mcmc（GPU 档 + MCMC_ENABLED=True）路径同样获得上述调优与提示；extend MCMC 在 GPU 批量激活时不再打印"每步逐 walker 跑 glafic 很慢"的过时提示。
+- .dat 组件索引新增分类后缀 Nl / Ns（lens / sub-structure 分类覆写）：
+  - 背景：三联图的 sub-halo 标记此前按 schema 类别 + 可优化性推断（anfw/nfw/king 等注册为 substructure），把"锁定参数、用作星系级主透镜的 anfw"也画成了图中的子结构标记。
+  - 现在 '(3l, 'anfw', ...)' 强制按主透镜对待（不出现在三联图 sub-halo 标记中），'(3s, ...)' 强制按子结构对待（任何模型均可），纯数字索引保持默认分类不变；后缀只影响分类/绘图，不影响任何透镜计算，全局重编号也照旧（下一个组件仍写 4）。
+  - 解析层在 AST 之前剥离后缀（'3l' 不是合法 Python 字面量），未知后缀（如 '3x'）给出明确语法错误；extend 类组件（extsersic 等为源面剖面，无 lens/sub 之分）上的后缀打印告警并忽略。
+  - SPEC.md §3 已更新（含 anfw 示例），新增解析与分类测试。
+- 多智能体对抗审查后的修复（92 个审查/验证智能体，11 项确认发现全部处理）：
+  - 修复 V0.4.6 遗留 bug：webui 的扩展源 DE 路径硬编码 backend="cpu"，GPU 档跑 extend 配置时 DE 静默落回 CPU（与 _run_extend 文档字符串矛盾）；现在透传所选后端（core/optimize 的 _optimize_extend 本就支持批量/逐候选 GPU），并打印批量目标是否激活。
+  - GPU 档启动时快速失败：torch 不可导入时立刻以明确信息报错（state=error），不再让批量似然在后期以"所有 walker 零似然"的误导性诊断失败。
+  - /api/run 的配置校验错误改为 200 + 错误列表返回（此前 400 在前端只显示笼统的 "BAD REQUEST"，详细错误丢失——对 mcmc-gpu 的 gpu_unsupported 错误尤其要紧）。
+  - 默认值确认对话框：MCMC_NWALKERS 走 GPU 自动调优时显示实际将使用的 1024（此前显示 32 与实际运行不符）。
+  - extend MCMC 非批量 GPU 回退时的慢速提示不再误写 "glafic per walker"（实为单进程 Rhongomyniad）；rail 提示文案改为 "half the walker ensemble per CUDA call" 并注明 unset 自动 1024。
+  - MCMC trace 图新增 walker 维度下采样（>256 时抽样绘制，1024-walker GPU 链不再卡顿）；新增 extend 分支与 gpu_mcmc_auto_walkers 的测试（core/tests/test_mcmc_gpu_rail.py 共 8 项）。
+
+―――― V0.4.6 阶段明细（未单独发布，并入 V0.50）――――
+
+- 修复 draw_graph 迭代图：恢复 legacy 格式的全参数 corner 图。此前新核心只画一张"组件 (x,y) 混叠散点"单图，extend 跑 19 维时 13 个参数从未被可视化。现在每个 draw_interval 帧输出 N×N corner（对角=各参数直方图，下三角=每个参数对的 2D 种群剖面，按目标值着色，红十字=当前最优，组件 x/y 面板叠加观测像位置金星标），point 与 extend 两条路径统一（GPU 后端也输出迭代帧）。19 维约 2.7 秒/帧。
+- GPU/CPU 对齐（方案B）：Rhongomyniad 现在支持 CPU 模式的全部拟合行为。
+  - 扩展源（FITS）拟合全流程 GPU 化：移植 glafic 的 readobs_extend / readnoise_extend / readobs_point / parprior / set_extend / set_secondary / setopt_point / c2calc_each / writeimage / get_nxy_ext 到 Rhongomyniad（rhongomyniad/sources.py + extend.py），包括逐像素偏转表 + 有限差分放大率张量、五种源面亮度剖面与 glafic 的条件子像素积分规则（source_refr0/num_pixint/flag_extref/flag_extnorm）、sigma-clip 天空与噪声模型（obs_gain/obs_ncomb/noise_clip）、源面（chi2_splane=1，含通量/时延零点、宇称、checknimg 语义与 amoeba 内层源位置求解的逐字移植）与像面（chi2_splane=0，逐次 findimg）点源约束、范围检查与 parprior 先验、分级缺像惩罚。无 PSF（CPU 路径本就从不配置 PSF）。
+  - 整代批量 GPU 目标 BatchedExtendGPUObjective（core/optimize/batched_extend.py）：DE 整个种群一次 CUDA 评估；像素 χ² 张量批量，源面点约束为"GPU 算缓存 + numpy 向量化 NM"混合（消除数万次微小 kernel 启动）；hubble 可优化（距离在 Mpc/h 单位下与 h 无关，仅时延因子按 1/h 精确缩放）；批量缺像计数（广义三角测试+牛顿 findimg）。MCMC 同步获得 BatchedExtendGPULogProbability（emcee vectorize=True）。
+  - 新增 15 个 GPU 透镜模型：hern/hernpot/pow/powpot/serspot/clus3/mpole（models_closed.py）、tnfw/tnfwpot/anfw/ahern（models_tnfw_cse.py，CSE 系数表逐字移植）、gnfw/gnfwpot/ein/einpot（models_tab.py，与 gnfw_tab.c/ein_tab.c 相同网格的查找表，但用向量化 GL 以 ~1e-9 精度构建——glafic 自建表仅 Romberg 3e-4/1e-3——首次使用自动构建并缓存）。现在除 gals（文件目录型）外全部 deflector + 全部 5 种扩展源均可在 GPU 运行；多平面仍仅 CPU。
+  - 全部 24 个 kernel 张量参数化：参数可为逐候选张量 (C,1,1)，float 路径与旧版逐位一致（bit-identical 回归验证）。
+  - 修复批量点源路径的 hubble 静默失效 bug：can_batch_gpu 现在拒绝 {lo,hi} hubble（此前会搜索一个对损失毫无影响的维度）。
+  - 修复 validate 的 multi_plane 误报：extend 组件的 z 是源红移，不再计入透镜平面数。
+  - 结果图与独立校验接通 GPU：extend 结果图经产生结果的引擎渲染（writeimage），glafic_verified 二进制校验对 GPU 结果同样生效。
+- 数值验证（scipy-exact 为主，glafic 为历史对照）：
+  - per-candidate GPU c2calc_each 与 glafic 一致：点源分量 ≤1e-13，像素 χ² ≤3e-6（glafic 内部 float32 存储所限）；批量目标与 per-candidate 一致 24/24；IvyProject 端到端 GPU DE 与 CPU 同种子轨迹逐位一致，glafic 二进制校验相对差 0.000%。
+  - 按约定执行 TOL_ROMBERG_JHK=1e-8 重编译交叉验证：king 1.7e-7→6.4e-8、sers 2.7e-4→1.3e-6（证实此前差异是 glafic Romberg 噪声）；nfw/hern/tnfw 的 ~6e-5..2.6e-4 偏差在 1e-8 下纹丝不动——逐点仲裁表明系 glafic 对中心对数发散 κ 在线性规则区间的 Romberg 误差（最差点 RH↔scipy=1.0e-5，glafic@1e-8↔scipy=5.3e-5），即 GPU 比 glafic 更准。验证后已恢复 1e-5 并重编译。
+  - 新增 tools/verify_gpu_models.py（24 模型 × 20 点 GPU↔glafic 全量比对，内置 1e-8 协议说明）与 Rhongomyniad/tests/test_models_new.py（张量批次、scipy-exact 抽查、CSE 自洽、远场收敛）。
+- GPU-MCMC 可行性探索（仅调研+基准，见 GPU_MCMC_exploration.md）：点源批量似然在 1024+ walkers 时对 24 核 CPU 池可达 ~100–120×（默认 32 walkers 仅 ~2.6×，emcee 半族群每批只有 nwalkers/2）；SIE+小网格 extend 配置下 CPU 池仍快 ~1.7×（消费卡 fp64 超越函数 1/64 速率是硬墙）。结论：GPU-MCMC 提速可行且已接通，前提是调大 MCMC_NWALKERS 或模型本身昂贵（nfw/king/sers 类）。
+- 已知限制：lambda_cosmo = {lo,hi} 在两个后端都不会成为搜索维度（OptProblem 仅暴露 hubble），静默回退默认值 0.7——属既有行为，建议后续版本显式告警或支持。
+
+
 V0.4.5
 
 - 新增 macOS 部署支持（Apple Silicon 与 Intel）。

@@ -65,6 +65,7 @@ LOSS_COEF_B = $float        # weight on magnification chi2, e.g. 1
 LOSS_PENALTY_PL = $float    # per-image over-tolerance penalty, e.g. 10000
 missing_img_penalty = $float # per-missing-image penalty when a candidate forms
                             # FEWER images than observed; 0 = hard-reject (default)
+abs_mag = True              # compare |mu| (parity-insensitive, default); False = signed
 DE_MAXITER = $int           # e.g. 650
 DE_POPSIZE = $int           # population multiplier, e.g. 64
 DE_SEED = $int              # e.g. 42
@@ -76,13 +77,20 @@ DE_WORKERS = $int           # -1 = all CPU cores
 """
 
 DE_GPU = """# Algorithm: Differential Evolution on the GPU (Rhongomyniad) backend
-# Note: the GPU backend supports a subset of models (point, sie, pert, nfw,
-# nfwpot, king, jaffe, gaupot, sers) and a single lens plane.
+# Note: the GPU backend supports every deflector model except the file-based
+# 'gals', on a single lens plane; any optimizable model (and an optimizable
+# source position) is evaluated whole-population batched on the GPU, provided
+# hubble, component redshifts and zs_fid (p1 of pert/gaupot/pow/...) stay
+# fixed — otherwise the run falls back to per-candidate GPU evaluation.
+gpu_precision = $int        # 64 = fp64 (default) | 48 = mixed (fp32 fields,
+                            # fp64 Newton refine) | 32 = fp32 — 48/32 speed up
+                            # Schramm-heavy models (sers/nfw/...) on consumer GPUs
 LOSS_COEF_A = $float        # weight on position chi2, e.g. 4
 LOSS_COEF_B = $float        # weight on magnification chi2, e.g. 1
 LOSS_PENALTY_PL = $float    # per-image over-tolerance penalty, e.g. 10000
 missing_img_penalty = $float # per-missing-image penalty when a candidate forms
                             # FEWER images than observed; 0 = hard-reject (default)
+abs_mag = True              # compare |mu| (parity-insensitive, default); False = signed
 DE_MAXITER = $int           # e.g. 650
 DE_POPSIZE = $int           # population multiplier, e.g. 64
 DE_SEED = $int              # e.g. 42
@@ -135,9 +143,12 @@ DE_WORKERS = $int           # -1 = all CPU cores
 MCMC_GENERAL = """# MCMC sampling (emcee). The prior is ALWAYS the DE {lower, upper} bounds of
 # every optimizable parameter; mass-like dims are sampled in log10 space.
 # Set MCMC_ENABLED = True to also run MCMC after a DE-CPU / DE-GPU run.
-# (The FindImage 'MCMC' mode runs MCMC directly with NO DE, ignoring this flag.)
+# (The FindImage 'MCMC' / 'MCMC-GPU' modes run MCMC directly with NO DE,
+#  ignoring this flag.)
 MCMC_ENABLED = True
-MCMC_NWALKERS = $int        # e.g. 32 (auto-raised to >= 2*ndim+2)
+MCMC_NWALKERS = $int        # e.g. 32 (auto-raised to >= 2*ndim+2);
+                            # for MCMC-GPU use 1024+ to saturate the batched
+                            # CUDA likelihood (unset = GPU auto-default 1024)
 MCMC_NSTEPS = $int          # e.g. 2000
 MCMC_BURNIN = $int          # steps discarded before thinning, e.g. 300
 MCMC_THIN = $int            # e.g. 2

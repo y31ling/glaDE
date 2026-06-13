@@ -61,7 +61,13 @@ def _subhalo_markers(opt_result: OptResult, center_offset) -> list:
     scene_comps = opt_result.scene.components
     for i, (gc, sc) in enumerate(zip(cfg_comps, scene_comps), start=1):
         spec = schema.model(gc.type)
-        is_sub = (spec and spec.category == "substructure") or gc.is_optimizable()
+        # an index suffix ('3l' / '3s') in the .dat overrides the default
+        # classification (schema category, or "optimizable => sub-structure")
+        override = getattr(gc, "category_override", None)
+        if override is not None:
+            is_sub = override == "substructure"
+        else:
+            is_sub = (spec and spec.category == "substructure") or gc.is_optimizable()
         if not is_sub:
             continue
         if len(sc.params) < 3:
@@ -84,11 +90,14 @@ def make_extend_figure(opt_result: OptResult,
     if opt_result.mode != "extend" or opt_result.extend_spec is None:
         raise ValueError("make_extend_figure requires an extended-source OptResult")
 
-    from .optimize.backends import _import_glafic
+    from .optimize.backends import _ENGINES
     from .optimize.extend import render_images
 
     scene = opt_result.scene
-    rendered = render_images(_import_glafic(), scene, opt_result.extend_spec,
+    # render via the engine that produced the result (Rhongomyniad mirrors
+    # glafic's writeimage); critical curves below still come from glafic.
+    engine_key = opt_result.backend if opt_result.backend in _ENGINES else "cpu"
+    rendered = render_images(_ENGINES[engine_key](), scene, opt_result.extend_spec,
                              prefix="temp_glade_extfig")
     if rendered is None:
         raise ValueError("could not render the best-fit extended model image")
@@ -162,6 +171,9 @@ def make_triptych(opt_result: OptResult,
 
     markers = _subhalo_markers(opt_result, obs.center_offset)
     img_numbers = list(range(1, obs.n + 1))
+    # the magnification panel follows the loss convention (abs_mag, default
+    # True: |mu| bars upward from 0; False keeps the signed values)
+    abs_mag = bool(opt_result.problem.cfg.algorithm.get("abs_mag", True))
 
     return plot_triptych(
         img_numbers=img_numbers,
@@ -179,4 +191,5 @@ def make_triptych(opt_result: OptResult,
         output_file=output_file,
         suptitle=suptitle,
         show_2sigma=show_2sigma,
+        abs_mag=abs_mag,
     )

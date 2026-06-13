@@ -62,7 +62,57 @@ Multiple assignments to the **same name within one file** is an error.
   `DE_POLISH`, `DE_WORKERS`, `EARLY_STOPPING`, `EARLY_STOP_PATIENCE`,
   `LOSS_COEF_A`, `LOSS_COEF_B`, `LOSS_PENALTY_PL`, `CONSTRAINT_SIGMA`,
   `Draw_Graph`, `draw_interval`, `COMPARE_GRAPH`, `SHOW_2SIGMA`,
-  `OUTPUT_PREFIX`, `MCMC_*`
+  `OUTPUT_PREFIX`, `MCMC_*`, `gpu_precision`, `abs_mag`
+* `abs_mag` (default `True`) compares magnifications by ABSOLUTE value in the
+  point-source loss (parity-insensitive: obs `30` vs model `-29` differs by 1,
+  not 59 — near critical curves the model parity flips easily and a signed
+  comparison punishes an otherwise good match), and the result triptych's
+  magnification panel shows `|μ|` (all bars upward from 0). `False` restores
+  the signed, parity-sensitive comparison and the signed panel. The two are
+  identical whenever the matched signs agree, so well-fit results are
+  unaffected. Applies to the point-source path on every backend (DE, MCMC and
+  the glafic verification recompute); the extended-source flux chi2 keeps
+  glafic's own `chi2_usemag`/parity semantics.
+* `gpu_precision` (default `64`) selects the compute precision of the batched
+  GPU paths (DE and MCMC): `64` = fp64 everywhere; `48` = mixed — the
+  deflection-field / triangle-test phase runs fp32 while the Newton refine and
+  the magnifications keep fp64; `32` = fp32 everywhere. `48`/`32` mainly speed
+  up Schramm-quadrature models (`sers`/`nfw`/`king`/...) on consumer GPUs
+  (fp64 there runs at 1/64 rate). Other values are a validation error; the
+  key has no effect on the CPU/glafic backends, the per-candidate GPU
+  fallback, or the extended-source (FITS) batched path (fp64 for now).
+
+### User-defined variables
+
+Any assignment whose name is not a known scalar key defines a **variable**,
+referencable from component tuples:
+
+* a **fixed** variable (`my_re = 0.39`) simply substitutes its value at every
+  reference (this also works for the known fixed scalars, e.g. `lens_z`);
+* an **optimizable** variable (`lens_x = {-0.1, 0.1}`) becomes ONE shared
+  search dimension: every parameter referencing it is fitted to the SAME
+  value (the dimension appears once, under the variable's name, in the
+  corner plots / fit output). Use it to tie parameters across components,
+  e.g. a common centre:
+
+  ```
+  lens_x = {-0.1, 0.1}
+  'sers1': (1, 'sers', lens_z, {1e9,1e12}, lens_x, {-0.1,0.1},  ...)
+  'sers2': (2, 'sers', lens_z, {1e9,1e12}, lens_x, {-0.05,0.05}, ...)
+  ```
+
+  For independent searches just write `{lo, hi}` inline instead. A variable
+  used in a mass-like slot is searched in log10 like any mass; using one
+  variable in both mass-like and linear slots is a validation error
+  (`var_mixed_usage`); a defined-but-never-referenced variable gets a
+  `var_unused` warning. Optimizable *schema* scalars (e.g. `source_x =
+  {lo, hi}`) cannot be referenced — they already own their own dimension.
+  Variables work across multiple selected files (define in one, reference in
+  another) and on every backend; the batched GPU paths support them directly,
+  except a variable on a component *redshift* or a `zs_fid` slot, which falls
+  back to the (correct, slower) per-candidate evaluation. The glade→glafic
+  export resolves variables to concrete values (the tie is not representable
+  in a glafic input file).
 
 ## 3. Component tuples (lens + sub-structure share one stack)
 
@@ -74,7 +124,12 @@ A lens or sub-structure component is written as a dict-entry line:
 
 * `name` — a quoted identifier, e.g. `'sers1'`, `'point1'`, `'king1'`.
 * `N` — an integer index. **It is recomputed globally** (1-based, in selection
-  order across all appended files); the literal value is only a hint.
+  order across all appended files); the literal value is only a hint. An
+  optional one-letter suffix overrides how the component is **classified**
+  (never how it lenses): `3l` = treat as a main *lens*, `3s` = treat as a
+  *sub-structure* (drawn as a sub-halo marker in the result triptych). A plain
+  number keeps the default classification: the model's schema category, or
+  sub-structure when any parameter is optimizable.
 * `'type'` — a model keyword (see `core/format/schema.py`).
 * `z` — the component redshift: a literal float **or** a reference such as
   `lens_z`. References resolve to the nearest earlier numeric assignment.
@@ -88,6 +143,17 @@ stack**. They are mechanically identical (both become glafic `set_lens` calls);
 the Editor's *Lens* vs *Sub-structure* menus are only authoring categories.
 Sub-structures are freely **composable and mixed-type** (e.g. one `point` + one
 `king` in the same run).
+
+When a model's default category does not match its role in a particular fit,
+recategorize it with the index suffix. For example an `anfw` halo (schema
+category: sub-structure) used as the *galaxy-scale* main lens, locked at its
+best-fit values, should not appear as a sub-halo marker:
+
+```python
+'anfw1': (3l, 'anfw', lens_z, 3.606e+11, -2.89e-03, 2.71e-02, 0.464, 26.56, 29.36)
+```
+
+The reverse (`3s`) forces any model to be displayed as a sub-structure.
 
 ## 4. Optimization semantics
 
@@ -116,9 +182,11 @@ Selecting several `.dat` files merges them by section:
 ## 6. Backends
 
 * **CPU** (glafic) and **Glafic-direct** support all models.
-* **GPU** (Rhongomyniad) supports only: `point`, `sie`, `pert`, `nfw`,
-  `nfwpot`, `king`, `jaffe`, `gaupot`, `sers` (single lens plane). Selecting GPU
-  with any other model is blocked, naming the offending component.
+* **GPU** (Rhongomyniad, V0.50) supports every deflector model except the
+  file-based `gals` catalogue, all five extended-source models and the full
+  extended-source (FITS) chi2 pipeline — still single lens plane. Selecting
+  GPU with an unsupported model (`gals`, or multi-plane configs) is blocked,
+  naming the offending component.
 
 ## 7. Example
 

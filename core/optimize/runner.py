@@ -97,14 +97,18 @@ def _optimize_extend(cfg: GladeConfig,
                      de_overrides: Optional[dict],
                      record_population: bool,
                      base_dir: Optional[str]) -> OptResult:
-    """Extended-source CPU path: DE over a glafic c2calc_each weighted loss."""
+    """Extended-source path: DE over a c2calc_each weighted loss.
+
+    ``backend='cpu'|'glafic'`` drives glafic per candidate (process pool);
+    ``backend='gpu'`` drives Rhongomyniad — batched over the whole population
+    when the configuration allows it, else per candidate (single process).
+    """
     from .extend import ExtendObjective, build_extend_spec
     from .loss import ExtendLossConfig
 
-    name = backend if isinstance(backend, str) else getattr(backend, "name", "cpu")
-    if str(name).lower() == "gpu":
-        raise ValueError(
-            "extended-source fitting is CPU-only for now; select the CPU backend")
+    name = str(backend if isinstance(backend, str)
+               else getattr(backend, "name", "cpu")).lower()
+    is_gpu = name == "gpu"
 
     problem = OptProblem(cfg, extend_mode=True)
     if problem.ndim == 0:
@@ -114,11 +118,22 @@ def _optimize_extend(cfg: GladeConfig,
     spec = build_extend_spec(cfg, base_dir=base_dir)
     loss_cfg = ExtendLossConfig.from_cfg(cfg)
     de_cfg = DEConfig.from_cfg(cfg)
+
+    objective = None
+    if is_gpu:
+        from .batched_extend import BatchedExtendGPUObjective, can_batch_extend_gpu
+        ok, _reason = can_batch_extend_gpu(cfg)
+        if ok:
+            objective = BatchedExtendGPUObjective(problem, spec, loss_cfg)
+            de_cfg.gpu_vectorized = True
+        de_cfg.workers = 1     # CUDA is single-process either way
+    if objective is None:
+        objective = ExtendObjective(problem, spec, loss_cfg,
+                                    backend=("gpu" if is_gpu else name))
     if de_overrides:
         for k, v in de_overrides.items():
             setattr(de_cfg, k, v)
 
-    objective = ExtendObjective(problem, spec, loss_cfg)
     result = run_de(objective, problem.bounds, de_cfg,
                     on_iteration=on_iteration,
                     record_population=record_population)
@@ -133,7 +148,7 @@ def _optimize_extend(cfg: GladeConfig,
         scene=problem.make_scene(result.x),
         problem=problem,
         de=result,
-        backend="cpu",
+        backend=("gpu" if is_gpu else "cpu"),
         extend_spec=spec,
         extend_components=best_components,
         mode="extend",

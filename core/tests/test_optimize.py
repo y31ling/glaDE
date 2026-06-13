@@ -99,6 +99,71 @@ def test_problem_dims_and_log_bounds():
     assert p.dims[0].log is False and p.dims[0].lo == -0.1 and p.dims[0].hi == 0.1
 
 
+def test_abs_mag_loss_convention():
+    """abs_mag=True (default) compares |mu|: obs 30 vs model -29 differs by 1,
+    not 59; abs_mag=False restores the signed comparison. Same-sign pairs are
+    identical either way."""
+    from core.optimize.loss import LossConfig, ml_loss
+    delta = np.array([0.0])
+    sigma = np.array([1.0])
+    err = np.array([1.0])
+    obs_mag = np.array([30.0])
+    pred_mag = np.array([-29.0])
+
+    cfg_abs = LossConfig(coef_a=1.0, coef_b=1.0)
+    assert cfg_abs.abs_mag is True                       # the default
+    assert math.isclose(ml_loss(delta, pred_mag, obs_mag, err, sigma, cfg_abs),
+                        1.0)                              # (|−29|−|30|)² = 1
+    cfg_sgn = LossConfig(coef_a=1.0, coef_b=1.0, abs_mag=False)
+    assert math.isclose(ml_loss(delta, pred_mag, obs_mag, err, sigma, cfg_sgn),
+                        59.0 ** 2)                        # (−29−30)² = 3481
+    # same-sign pair: identical under both conventions
+    both = np.array([-35.6]), np.array([-33.6])
+    a = ml_loss(delta, both[1], both[0], err, sigma, cfg_abs)
+    b = ml_loss(delta, both[1], both[0], err, sigma, cfg_sgn)
+    assert math.isclose(a, b) and math.isclose(a, 4.0)
+    # .dat plumbing
+    cfg, _ = lint_text(TEST_CFG + "abs_mag = False\n", backend="cpu",
+                       with_defaults=True)
+    assert LossConfig.from_cfg(cfg).abs_mag is False
+    cfg2, _ = lint_text(TEST_CFG, backend="cpu", with_defaults=True)
+    assert LossConfig.from_cfg(cfg2).abs_mag is True
+
+
+def test_problem_shared_user_variable():
+    """A {lo,hi} user variable referenced by several components is ONE search
+    dimension; make_scene injects the same fitted value at every site."""
+    txt = TEST_CFG.replace(
+        "'point1': (1, 'point', lens_z, {1e5, 1e7}, {-0.30, -0.20}, {-0.05, 0.05})",
+        "px = {-0.30, -0.20}\n"
+        "'point1': (1, 'point', lens_z, {1e5, 1e7}, px, {-0.05, 0.05})\n"
+        "'point2': (2, 'point', lens_z, {1e5, 1e7}, px, 0.04)")
+    cfg, issues = lint_text(txt, backend="cpu", with_defaults=True)
+    assert not any(i.is_error for i in issues), [str(i) for i in issues]
+    p = OptProblem(cfg)
+    labels = [d.label for d in p.dims]
+    assert labels == ["source_x", "point1.mass", "px", "point1.y", "point2.mass"]
+    k = labels.index("px")
+    assert p.dims[k].target == ("var", "px") and p.dims[k].log is False
+    cand = [0.03, 6.0, -0.27, 0.0, 5.5]
+    scene = p.make_scene(cand)
+    assert math.isclose(scene.components[0].params[1], -0.27)
+    assert math.isclose(scene.components[1].params[1], -0.27)   # shared
+    assert math.isclose(scene.components[1].params[2], 0.04)    # locked
+    # a mass-like shared variable searches in log10
+    txt2 = txt.replace("px = {-0.30, -0.20}", "px = {1e5, 1e7}") \
+              .replace("{1e5, 1e7}, px, {-0.05, 0.05})", "px, -0.25, {-0.05, 0.05})") \
+              .replace("{1e5, 1e7}, px, 0.04)", "px, -0.22, 0.04)")
+    cfg2, issues2 = lint_text(txt2, backend="cpu", with_defaults=True)
+    assert not any(i.is_error for i in issues2), [str(i) for i in issues2]
+    p2 = OptProblem(cfg2)
+    d = {dd.label: dd for dd in p2.dims}["px"]
+    assert d.log is True and math.isclose(d.lo, 5.0) and math.isclose(d.hi, 7.0)
+    s2 = p2.make_scene([0.03, 6.0, 0.0])
+    assert math.isclose(s2.components[0].params[0], 1e6)
+    assert math.isclose(s2.components[1].params[0], 1e6)
+
+
 def test_make_scene_injects_candidate():
     p = OptProblem(_cfg())
     # candidate order matches dims: [source_x, log_mass, point_x, point_y]

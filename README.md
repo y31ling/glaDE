@@ -7,10 +7,26 @@
 GLADE is a gravitational-lensing analysis workbench for strong-lens modelling,
 substructure searches, Differential Evolution, and MCMC. It wraps a modified
 `glafic2` CPU/reference engine, a unified backend-agnostic `core/` optimizer,
-and the experimental `Rhongomyniad/` GPU lens calculator behind a browser UI and
+and the `Rhongomyniad/` GPU lens engine behind a browser UI and
 command-line tools.
 
-> **V0.4.5 current release**: GLADE adds **macOS deployment support** (Apple
+> **V0.50 current release — Rhongomyniad major update**: the PyTorch/CUDA GPU
+> engine leaves beta and takes its first real version name. The GPU backend now
+> matches the CPU's full behaviour: every deflector model except the file-based
+> `gals` (24 tensor-parameterised kernels) plus all 5 extended-source (FITS)
+> profiles run on the GPU; **any** optimizable lens model is evaluated
+> whole-DE-population batched (a free 20-dim main-lens fit drops from ~21 s to
+> ~0.86 s per generation, ~27×); a new `gpu_precision = 64/48/32` key adds a
+> mixed fp32/fp64 mode (48: fp32 speed at fp64 accuracy, recommended for
+> Schramm-heavy models); MCMC gains a batched-CUDA `MCMC-GPU` rail with
+> auto-tuned walkers. The `.dat` format adds user-defined shared variables
+> (`lens_x = {-0.1, 0.1}` ties one fitted value across components), an
+> `abs_mag` parity-insensitive magnification chi2/plot convention (default),
+> and `Nl`/`Ns` component classification suffixes. Verified throughout against
+> scipy-exact references and the glafic binary; pure point-mass configs keep
+> bit-identical same-seed DE trajectories. See [Update.txt](Update.txt).
+>
+> **V0.4.5**: GLADE adds **macOS deployment support** (Apple
 > Silicon and Intel) via a new `bootstrap_macos.sh` one-click installer and a
 > platform-aware multiprocessing layer (`core/parallel.py`) that keeps Linux on
 > `fork` while macOS uses `spawn`, so multi-process DE/MCMC runs safely on a Mac
@@ -181,7 +197,7 @@ glade/
 │   └── translate/          # glafic <-> glade conversion
 ├── webui/                  # current Flask + Monaco browser workbench
 ├── glafic2/                # modified glafic v2 source and Python bindings
-├── Rhongomyniad/           # experimental GPU lens calculator
+├── Rhongomyniad/           # GPU lens engine (PyTorch/CUDA, glafic-matching)
 ├── legacy/                 # archived pre-v0.4 model scripts
 └── tools/                  # verification, plotting, and post-processing helpers
 ```
@@ -251,6 +267,7 @@ also require built glafic bindings and, for GPU, a working PyTorch/CUDA setup.
 
 | version | comments |
 |:---|:---|
+| 0.50 | **Rhongomyniad major update** (consolidates the unreleased 0.4.6–0.4.8): full GPU/CPU behaviour parity (24 tensor-parameterised kernels, extended-source FITS pipeline on GPU), whole-population batched DE/MCMC for any optimizable model (~27× on free main-lens fits), `gpu_precision` 64/48/32 mixed precision, user-defined shared `.dat` variables, parity-insensitive `abs_mag` magnification convention, `MCMC-GPU` rail with walker auto-tuning, `Nl`/`Ns` classification suffixes, scipy-exact + glafic cross-verification tools, and extensive adversarial-review hardening. |
 | 0.4.5 | macOS deployment support was added: a `bootstrap_macos.sh` one-click installer (Homebrew deps, macOS glafic build) and a platform-aware multiprocessing layer (`core/parallel.py`) that keeps Linux on `fork` and uses `spawn` on macOS so multi-process DE/MCMC is safe and result-identical. **Untested on a real Mac**; Linux behavior is unchanged (core tests 81/81). |
 | 0.4.4 | Extended-source (FITS) CPU fitting was added: a `.dat` can reference a FITS image and external file addresses and is optimized via glafic's new per-component `c2calc` with weightable terms, an optimizable Hubble constant, MCMC support, and a graded missing-image penalty. |
 | 0.4.3 | The bundled glafic was synced to upstream v2.1.14, preserving GLADE's King model (renumbered to #27 to avoid the new `acnfw`), the tolerance override, and the vendored build. |

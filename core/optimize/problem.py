@@ -12,7 +12,7 @@ from typing import Optional
 
 from ..format import schema
 from ..format.config import GladeConfig
-from ..format.values import Bounds, Fixed
+from ..format.values import Bounds, Fixed, SharedBounds
 from .scene import Scene, SceneComponent
 
 
@@ -25,6 +25,9 @@ class Dim:
         ('cosmo', 'hubble')
         ('comp_z', comp_index)
         ('comp_param', comp_index, param_index)
+        ('var', name)        -- a user-defined shared {lo, hi} variable; every
+                                component parameter referencing it injects the
+                                SAME fitted value
     ``lo``/``hi`` are bounds in *search* space (already log10 for mass-like).
     """
 
@@ -57,6 +60,7 @@ class OptProblem:
         # outer DE dimensions; everything else (lens, extend, hubble) still is.
         self.extend_mode = extend_mode
         self.dims: list[Dim] = []
+        self._var_dims: dict[str, int] = {}   # shared-variable name -> dim index
         self._build_dims()
 
     # -- dimension extraction ------------------------------------------------
@@ -75,15 +79,22 @@ class OptProblem:
 
         for comp in self.cfg.components:
             spec = schema.model(comp.type)
-            if isinstance(comp.z, Bounds):
+            if isinstance(comp.z, SharedBounds):
+                self._ensure_var_dim(comp.z, is_mass=False)
+            elif isinstance(comp.z, Bounds):
                 self.dims.append(
                     Dim(("comp_z", comp.index), comp.z.lo, comp.z.hi, False,
                         f"{comp.name}.z"))
             for j, p in enumerate(comp.params):
                 if not isinstance(p, Bounds):
                     continue
-                pname = spec.params[j].name if (spec and j < len(spec.params)) else f"p{j+1}"
                 is_mass = bool(spec and j < len(spec.params) and spec.params[j].is_mass)
+                if isinstance(p, SharedBounds):
+                    # one shared dimension per variable, created on first use
+                    # (validate rejects mixed mass/linear usage)
+                    self._ensure_var_dim(p, is_mass=is_mass)
+                    continue
+                pname = spec.params[j].name if (spec and j < len(spec.params)) else f"p{j+1}"
                 if is_mass:
                     lo, hi = math.log10(p.lo), math.log10(p.hi)
                 else:
@@ -91,6 +102,16 @@ class OptProblem:
                 self.dims.append(
                     Dim(("comp_param", comp.index, j), lo, hi, is_mass,
                         f"{comp.name}.{pname}"))
+
+    def _ensure_var_dim(self, p: SharedBounds, is_mass: bool) -> None:
+        if p.name in self._var_dims:
+            return
+        if is_mass:
+            lo, hi = math.log10(p.lo), math.log10(p.hi)
+        else:
+            lo, hi = p.lo, p.hi
+        self._var_dims[p.name] = len(self.dims)
+        self.dims.append(Dim(("var", p.name), lo, hi, is_mass, p.name))
 
     @property
     def bounds(self) -> list[tuple[float, float]]:
@@ -131,12 +152,17 @@ class OptProblem:
         components: list[SceneComponent] = []
         extends: list[SceneComponent] = []
         for comp in cfg.components:
-            z = ov.get(("comp_z", comp.index),
-                       comp.z.value if isinstance(comp.z, Fixed) else float("nan"))
+            if isinstance(comp.z, SharedBounds):
+                z = ov[("var", comp.z.name)]
+            else:
+                z = ov.get(("comp_z", comp.index),
+                           comp.z.value if isinstance(comp.z, Fixed) else float("nan"))
             params: list[float] = []
             for j, p in enumerate(comp.params):
                 if isinstance(p, Fixed):
                     params.append(p.value)
+                elif isinstance(p, SharedBounds):
+                    params.append(ov[("var", p.name)])
                 else:  # Bounds -> from candidate
                     params.append(ov[("comp_param", comp.index, j)])
             sc = SceneComponent(_glafic_key(comp.type), float(z), params)
@@ -165,3 +191,26 @@ class OptProblem:
     def decode(self, candidate) -> dict:
         """Human-readable fitted values keyed by dimension label."""
         return {d.label: d.to_value(candidate[i]) for i, d in enumerate(self.dims)}
+
+    def xy_dim_pairs(self) -> list[tuple[int, int]]:
+        """``(kx, ky)`` dim-index pairs that give one component's centre,
+        resolving shared variables to their single dimension (used to overlay
+        observed image positions on the iteration corner panels)."""
+        by_target = {d.target: i for i, d in enumerate(self.dims)}
+        pairs: list[tuple[int, int]] = []
+        for comp in self.cfg.components:
+            spec = schema.model(comp.type)
+            if not spec:
+                continue
+            k: dict[str, int] = {}
+            for j, p in enumerate(comp.params):
+                pname = spec.params[j].name if j < len(spec.params) else ""
+                if pname not in ("x", "y") or not isinstance(p, Bounds):
+                    continue
+                k[pname] = (self._var_dims[p.name] if isinstance(p, SharedBounds)
+                            else by_target[("comp_param", comp.index, j)])
+            if "x" in k and "y" in k and k["x"] != k["y"]:
+                pair = (k["x"], k["y"])
+                if pair not in pairs:
+                    pairs.append(pair)
+        return pairs

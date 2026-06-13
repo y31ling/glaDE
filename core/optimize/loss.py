@@ -23,6 +23,13 @@ class LossConfig:
     # (n_obs - n_pred) * this, instead of being hard-rejected (see
     # objective.point_source_loss). 0.0 keeps the historical hard reject.
     missing_img_penalty: float = 0.0
+    # abs_mag : compare magnifications by ABSOLUTE value (parity-insensitive:
+    # obs 30 vs model -29 differs by 1, not 59). True is the default — near
+    # critical curves the model parity flips easily and a signed comparison
+    # punishes an otherwise good match. False restores the signed
+    # (parity-sensitive) comparison. Identical whenever the matched signs
+    # agree: ||a|-|b|| == |a-b| for same-sign a, b.
+    abs_mag: bool = True
 
     @classmethod
     def from_cfg(cls, cfg: GladeConfig) -> "LossConfig":
@@ -32,6 +39,7 @@ class LossConfig:
             coef_b=float(a.get("LOSS_COEF_B", 1.0)),
             penalty_pl=float(a.get("LOSS_PENALTY_PL", 10000.0)),
             missing_img_penalty=float(a.get("missing_img_penalty", 0.0)),
+            abs_mag=bool(a.get("abs_mag", True)),
         )
 
 
@@ -88,8 +96,13 @@ def ml_loss(delta_pos_mas: np.ndarray,
     sigma = np.asarray(obs_pos_sigma_mas, dtype=float)
 
     chi2_pos = float(np.sum((delta / sigma) ** 2))
-    chi2_mag = float(np.sum(((np.asarray(pred_mag, dtype=float) - obs_mag)
-                             / obs_mag_err) ** 2))
+    pred = np.asarray(pred_mag, dtype=float)
+    obs_m = np.asarray(obs_mag, dtype=float)
+    if cfg.abs_mag:
+        # parity-insensitive: |mu| only (obs 30 vs model -29 -> 1, not 59)
+        pred = np.abs(pred)
+        obs_m = np.abs(obs_m)
+    chi2_mag = float(np.sum(((pred - obs_m) / obs_mag_err) ** 2))
     over = delta > sigma
     penalty = float(np.sum(cfg.penalty_pl * delta[over])) if np.any(over) else 0.0
 
