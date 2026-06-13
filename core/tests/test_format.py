@@ -345,7 +345,7 @@ def test_unknown_model_blocks():
 
 
 def test_gpu_unsupported_model_blocks_only_on_gpu():
-    # V0.50: nearly every model runs on the GPU now; 'gals' (file-based
+    # V0.5.0: nearly every model runs on the GPU now; 'gals' (file-based
     # catalogue) is the remaining CPU-only one
     text = _GOOD + "'g1': (3, 'gals', lens_z, 1.0)\n"
     _, issues_gpu = lint_text(text, backend="gpu", with_defaults=True)

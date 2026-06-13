@@ -1,4 +1,4 @@
-"""Consolidated checks for the 15 lens models ported in V0.50
+"""Consolidated checks for the 15 lens models ported in V0.5.0
 (models_closed / models_tnfw_cse / models_tab).
 
     python Rhongomyniad/tests/test_models_new.py

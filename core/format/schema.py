@@ -306,7 +306,7 @@ GPU_MODELS = frozenset(k for k, m in MODELS.items() if m.gpu)
 ALL_MODELS = frozenset(MODELS)
 
 # Extended-source models (glafic set_extend). They form a separate engine stack
-# (runnable on the CPU/glafic backends and, since V0.50, on the GPU backend).
+# (runnable on the CPU/glafic backends and, since V0.5.0, on the GPU backend).
 EXTEND_CATEGORY = "extend"
 EXTEND_MODELS = frozenset(k for k, m in MODELS.items() if m.category == EXTEND_CATEGORY)
 # Deflector models (set_lens) = everything that is not an extended source.

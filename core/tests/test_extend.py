@@ -56,7 +56,7 @@ def test_extend_models_registered():
         spec = schema.model(k)
         assert spec is not None, k
         assert spec.category == schema.EXTEND_CATEGORY
-        assert spec.gpu is True          # V0.50: extend runs on Rhongomyniad
+        assert spec.gpu is True          # V0.5.0: extend runs on Rhongomyniad
         assert schema.is_extend_model(k)
     # extsersic glafic_key is the bare glafic name and params start with norm
     s = schema.model("extsersic")
@@ -68,7 +68,7 @@ def test_extend_models_registered():
 
 
 def test_extend_supported_on_gpu():
-    # V0.50: the extend stack runs on the GPU backend too
+    # V0.5.0: the extend stack runs on the GPU backend too
     assert "extsersic" in schema.GPU_MODELS
     assert schema.supports("gpu", "extsersic")
     assert schema.supports("cpu", "extsersic")
@@ -184,7 +184,7 @@ def test_extend_requires_fits():
 
 
 def test_extend_validates_on_gpu_backend():
-    # V0.50: a GPU-capable extend config passes gpu validation
+    # V0.5.0: a GPU-capable extend config passes gpu validation
     cfg, _ = merge([parse_text(_EXTEND_DAT, path="e.dat")])
     issues = validate(cfg, backend="gpu")
     assert not any(i.code == "gpu_unsupported" for i in issues)

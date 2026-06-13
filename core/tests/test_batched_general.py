@@ -1,4 +1,4 @@
-"""Tests for the generalized batched GPU objective (V0.50).
+"""Tests for the generalized batched GPU objective (V0.5.0).
 
 Covers the widened ``can_batch_gpu`` predicate (pure config logic, no torch)
 and — when torch + Rhongomyniad are importable (CPU torch is enough) — the

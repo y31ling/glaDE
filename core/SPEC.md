@@ -182,7 +182,7 @@ Selecting several `.dat` files merges them by section:
 ## 6. Backends
 
 * **CPU** (glafic) and **Glafic-direct** support all models.
-* **GPU** (Rhongomyniad, V0.50) supports every deflector model except the
+* **GPU** (Rhongomyniad, V0.5.0) supports every deflector model except the
   file-based `gals` catalogue, all five extended-source models and the full
   extended-source (FITS) chi2 pipeline — still single lens plane. Selecting
   GPU with an unsupported model (`gals`, or multi-plane configs) is blocked,

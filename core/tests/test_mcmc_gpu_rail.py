@@ -1,4 +1,4 @@
-"""Tests for the FindImage MCMC-GPU rail plumbing (V0.50).
+"""Tests for the FindImage MCMC-GPU rail plumbing (V0.5.0).
 
 Covers the rail -> (engine, mode) mapping in the WebUI and the GPU walker
 auto-tuning in the run worker. Pure plumbing — no torch/CUDA required
@@ -20,7 +20,7 @@ if _ROOT not in sys.path:
 from core.format import lint_text  # noqa: E402
 from core.mcmc import MCMCConfig  # noqa: E402
 
-# A point-source config the batched GPU likelihood accepts (since V0.50 any
+# A point-source config the batched GPU likelihood accepts (since V0.5.0 any
 # GPU-supported optimizable model qualifies; hubble must stay fixed).
 BATCHABLE_CFG = """
 omega = 0.3
@@ -52,7 +52,7 @@ obs_x_flip = False
 NONBATCHABLE_CFG = BATCHABLE_CFG.replace("hubble = 0.7",
                                          "hubble = {0.5, 0.9}")
 
-# A free (non-point) main lens: batchable since V0.50 via the generalized
+# A free (non-point) main lens: batchable since V0.5.0 via the generalized
 # chunked tensor-kernel path — which does NOT auto-raise the walker count
 # (the 1024-walker benchmark only holds for the single-pass point pipeline).
 GENERAL_BATCHABLE_CFG = BATCHABLE_CFG.replace(

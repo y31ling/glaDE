@@ -1,6 +1,6 @@
 """Batched GPU objective (whole DE population in one CUDA pass).
 
-Generalized in V0.50 from the legacy point-mass-only pipeline to EVERY
+Generalized in V0.5.0 from the legacy point-mass-only pipeline to EVERY
 GPU-supported deflector model: per DE generation, the optimizable components'
 parameters become per-candidate ``(C, 1, 1)`` tensors fed through the
 tensorized Rhongomyniad kernels, the LOCKED components' deflection field is
@@ -12,7 +12,7 @@ same ``point_source_loss`` helper as the CPU path (so the optional
 Configurations whose optimizable components are all point masses with a fixed
 source keep the original analytic pipeline untouched (at the default
 ``gpu_precision = 64`` same-seed DE trajectories stay bit-identical with
-pre-V0.50 runs); everything else takes the generalized tensor-kernel path,
+pre-V0.5.0 runs); everything else takes the generalized tensor-kernel path,
 chunked over the population (``GLADE_GPU_CHUNK``; default 32 when a
 Schramm-quadrature model is optimizable, else 128 — doubled to 64/256 when
 the field phase runs fp32, same memory envelope) to bound the 256-node
@@ -80,7 +80,7 @@ def _chunk_from_env(heavy: bool, fp32_fields: bool = False) -> int:
 def _legacy_eligible(cfg: GladeConfig) -> bool:
     """The original analytic point-mass pipeline applies: every optimizable
     component is a point mass and the source position is fixed. Kept untouched
-    so same-seed DE trajectories stay bit-identical with pre-V0.50 runs; also
+    so same-seed DE trajectories stay bit-identical with pre-V0.5.0 runs; also
     consumed by webui.runjob to tune the GPU MCMC walker default."""
     src = cfg.source
     if isinstance(src.get("source_x"), Bounds) or isinstance(src.get("source_y"), Bounds):
@@ -146,7 +146,7 @@ class BatchedGPUObjective:
     * **legacy point-mass mode** — every optimizable component is a point mass
       and the source position is fixed: the original analytic pipeline; at the
       default ``gpu_precision = 64`` it is operation-for-operation untouched,
-      so same-seed DE trajectories are bit-identical with pre-V0.50 runs;
+      so same-seed DE trajectories are bit-identical with pre-V0.5.0 runs;
     * **generalized mode** — anything else :func:`can_batch_gpu` accepts:
       optimizable components of any GPU-supported model (and an optimizable
       source position) become per-candidate tensors through the tensorized

@@ -1,4 +1,4 @@
-V0.50 - Rhongomyniad 正式版大更新（整合未发布的 V0.4.6 / V0.4.7 / V0.4.8）
+V0.5.0 - Rhongomyniad 正式版大更新（整合未发布的 V0.4.6 / V0.4.7 / V0.4.8）
 
 Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据正式版本名。
 本版把 GPU 后端从"点质量批量 + 模型子集"升级为与 CPU 全行为对齐、任意可优化
@@ -13,7 +13,7 @@ Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据�
   fp64 精度）；.dat 自定义共享变量（lens_x = {lo,hi} 绑定多组件同一维度）；
   abs_mag 宇称不敏感放大率比较；纯点质量旧路径同种子 DE 轨迹逐位回归保障。
 
-―――― V0.4.8 阶段明细（未单独发布，并入 V0.50）――――
+―――― V0.4.8 阶段明细（未单独发布，并入 V0.5.0）――――
 
 - 新增 .dat 算法键 abs_mag（默认 True）——放大率按绝对值比较与展示：
   - True（默认）：点源损失的 chi2_mag 用 |μ| 比较（宇称不敏感：obs=30 vs model=−29 差 1 而非 59）——临界线附近模型宇称极易翻转，符号敏感比较会重罚本来良好的匹配；三联图放大率面板同步显示 |μ|（柱全部正向上、y 轴 0 起、图例 |μ_obs|/|μ_pred|/|μ@obs|）。False 恢复符号敏感比较与带符号面板。
@@ -45,7 +45,7 @@ Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据�
   - 诊断附带发现（记录在 memory.md，与本特性无关）：(1) glafic findimg 的粗到细搜索会漏掉其自身 calcimage 确认存在的近边界真像（pix_poi=0.2 粗胞三角测试错过折叠则不细化；GLADE 批量 finder 用均匀细网格无此问题）；(2) verify.py 的 scipy Sersic 参考在 n≈0.74/1.41 参数角与两个独立引擎（glafic Romberg 与 GL-256，彼此一致到 3e-8″）同时偏差 3.1e-5″——疑似参考积分自身精度极限，待查（SN 参数角为正常的 1.39e-9″）。
   - gpu_precision 的对抗审查修复（21 个审查/验证智能体，确认项全部处理，含 1 项 major）：fp32 去重容差失效——fp64 标定的放大率量纲化合并判据（10·DEF_MAX_POI_TOL²=1e-19）在 fp32 Newton 只收敛到 ~ulp 时永不合并重复种子的像，幻影重像曾污染 pm_gpu_test 全范围采样下 ~6.5% 候选的损失（吞掉缺像惩罚/翻成 INVALID）；修复为 dtype 门控的 128×fp32-ulp 绝对位置下限（64/48 档判据逐位不变），实测 8100 候选幻影 0 个，新增回归测试 test_gpu_precision_fp32_dedup_no_phantom_images。其余：legacy 场相质量解码改为先 fp64 解码再降转（与既有不变量一致）；validate 对 gpu_precision=inf 不再抛 OverflowError；新增 GPU_PRECISION 大写别名（与 MISSING_IMG_PENALTY 先例一致）；三个精度测试加最小有效候选护栏 + 近临界 |mag|<100 守卫（fp32 场相对近临界候选的已知敏感性）；验证工具修复：已设 gpu_precision 的 .dat 不再重复赋值报错、legacy 配置的代表候选搜索走正确管线、glafic.quit() 进 finally、全无效种群不再崩溃。fp32 档已知特性：近临界候选损失噪声可达 1e-4~5e-2 相对量级（中位 5e-6）——推荐档仍为 48（与 64 一致至 1e-14 量级）。
 
-―――― V0.4.7 阶段明细（未单独发布，并入 V0.50）――――
+―――― V0.4.7 阶段明细（未单独发布，并入 V0.5.0）――――
 
 - FindImage 新增 MCMC-GPU 档位（落地 GPU_MCMC_exploration.md 的结论）：
   - Backend 栏新增 "MCMC-GPU"（emcee · batched CUDA），映射为 engine=gpu + mode=mcmc：点源配置满足批量条件（全部可优化组件为点质量、源位置与 hubble 固定）时走 BatchedGPULogProbability（emcee vectorize=True，整个半族群一次 CUDA 批量）；扩展源配置满足 can_batch_extend_gpu 时走 BatchedExtendGPULogProbability。
@@ -65,7 +65,7 @@ Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据�
   - extend MCMC 非批量 GPU 回退时的慢速提示不再误写 "glafic per walker"（实为单进程 Rhongomyniad）；rail 提示文案改为 "half the walker ensemble per CUDA call" 并注明 unset 自动 1024。
   - MCMC trace 图新增 walker 维度下采样（>256 时抽样绘制，1024-walker GPU 链不再卡顿）；新增 extend 分支与 gpu_mcmc_auto_walkers 的测试（core/tests/test_mcmc_gpu_rail.py 共 8 项）。
 
-―――― V0.4.6 阶段明细（未单独发布，并入 V0.50）――――
+―――― V0.4.6 阶段明细（未单独发布，并入 V0.5.0）――――
 
 - 修复 draw_graph 迭代图：恢复 legacy 格式的全参数 corner 图。此前新核心只画一张"组件 (x,y) 混叠散点"单图，extend 跑 19 维时 13 个参数从未被可视化。现在每个 draw_interval 帧输出 N×N corner（对角=各参数直方图，下三角=每个参数对的 2D 种群剖面，按目标值着色，红十字=当前最优，组件 x/y 面板叠加观测像位置金星标），point 与 extend 两条路径统一（GPU 后端也输出迭代帧）。19 维约 2.7 秒/帧。
 - GPU/CPU 对齐（方案B）：Rhongomyniad 现在支持 CPU 模式的全部拟合行为。

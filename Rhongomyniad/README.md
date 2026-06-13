@@ -14,7 +14,7 @@ calls `calcimage`, `point_solve`, `findimg`). Optimisers, MCMC, extended-
 source rendering, FITS I/O, GUI commands, etc. are out of scope — those
 belong in the `glade` wrapper that sits on top.
 
-## Supported lens models (V0.50)
+## Supported lens models (V0.5.0)
 
 | glafic name | Mechanism | Module |
 |-------------|-----------|--------|

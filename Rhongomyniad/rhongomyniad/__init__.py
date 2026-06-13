@@ -51,4 +51,4 @@ from .api import (
     supported_models,
 )
 
-__version__ = "0.50"
+__version__ = "0.5.0"
