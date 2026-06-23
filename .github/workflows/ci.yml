@@ -11,7 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        # 3.12 matches the project's actual runtime (the .venv) and its 3.12-only
+        # syntax (PEP 701 nested f-strings in tools/ and legacy/).
+        python-version: ["3.12"]
 
     steps:
     - uses: actions/checkout@v3

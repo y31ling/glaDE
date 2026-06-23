@@ -136,7 +136,7 @@ def main() -> None:
     kappa_glafic_n = kappa_glafic / kg0
     kappa_shape_n = kappa_shape / ks0
 
-    out_dir = f"{ROOT}/work/tools"
+    out_dir = os.path.join(GLADE_ROOT, "tools")   # repo tools/ (next to this script)
     png_path = f"{out_dir}/king_profile_review.png"
     csv_path = f"{out_dir}/king_profile_review.csv"
 

@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:                       # torch is imported lazily inside methods;
+    import torch                        # this keeps "torch.Tensor" annotations resolvable
 
 import numpy as np
 
