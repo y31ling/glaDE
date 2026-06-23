@@ -1,3 +1,38 @@
+V0.5.3 - .dat 参数支持算术公式 + 观测像位置引用
+
+分量参数（及其 {lo, hi} 边界）现在可以写成引用观测像位置的算术表达式，加载时自动求值：
+
+    'king1': (4, 'king', lens_z, {1e2, 1e8},
+              {img1_x-0.075, img1_x+0.075},
+              {obs_positions_mas_list[0][1]-0.075, obs_positions_mas_list[0][1]+0.075},
+              {0,0.9}, {0,180}, {0.00008, 0.0080}, {0.5, 2.5})
+
+- 运算符：+ - * / ** 及括号（例如 (img1_x+img2_x)/2 = 两个像的中点）。纯数字运算在解析期立即折叠；引用观测的表达式在所有文件合并后再解析。
+- 观测像引用：
+  - imgN_x / imgN_y —— 第 N 个观测像（从 1 开始）。
+  - obs_positions_mas_list[i][j] —— 同一个像，从 0 开始；j=0 取 x，j=1 取 y。img1_x 完全等价于 obs_positions_mas_list[0][0]，其余类推。
+  - 它们不是原始 mas 值，而是按优化器所用的引擎（glafic 透镜）坐标系换算（core.optimize.scene.build_obs）：毫角秒→角秒、x 轴按 obs_x_flip 翻转、并计入 center_offset —— x = x_sign*(mas_x/1000 - center_offset_x)，y = mas_y/1000 - center_offset_y。因此 {img1_x-0.075, img1_x+0.075} 是以图像 1 实际所在位置为中心、±0.075 角秒的搜索框，放在那里的透镜恰好落在该像下方（已用 glafic 二进制端到端核验：amoeba 把 king 优化到该像的引擎坐标位置）。所以算术常数的单位是角秒（引擎坐标系）。
+  - 其他观测数组（obs_magnifications_list[k]、obs_pos_sigma_mas_list[k] 等）也可下标访问，但返回原始值（不做坐标/单位变换）—— 只有 obs_positions_mas_list[i][0|1] / imgN_x|y 带位置变换。
+- 全链路通用：{lo, hi} 表达式在优化器看到之前就已解析为普通边界，因此 DE/MCMC（CPU/GPU）、glafic-amoeba 导出（start_setopt + parprior range）、以及编辑器的实时 lint 都按同一套规则处理。
+- 清晰报错：未知名称、像序号越界、无观测却引用、函数调用（仅允许 +-*/**）、以及把观测表达式写进标量赋值（或嵌在列表标量里）——这些仅限分量参数。
+- 经多 agent 对抗式审查加固（发现并修复 4 处问题）：即使 .dat 省略 center_offset/obs_x_flip，表达式也按优化器所用的同一引擎坐标系解析（回退到 DEFAULTS 而非 0/False——否则会悄悄把透镜放错位置）；`**` 溢出 / 0**-n 等以清晰诊断报出，而不是抛原始 Python 异常；畸形 obs 数组、列表里嵌表达式都在解析期干净报错，而非在拟合时崩溃。
+
+V0.5.2 - glafic 原生 amoeba 直跑 + 导出可优化文件
+
+围绕 glafic 原生 amoeba（simplex）优化器的两项改进：
+
+- 导出 glade → glafic：当 .dat 含任意 {lo,hi} 时，导出的 .input 不再只有 findimg，而是生成完整可优化输入——start_setopt 优化矩阵（每个 {lo,hi} 一个 1 标志）+ optimize 命令 + readobs_point 约束文件 + parprior 范围文件，并补上 glafic 必需的 end_startup（旧导出缺这一行，实际根本跑不起来）。
+  - 参数映射：花括号→setopt 标志 + parprior range（param_no=1 为 z，2..8 为 p1..p7，线性范围）；source_x/source_y 花括号→point 优化行；hubble 花括号→hvary + range hubble。
+  - 共享用户变量（一个 {lo,hi} 变量被多个分量引用）以 glafic 的 match 指令（match lens i j ii jj 1.0 0.0，硬 1:1 绑定、无 chi2 项）忠实导出为"同一搜索维度"，glafic 优化时被绑定参数始终严格相等（已对真实二进制核验：自由度相应减少、两处取值完全一致）。
+  - 观测约束采用 glafic 能读的 readobs_point 格式（glafic 读不了旧的 start_obs 包裹格式），并按 GLADE 的 obs_x_flip + center_offset 约定换算到 glafic 透镜坐标系；放大率写为 |mu| + parity 正负号。
+  - 命令行 to-glafic 与 WebUI 导出同步修正（文件名引用一致，写出 model+obs+prior）。
+
+- WebUI 的 "Glafic" 后端改为调用 glafic 原生 amoeba（optimize），不再走 GLADE 的差分进化(DE)：
+  - 勾选 glade .dat：先转换为作业目录下的临时 glafic 文件（model/obs/prior）再用 amoeba 优化；GLADE 的 DE/MCMC 专属变量（DE_*、MCMC_* 等）对 amoeba 不适用，自动不参与。
+  - 勾选原生 glafic .input：直接运行（连同其引用的文件一并暂存进作业目录，输出不再污染 InputFiles/）；glade 与 glafic 混选给出清晰提示而非底层解析报错。
+  - 结果解析 glafic 的 chi^2 + 预测像，复用标准三联图；glafic 非零退出码如实标记为失败。
+  - 新增 5 个翻译/导出测试，与真实 glafic 二进制端到端核验。本次多 agent 对抗式审查确认并修复了 6 处问题（共享变量绑定、命令行导出文件损坏、吞掉非零退出码、混选报错不清、原生运行输出位置）。
+
 V0.5.1
 
 - 仓库清理：把开发期内部文件移出版本控制（git rm --cached + .gitignore，本地文件保留不动）：

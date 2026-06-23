@@ -9,6 +9,7 @@ Each ``test_*`` function uses plain ``assert``.
 """
 from __future__ import annotations
 
+import math
 import os
 import sys
 
@@ -209,8 +210,17 @@ def test_duplicate_scalar_in_file_errors():
     assert _expect_syntax_error("omega = 0.3\nomega = 0.4")
 
 
-def test_arithmetic_rejected():
-    assert _expect_syntax_error("omega = 0.3 + 0.1")
+def test_numeric_arithmetic_folds():
+    # numeric arithmetic is now folded at parse time (constant expressions)
+    pf = parse_text("omega = 0.3 + 0.1")
+    assert math.isclose(pf.scalar("omega"), 0.4, rel_tol=1e-12)
+
+
+def test_obs_expression_in_scalar_rejected():
+    # obs-position expressions are only allowed inside component tuples, not
+    # scalar assignments (they have no per-component resolution context).
+    assert _expect_syntax_error("foo = img1_x - 0.075")
+    assert _expect_syntax_error("foo = obs_positions_mas_list[0][0]")
 
 
 def test_call_rejected():
@@ -223,6 +233,113 @@ def test_bounds_wrong_arity_rejected():
 
 def test_bare_expression_rejected():
     assert _expect_syntax_error("42")
+
+
+# --------------------------------------------------------------------------- #
+# obs-position expressions in component parameters
+# --------------------------------------------------------------------------- #
+
+_OBS_HEADER = (
+    "lens_z = 0.216\n"
+    "source_z = 0.409\n"
+    "obs_positions_mas_list = [[-266.035, 0.427], [118.835, -221.927]]\n"
+    "obs_magnifications_list = [-35.6, 15.7]\n"
+    "obs_mag_errors_list = [2.1, 1.3]\n"
+    "obs_pos_sigma_mas_list = [0.41, 0.86]\n"
+    "center_offset_x = 0.01535\n"
+    "center_offset_y = 0.0322\n"
+    "obs_x_flip = True\n"
+)
+
+
+def _merge_one(text):
+    cfg, issues = merge([parse_text(text, path="t.dat")])
+    return cfg, issues
+
+
+def test_component_expression_img_alias_engine_frame():
+    # img1_x/img1_y become the engine-frame coordinate of observed image 1,
+    # matching core.optimize.scene.build_obs: x = x_sign*(mas/1000 - coff_x),
+    # y = mas/1000 - coff_y. img1 = (-266.035, 0.427) mas, flip + offset.
+    text = _OBS_HEADER + "'king1': (4, 'king', lens_z, 1e5, img1_x, img1_y)\n"
+    cfg, issues = _merge_one(text)
+    assert not has_errors(issues)
+    x, y = cfg.components[0].params[1], cfg.components[0].params[2]
+    assert isinstance(x, Fixed) and isinstance(y, Fixed)
+    assert math.isclose(x.value, -1.0 * (-266.035 / 1000.0 - 0.01535), rel_tol=1e-9)
+    assert math.isclose(y.value, 0.427 / 1000.0 - 0.0322, rel_tol=1e-9)
+
+
+def test_component_expression_bounds_and_subscript_equivalent():
+    # {img1_x-0.075, img1_x+0.075} and the obs_positions_mas_list[0][0] form are
+    # equivalent, and produce a ±0.075 arcsec box in the engine frame.
+    text = _OBS_HEADER + (
+        "'king1': (4, 'king', lens_z, {1e2,1e8}, {img1_x-0.075, img1_x+0.075}, "
+        "{obs_positions_mas_list[0][1]-0.075, obs_positions_mas_list[0][1]+0.075})\n")
+    cfg, issues = _merge_one(text)
+    assert not has_errors(issues)
+    x, y = cfg.components[0].params[1], cfg.components[0].params[2]
+    cx = -1.0 * (-266.035 / 1000.0 - 0.01535)
+    cy = 0.427 / 1000.0 - 0.0322
+    assert isinstance(x, Bounds) and isinstance(y, Bounds)
+    assert math.isclose(x.lo, cx - 0.075, rel_tol=1e-9)
+    assert math.isclose(x.hi, cx + 0.075, rel_tol=1e-9)
+    assert math.isclose(y.lo, cy - 0.075, rel_tol=1e-9)
+    assert math.isclose(y.hi, cy + 0.075, rel_tol=1e-9)
+
+
+def test_component_expression_unknown_name_errors():
+    text = _OBS_HEADER + "'king1': (4, 'king', lens_z, 1e5, img9_x, 0.0)\n"
+    _cfg, issues = _merge_one(text)          # only 2 images -> img9 out of range
+    assert has_errors(issues)
+
+
+def test_component_expression_without_obs_errors():
+    text = "lens_z = 0.216\n'king1': (4, 'king', lens_z, 1e5, img1_x, 0.0)\n"
+    _cfg, issues = _merge_one(text)
+    assert has_errors(issues)
+
+
+def test_expression_uses_default_frame_when_offset_omitted():
+    # a .dat that uses img1_x but omits center_offset/obs_x_flip must resolve in
+    # the SAME engine frame the optimizer uses (the DEFAULTS), not 0/+1.
+    from core.format.defaults import DEFAULTS
+    text = (
+        "lens_z = 0.216\nsource_z = 0.409\n"
+        "obs_positions_mas_list = [[-266.035, 0.427], [118.835, -221.927]]\n"
+        "obs_magnifications_list = [-35.6, 15.7]\n"
+        "obs_mag_errors_list = [2.1, 1.3]\n"
+        "obs_pos_sigma_mas_list = [0.41, 0.86]\n"
+        "'king1': (4, 'king', lens_z, 1e5, img1_x, img1_y)\n"
+    )
+    cfg, issues = _merge_one(text)
+    assert not has_errors(issues)
+    x = cfg.components[0].params[1]
+    x_sign = -1.0 if DEFAULTS["obs_x_flip"] else 1.0
+    expected = x_sign * (-266.035 / 1000.0 - DEFAULTS["center_offset_x"])
+    assert math.isclose(x.value, expected, rel_tol=1e-9)
+
+
+def test_pow_overflow_and_zerodiv_are_clean_errors():
+    # `**` edge cases must surface as diagnostics, never raw Python exceptions.
+    assert _expect_syntax_error("'k': (4, 'king', 0.2, 0.0 ** -1, 0.0, 0.0)")
+    assert _expect_syntax_error("'k': (4, 'king', 0.2, 10.0 ** 400, 0.0, 0.0)")
+    # deferred (obs-referencing) `**` over a zero base -> a bad_expr Issue, no crash
+    text = (
+        "lens_z = 0.216\nsource_z = 0.409\n"
+        "obs_positions_mas_list = [[0.0, 200.0], [100.0, 100.0]]\n"
+        "obs_magnifications_list = [1.0, 1.0]\nobs_mag_errors_list = [0.1, 0.1]\n"
+        "obs_pos_sigma_mas_list = [1.0, 1.0]\ncenter_offset_x = 0.0\n"
+        "'k': (4, 'king', lens_z, 1e5, img1_x ** -1, 0.0)\n"
+    )
+    _cfg, issues = _merge_one(text)            # must not raise
+    assert has_errors(issues)
+
+
+def test_expression_in_list_scalar_rejected():
+    # an Expr nested in a list-valued scalar must be rejected at parse time, not
+    # silently survive into a float() crash at fit time.
+    assert _expect_syntax_error("obs_magnifications_list = [img1_x, 5.0]")
 
 
 # --------------------------------------------------------------------------- #

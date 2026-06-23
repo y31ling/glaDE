@@ -45,10 +45,21 @@ def _cmd_to_glafic(args) -> int:
     for i in issues:
         if i.is_error:
             print(f"  warning (continuing): {i}", file=sys.stderr)
-    result = glade_to_glafic(cfg)
     out = args.out or "glade_export"
+    # base_name ties the in-model readobs_point / parprior references to the
+    # files written below (they are `<out>_obs.dat` / `<out>_prior.dat`).
+    base = os.path.basename(out)
+    result = glade_to_glafic(cfg, base_name=base)
     _write(f"{out}_model.input", result["model"])
-    if result["obs"]:
+    if result.get("optimize"):
+        # optimize-ready: write the readobs_point constraint + parprior ranges
+        # the model references (glafic cannot read the start_obs round-trip form).
+        if result.get("constraint"):
+            _write(f"{out}_obs.dat", result["constraint"])
+        if result.get("prior"):
+            _write(f"{out}_prior.dat", result["prior"])
+        print("  (added a glafic `optimize` block — {lo,hi} parameters found)")
+    elif result.get("obs"):
         _write(f"{out}_obs.dat", result["obs"])
     return 0
 

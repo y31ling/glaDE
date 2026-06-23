@@ -7,7 +7,8 @@ from typing import Any, Optional
 from . import schema
 from .defaults import DEFAULTS
 from .diagnostics import ERROR, Issue
-from .values import Bounds, Component, Fixed, ParsedFile, Ref, SharedBounds
+from .expr import ExprError, build_env, evaluate
+from .values import Bounds, Component, Expr, Fixed, ParsedFile, Ref, SharedBounds
 
 
 @dataclass
@@ -128,7 +129,24 @@ def merge(parsed_files: list[ParsedFile]) -> tuple[GladeConfig, list[Issue]]:
         target[canon] = _resolve_nested(val, symbols)
 
     # 3) concatenate + resolve + re-index components
+    # env for deferred expressions (arithmetic + obs-position references); built
+    # now that cfg.obs carries the (merged) observation arrays + center offset.
+    expr_env = build_env(cfg.obs, symbols)
+
     def _resolve(pv, comp: Component, what: str):
+        if isinstance(pv, Expr):
+            try:
+                result = evaluate(pv.code, expr_env)
+            except (ExprError, ArithmeticError, ValueError, TypeError) as exc:
+                issues.append(Issue(
+                    ERROR, "bad_expr",
+                    f"component '{comp.name}' {what}: {exc}",
+                    source_file=comp.source_file, lineno=comp.lineno,
+                ))
+                return pv
+            if result[0] == "bounds":
+                return Bounds(result[1], result[2])
+            return Fixed(result[1])
         if isinstance(pv, Ref):
             canon = schema.SCALAR_ALIASES.get(pv.name, pv.name)
             if canon in bounds_vars:

@@ -339,7 +339,10 @@ const Editor = {
     if (!base) return;
     try { const r = await apiJSON("/api/files/export", { files: [node.path], name: base });
       await this.loadTree();
-      modal({ title: "Exported to glafic", bodyHTML: `Wrote:<br><div class="deflist">${r.written.join("<br>")}</div>`,
+      const note = r.optimize
+        ? `<p style="margin-top:8px;color:#4ec9b0">Found <b>{lo, hi}</b> parameters → added a glafic <code>optimize</code> command + setopt matrix, plus <code>readobs_point</code>/<code>parprior</code> files.</p>`
+        : `<p style="margin-top:8px;color:#888">No <b>{lo, hi}</b> parameters → findimg-only model.</p>`;
+      modal({ title: "Exported to glafic", bodyHTML: `Wrote:<br><div class="deflist">${r.written.join("<br>")}</div>${note}`,
         actions: [{ label: "OK", value: 1, cls: "primary" }] }); }
     catch (e) { alert("Export failed: " + e.message); }
   },

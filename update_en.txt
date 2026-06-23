@@ -1,3 +1,38 @@
+V0.5.3 - arithmetic expressions + observed-image references in .dat parameters
+
+Component parameters (and their {lo, hi} bounds) may now be arithmetic expressions that reference the observed image positions, evaluated automatically at load time:
+
+    'king1': (4, 'king', lens_z, {1e2, 1e8},
+              {img1_x-0.075, img1_x+0.075},
+              {obs_positions_mas_list[0][1]-0.075, obs_positions_mas_list[0][1]+0.075},
+              {0,0.9}, {0,180}, {0.00008, 0.0080}, {0.5, 2.5})
+
+- Operators: + - * / ** and parentheses (e.g. (img1_x+img2_x)/2 = the midpoint between two images). Numeric-only arithmetic is folded immediately; anything referencing observations is resolved after all files are merged.
+- Observed-image references:
+  - imgN_x / imgN_y  -- the N-th observed image (1-based).
+  - obs_positions_mas_list[i][j]  -- the same image, 0-based; j=0 -> x, j=1 -> y. img1_x is exactly obs_positions_mas_list[0][0], etc.
+  - These are NOT the raw mas value: they are converted to the engine (glafic lens) frame the optimizer uses (core.optimize.scene.build_obs): milliarcsec -> arcsec, the obs_x_flip sign on x, and center_offset applied -- x = x_sign*(mas_x/1000 - center_offset_x), y = mas_y/1000 - center_offset_y. So a {img1_x-0.075, img1_x+0.075} box is a +/-0.075 ARCSEC search box centred on where image 1 actually appears, and a lens placed there sits under the image (verified end-to-end against the glafic binary: amoeba lands the king exactly on the image's engine-frame position). Arithmetic constants are therefore in arcsec, engine frame.
+  - Other observation arrays (obs_magnifications_list[k], obs_pos_sigma_mas_list[k], ...) are also subscriptable but returned RAW (no frame/unit transform) -- only obs_positions_mas_list[i][0|1] / imgN_x|y carry the position transform.
+- Works on every rail: the {lo, hi} expressions resolve to ordinary bounds before the optimizer sees them, so DE/MCMC (CPU/GPU), the glafic-amoeba export (start_setopt + parprior ranges), and the editor's live lint all handle them identically.
+- Clear errors for an unknown name, an out-of-range image index, a reference used without observations, function calls (only +-*/** are allowed), and obs-position expressions placed in a scalar assignment (or nested in a list scalar) -- they are component-only.
+- Hardened via a multi-agent adversarial review (4 issues found + fixed): expressions resolve in the SAME engine frame the optimizer uses even when center_offset/obs_x_flip are omitted from the .dat (they fall back to DEFAULTS, not 0/False -- the bug would otherwise have silently mis-placed the lens); `**` overflow / 0**-n surface as clean diagnostics instead of raw Python exceptions; malformed obs arrays and list-nested expressions are rejected with a proper error rather than crashing at fit time.
+
+V0.5.2 - native glafic amoeba + optimize-ready export
+
+Two improvements centered on glafic's native amoeba (simplex) optimizer:
+
+- glade -> glafic export: when a .dat has any {lo,hi}, the exported .input is now optimize-ready instead of findimg-only -- a start_setopt matrix (one 1-flag per {lo,hi}), an optimize command, a readobs_point constraint file and a parprior range file, plus the glafic-required end_startup (which the old export omitted, so its output never actually ran).
+  - Parameter mapping: braces -> setopt flag + parprior range (param_no 1 = z, 2..8 = p1..p7, linear bounds); source_x/source_y braces -> the point opt row; hubble braces -> hvary + range hubble.
+  - Shared user variables (one {lo,hi} variable referenced by several components) are exported faithfully as a SINGLE search dimension via glafic's `match` directive (match lens i j ii jj 1.0 0.0 -- a hard 1:1 tie, no chi2 term), so glafic keeps the tied parameters exactly equal during the fit (verified against the binary: the free-dimension count drops and the tied values stay identical).
+  - Observation constraints use glafic's readobs_point format (the glafic binary cannot read the old start_obs wrapper), converted to glafic's lens frame with GLADE's obs_x_flip + center_offset convention; magnifications are written as |mu| with the sign carried in the parity column.
+  - The `to-glafic` CLI and the WebUI export were updated together (consistent in-model filename references; model + obs + prior all written).
+
+- The WebUI "Glafic" backend now runs glafic's native amoeba (optimize) instead of GLADE's Differential Evolution:
+  - glade .dat selections are converted to temp glafic files (model/obs/prior) in the job dir, then optimized; GLADE's DE/MCMC-only variables (DE_*, MCMC_*, ...) do not apply to amoeba and are naturally dropped.
+  - native glafic .input selections run directly (the .input plus the files it loads are staged into the job dir, so glafic outputs no longer pollute InputFiles/); a mixed glade+glafic selection gives a clear message instead of a low-level parse error.
+  - results parse glafic's chi^2 + predicted images and reuse the standard triptych; a non-zero glafic exit code is reported as a failed run.
+  - 5 new translate/export tests; end-to-end verified against the real glafic binary. A multi-agent adversarial review confirmed and fixed 6 issues in this change (the shared-variable tie, the broken CLI bundle, the swallowed non-zero exit, the confusing mixed-selection error, and native-run output placement).
+
 V0.5.1
 
 - Repository cleanup: internal development files were removed from version control (git rm --cached + .gitignore; local files untouched): 4 glafic upstream-issue drafts/debug notes, the GPU-MCMC exploration report (its findings live in the V0.5.0 changelog), the exploration-phase dev scripts tools/MCMC_GPU.py / tools/mcmc_gpu_v_2.py, a stray "glafic_optimize copy.py", and the deprecated pre-V0.4 web/ UI (superseded by webui/). Kept: the source/ image/animation assets (material for the future WebUI), the legacy CLI entry points referenced by the bootstrap scripts, the documented tools, and the frozen legacy/ archive.

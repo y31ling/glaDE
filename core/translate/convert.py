@@ -7,7 +7,7 @@ from typing import Optional
 
 from ..format import schema
 from ..format.config import GladeConfig
-from ..format.values import Bounds, Fixed, Unfilled
+from ..format.values import Bounds, Fixed, SharedBounds, Unfilled
 import os
 
 from .glafic_io import (
@@ -18,6 +18,8 @@ from .glafic_io import (
     parse_glafic_input,
     render_glafic_input,
     render_glafic_obs,
+    render_glafic_point_constraint,
+    render_glafic_prior,
 )
 
 
@@ -251,18 +253,55 @@ def _render_glade_obs(obs: GlaficObs) -> str:
 # glade -> glafic
 # --------------------------------------------------------------------------- #
 
-def glade_to_glafic(cfg: GladeConfig, command: bool = True) -> dict[str, str]:
-    """Translate a merged glade config into glafic input + observation text.
+def glade_to_glafic(cfg: GladeConfig, command: bool = True,
+                    base_name: str = "glade_export") -> dict:
+    """Translate a merged glade config into a runnable glafic input bundle.
 
-    Returns ``{"model": <input text>, "obs": <obs text or "">}``. ``{lo, hi}``
-    parameters collapse to a representative value (geometric mean for mass-like,
-    arithmetic otherwise).
+    Returns ``{"model", "obs", "constraint", "prior", "optimize"}``:
+
+    * ``model``      -- the glafic ``.input`` text. ``{lo, hi}`` parameters
+      collapse to a representative starting value (geometric mean for mass-like,
+      arithmetic otherwise); when ANY ``{lo, hi}`` is present the model also gets
+      a ``start_setopt`` matrix and an ``optimize`` command, plus
+      ``readobs_point``/``parprior`` lines referencing the files below.
+    * ``obs``        -- legacy ``start_obs`` round-trip artifact (always emitted
+      when observations exist; glafic itself reads ``constraint`` instead).
+    * ``constraint`` -- ``readobs_point`` file (only when optimizing + obs given).
+    * ``prior``      -- ``parprior`` ``range`` rows (only when optimizing).
+    * ``optimize``   -- whether the model fits via glafic's amoeba.
+
+    The ``base_name`` ties the in-model filenames to what the caller writes:
+    ``readobs_point <base_name>_obs.dat`` and ``parprior <base_name>_prior.dat``.
     """
     model = _glade_to_model(cfg)
-    obs_text = ""
-    if "obs_positions_mas_list" in cfg.obs:
-        obs_text = render_glafic_obs(_glade_to_obs(cfg))
-    return {"model": render_glafic_input(model, command=command), "obs": obs_text}
+    has_obs = "obs_positions_mas_list" in cfg.obs
+    do_opt = bool(model.ranges) or bool(model.hvary)
+
+    obs_text = render_glafic_obs(_glade_to_obs(cfg)) if has_obs else ""
+    constraint_text = ""
+    prior_text = ""
+    if do_opt:
+        model.optimize = True
+        if model.ranges or model.hubble_range:
+            prior_text = render_glafic_prior(model.ranges, model.hubble_range,
+                                             model.matches)
+            model.prior_file_name = f"{base_name}_prior.dat"
+        if has_obs:
+            constraint_text = render_glafic_point_constraint(
+                _glade_to_obs(cfg), center_offset=_center_offset(cfg))
+            model.point_constraint_file = f"{base_name}_obs.dat"
+
+    return {"model": render_glafic_input(model, command=command),
+            "obs": obs_text, "constraint": constraint_text,
+            "prior": prior_text, "optimize": do_opt}
+
+
+def _center_offset(cfg: GladeConfig) -> tuple:
+    """Observation-frame center offset (x-flip applied), matching scene.build_obs."""
+    obs = cfg.obs
+    x_sign = -1.0 if obs.get("obs_x_flip", False) else 1.0
+    return (x_sign * _scalar(obs, "center_offset_x", 0.0),
+            _scalar(obs, "center_offset_y", 0.0))
 
 
 def _scalar(section: dict, name: str, default: float) -> float:
@@ -272,11 +311,13 @@ def _scalar(section: dict, name: str, default: float) -> float:
 
 def _glade_to_model(cfg: GladeConfig) -> GlaficModel:
     cos, grid, rs = cfg.cosmology, cfg.grid, cfg.redshifts
+    hub = cos.get("hubble")
     primary = {
         "omega": _scalar(cos, "omega", 0.3),
         "lambda": _scalar(cos, "lambda_cosmo", 0.7),
         "weos": _scalar(cos, "weos", -1.0),
-        "hubble": _scalar(cos, "hubble", 0.7),
+        "hubble": _midpoint(hub, False) if isinstance(hub, Bounds)
+        else _scalar(cos, "hubble", 0.7),
         "xmin": _scalar(grid, "xmin", -0.5),
         "ymin": _scalar(grid, "ymin", -0.5),
         "xmax": _scalar(grid, "xmax", 0.5),
@@ -286,20 +327,59 @@ def _glade_to_model(cfg: GladeConfig) -> GlaficModel:
         "maxlev": int(_scalar(grid, "maxlev", 5)),
     }
 
+    # ranges: parprior `range` rows for every {lo, hi}. param_no 1 = z, 2.. = p1..
+    # matches: parprior `match` rows tying every extra reference of a shared
+    # user-variable to its first occurrence (glafic has no shared-dimension
+    # concept, but `match lens i j ii jj 1.0 0.0` is a hard 1:1 tie -> the GLADE
+    # "one shared search dimension" semantics are preserved exactly).
+    ranges: list = []
+    matches: list = []
+    var_primary: dict = {}                            # var name -> (lens_id, param_no)
+
+    def _classify(pv, ci, opt, opt_index):
+        """Flag an optimizable value: free dim + range, a tied match, or nothing."""
+        param_no = opt_index + 1                       # glafic param numbering (z=1)
+        if isinstance(pv, SharedBounds):
+            if pv.name in var_primary:                 # tie to the first occurrence
+                pi, pj = var_primary[pv.name]
+                matches.append(("lens", ci, param_no, pi, pj))
+            else:                                      # first occurrence is the free dim
+                var_primary[pv.name] = (ci, param_no)
+                opt[opt_index] = 1
+                ranges.append(("lens", ci, param_no, pv.lo, pv.hi))
+        elif isinstance(pv, Bounds):
+            opt[opt_index] = 1
+            ranges.append(("lens", ci, param_no, pv.lo, pv.hi))
+
     lenses: list[GlaficLens] = []
-    for comp in cfg.components:
+    for ci, comp in enumerate(cfg.components, start=1):
         spec = schema.model(comp.type)
         gtype = spec.glafic_key if spec else comp.type
+        opt = [0] * 8                                 # [z, p1..p7]
+        _classify(comp.z, ci, opt, 0)
         z = comp.z.value if isinstance(comp.z, Fixed) else _midpoint(comp.z, False)
         params: list[float] = []
         for j, pv in enumerate(comp.params):
             is_mass = bool(spec and j < len(spec.params) and spec.params[j].is_mass)
             params.append(_midpoint(pv, is_mass))
+            if j < 7:
+                _classify(pv, ci, opt, j + 1)
         params = (params + [0.0] * 7)[:7]
-        lenses.append(GlaficLens(type=gtype, z=z, params=params))
+        lenses.append(GlaficLens(type=gtype, z=z, params=params, opt=opt))
 
     src_x = cfg.source.get("source_x")
     src_y = cfg.source.get("source_y")
+    point_opt = [0, 0, 0]                             # [zs, xs, ys]
+    if isinstance(src_x, Bounds):
+        point_opt[1] = 1
+        ranges.append(("point", 1, 2, src_x.lo, src_x.hi))
+    if isinstance(src_y, Bounds):
+        point_opt[2] = 1
+        ranges.append(("point", 1, 3, src_y.lo, src_y.hi))
+
+    hvary = 1 if isinstance(hub, Bounds) else 0
+    hubble_range = (hub.lo, hub.hi) if isinstance(hub, Bounds) else None
+
     return GlaficModel(
         primary=primary,
         prefix=str(cfg.algorithm.get("OUTPUT_PREFIX", "out")),
@@ -307,6 +387,11 @@ def _glade_to_model(cfg: GladeConfig) -> GlaficModel:
         source_z=_scalar(rs, "source_z", 0.409),
         source_x=_midpoint(src_x, False) if src_x is not None else 0.0,
         source_y=_midpoint(src_y, False) if src_y is not None else 0.0,
+        point_opt=point_opt,
+        ranges=ranges,
+        matches=matches,
+        hvary=hvary,
+        hubble_range=hubble_range,
     )
 
 

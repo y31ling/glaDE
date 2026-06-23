@@ -86,8 +86,27 @@ class Ref:
         return self.name
 
 
+@dataclass(frozen=True)
+class Expr:
+    """A deferred arithmetic expression, resolved after merge.
+
+    Captures component-parameter source such as ``img1_x - 0.075`` or
+    ``{img1_x-0.075, img1_x+0.075}`` that references observation positions /
+    arrays (and applies the engine-frame unit + center-offset transform) which
+    are only known once every file is merged. ``core.format.config.merge``
+    evaluates it (see :mod:`core.format.expr`) into a :class:`Fixed` (scalar
+    ``code``) or :class:`Bounds` (``{lo, hi}`` ``code``, ``is_bounds=True``).
+    """
+
+    code: str                    # canonical source text (ast.unparse)
+    is_bounds: bool = False      # True when code is a {lo, hi} set
+
+    def __str__(self) -> str:  # pragma: no cover - cosmetic
+        return self.code
+
+
 # A component / source parameter (SharedBounds is a Bounds subclass).
-ParamValue = Union[Fixed, Bounds, Unfilled, Ref]
+ParamValue = Union[Fixed, Bounds, Unfilled, Ref, Expr]
 
 
 @dataclass

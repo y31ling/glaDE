@@ -26,16 +26,18 @@
       <button class="backend-opt" data-backend="gpu">
         <span class="bo-name">GPU</span><span class="bo-sub">Rhongomyniad</span></button>
       <button class="backend-opt" data-backend="glafic">
-        <span class="bo-name">Glafic</span><span class="bo-sub">direct</span></button>
+        <span class="bo-name">Glafic</span><span class="bo-sub">amoeba</span></button>
       <button class="backend-opt" data-backend="mcmc">
         <span class="bo-name">MCMC</span><span class="bo-sub">emcee only</span></button>
       <button class="backend-opt" data-backend="mcmc-gpu">
         <span class="bo-name">MCMC-GPU</span><span class="bo-sub">emcee · batched CUDA</span></button>
-      <div class="rail-note">CPU/GPU also run MCMC if the config sets
-        <code>MCMC_ENABLED = True</code>. MCMC-GPU evaluates half the walker
-        ensemble per CUDA call (emcee StretchMove) — it needs a large
-        <code>MCMC_NWALKERS</code> to saturate the GPU; when unset it
-        auto-raises to 1024.</div>
+      <div class="rail-note">Glafic runs glafic's own amoeba (<code>optimize</code>),
+        not DE — glade <code>.dat</code> files are converted to temp glafic files
+        first, or pick a native glafic <code>.input</code> directly. CPU/GPU also
+        run MCMC if the config sets <code>MCMC_ENABLED = True</code>. MCMC-GPU
+        evaluates half the walker ensemble per CUDA call (emcee StretchMove) — it
+        needs a large <code>MCMC_NWALKERS</code> to saturate the GPU; when unset
+        it auto-raises to 1024.</div>
     </aside>
 
     <section id="findimage-main">

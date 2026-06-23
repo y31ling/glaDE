@@ -6,6 +6,9 @@ Modes (``--mode``):
   de+mcmc    DE, then emcee MCMC seeded around the DE best (legacy-like).
   mcmc       emcee MCMC only (no DE); prior = the {lower,upper} bounds; walkers
              start uniformly across the box; no DE-truth overlay.
+  amoeba     glafic's own simplex optimizer (`optimize`) on a glafic input.
+             glade ``.dat`` selections are first converted to temp glafic files;
+             native glafic ``.input`` selections are run directly. NOT DE.
 
 All output goes to stdout (tee'd to the job log the WebUI tails over SSE).
 """
@@ -67,7 +70,7 @@ def main(argv=None) -> int:
     ap.add_argument("--files", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--mode", default="findimage",
-                    choices=["findimage", "de+mcmc", "mcmc"])
+                    choices=["findimage", "de+mcmc", "mcmc", "amoeba"])
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
 
@@ -83,15 +86,22 @@ def main(argv=None) -> int:
 
     write_status()
 
-    from core.format import load_config
-    from core.optimize import build_obs, optimize
-    from core.optimize.loss import LossConfig
-    from core.optimize.problem import OptProblem
-
     _hr(f"GLADE run  ·  mode={args.mode}  ·  backend={args.backend}  ·  "
         f"{len(args.files)} file(s)")
     for f in args.files:
         print(f"  · {f}", flush=True)
+
+    # glafic's native amoeba (`optimize`) — runs the glafic binary, not DE. Glade
+    # files are converted to temp glafic files first; native glafic inputs run
+    # as-is. Handled before load_config so a native .input never has to parse as
+    # a glade .dat.
+    if args.mode == "amoeba":
+        return _run_amoeba(args, write_status)
+
+    from core.format import load_config
+    from core.optimize import build_obs, optimize
+    from core.optimize.loss import LossConfig
+    from core.optimize.problem import OptProblem
 
     cfg, issues = load_config(args.files, backend=args.backend, with_defaults=True)
     errors = [i for i in issues if i.is_error]
@@ -653,6 +663,257 @@ def _write_triptych_from_candidate(args, problem, obs, candidate, suptitle, out)
                     scene=problem.make_scene(candidate), problem=problem,
                     de=None, backend=args.backend)
     _write_triptych(args, res, obs, suptitle, out)
+
+
+# --------------------------------------------------------------------------- #
+# glafic native amoeba (`optimize`) rail
+# --------------------------------------------------------------------------- #
+
+def _glafic_prefix(text: str) -> str:
+    """The ``prefix`` glafic writes its output files with (default ``out``)."""
+    import re
+    m = re.search(r"(?m)^\s*prefix\s+(\S+)", text)
+    return m.group(1) if m else "out"
+
+
+def _stage_native_input(input_path: str, job_dir: str) -> tuple:
+    """Copy a native glafic .input plus the files it loads into the job dir.
+
+    Returns ``(staged_input_path, copied_basenames)``. Keeping everything in the
+    job dir means glafic's outputs (``<prefix>_*.dat``) land there too — retrievable
+    via the run-result API — instead of polluting the user's InputFiles/ tree.
+    """
+    import shutil
+    src_dir = os.path.dirname(input_path)
+    with open(input_path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    staged = os.path.join(job_dir, os.path.basename(input_path))
+    shutil.copy2(input_path, staged)
+    file_cmds = ("readobs_point", "parprior", "mapprior", "readobs_extend",
+                 "readnoise_extend", "readpsf", "galfile", "srcfile")
+    copied = []
+    for line in text.splitlines():
+        toks = line.split("#")[0].split()
+        if len(toks) >= 2 and toks[0] in file_cmds:
+            for tok in toks[1:]:
+                cand = os.path.join(src_dir, tok)
+                dst = os.path.join(job_dir, os.path.basename(tok))
+                if os.path.isfile(cand) and os.path.abspath(cand) != os.path.abspath(dst):
+                    shutil.copy2(cand, dst)
+                    copied.append(os.path.basename(tok))
+    return staged, copied
+
+
+def _exec_glafic_stream(bin_path: str, input_path: str, run_dir: str) -> int:
+    """Run glafic on *input_path* in *run_dir*, streaming output to stdout."""
+    import subprocess
+    proc = subprocess.Popen([bin_path, os.path.basename(input_path)], cwd=run_dir,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, bufsize=1)
+    for line in proc.stdout:                       # streamed -> tee'd to job.log
+        print(line.rstrip("\n"), flush=True)
+    proc.wait()
+    return proc.returncode
+
+
+def _read_glafic_chi2(path: str):
+    """Final ``chi^2`` from a glafic ``_optresult.dat`` (last occurrence)."""
+    import re
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            vals = re.findall(r"chi\^2\s*=\s*([\d.eE+-]+)", fh.read())
+    except OSError:
+        return None
+    try:
+        return float(vals[-1]) if vals else None
+    except ValueError:
+        return None
+
+
+def _amoeba_figure(args, cfg, run_dir, prefix, images, chi2, write_status):
+    """Render the standard triptych from glafic's amoeba outputs (point + crit)."""
+    import numpy as np
+    from core.optimize.matching import match_images, select_images
+    from core.optimize.scene import build_obs
+    from core.plot import plot_triptych, read_critical_curves
+
+    obs = build_obs(cfg)
+    sel = select_images(images, obs.n) if images else None
+    if sel is None:
+        print(f"  [warn] glafic found {0 if not images else len(images)} image(s) "
+              f"(expected {obs.n}); skipping the result figure.", flush=True)
+        return
+    pred_pos = np.array([[im[0], im[1]] for im in sel], dtype=float)
+    pred_mag = np.array([im[2] for im in sel], dtype=float)
+    matched_pos, matched_mag, delta = match_images(
+        obs.positions, pred_pos, pred_mag, obs.center_offset)
+
+    crit, caus = [], []
+    crit_path = os.path.join(run_dir, f"{prefix}_crit.dat")
+    if os.path.isfile(crit_path) and os.path.getsize(crit_path) > 0:
+        try:
+            crit, caus = read_critical_curves(crit_path)
+        except Exception:  # noqa: BLE001
+            crit, caus = [], []
+
+    abs_mag = bool(cfg.algorithm.get("abs_mag", True))
+    title = "glafic amoeba result" + (f"  chi²={chi2:.1f}" if chi2 is not None else "")
+    out_png = os.path.join(args.out, "result.png")
+    plot_triptych(
+        img_numbers=list(range(1, obs.n + 1)),
+        delta_pos_mas=delta, sigma_pos_mas=obs.pos_sigma_mas,
+        mu_obs=obs.magnifications, mu_obs_err=obs.mag_errors,
+        mu_pred=matched_mag, mu_at_obs_pred=matched_mag,
+        obs_positions_arcsec=obs.positions, pred_positions_arcsec=matched_pos,
+        crit_segments=crit, caus_segments=caus or None,
+        output_file=out_png, suptitle=title, abs_mag=abs_mag)
+    print(f"  wrote {out_png}", flush=True)
+    write_status(triptych="result.png")
+
+
+def _run_amoeba(args, write_status) -> int:
+    """Run glafic's native simplex optimizer (`optimize`), not GLADE's DE.
+
+    A glade ``.dat`` selection is converted to temp glafic files (model +
+    readobs_point + parprior) inside the job dir, then optimised; a native glafic
+    ``.input`` selection is run verbatim. The figure is rendered for the glade
+    path (where we know the observation frame).
+    """
+    from core.translate import glade_to_glafic, looks_like_glafic_input
+    from core.verify import find_glafic_bin
+
+    _hr("glafic amoeba (native `optimize`)")
+    bin_path = find_glafic_bin()
+    if not bin_path:
+        print("[blocked] glafic binary not found; build it (bootstrap_linux.sh) "
+              "or set GLAFIC_HOME.", flush=True)
+        write_status(state="error", errors=["glafic binary not found"])
+        return 2
+    print(f"  glafic: {bin_path}", flush=True)
+
+    texts = {}
+    for f in args.files:
+        try:
+            with open(f, encoding="utf-8", errors="replace") as fh:
+                texts[f] = fh.read()
+        except OSError as exc:
+            print(f"[blocked] cannot read {f}: {exc}", flush=True)
+            write_status(state="error", errors=[f"cannot read {f}"])
+            return 2
+    native = [f for f in args.files if looks_like_glafic_input(texts[f])]
+    glade = [f for f in args.files if f not in native]
+    if native and glade:
+        print("[blocked] mixed selection: choose EITHER glade .dat file(s) OR a "
+              "single glafic .input — not both.", flush=True)
+        write_status(state="error", errors=["mixed glade/glafic selection"])
+        return 2
+
+    cfg = None
+    if native:
+        if len(native) > 1:
+            print(f"  note: {len(native)} glafic inputs selected; running the first "
+                  f"({os.path.basename(native[0])}).", flush=True)
+        src_input = os.path.abspath(native[0])
+        run_dir = args.out                             # keep glafic outputs in the job dir
+        input_path, copied = _stage_native_input(src_input, run_dir)
+        prefix = _glafic_prefix(texts[native[0]])
+        print(f"  native glafic input: {src_input}", flush=True)
+        print(f"  staged into the job dir ({len(copied)} referenced file(s) copied)",
+              flush=True)
+        if "optimize" not in texts[native[0]]:
+            print("  [warn] this glafic input has no `optimize` command; it will run "
+                  "verbatim (no amoeba fit).", flush=True)
+    else:
+        from core.format import load_config
+        from core.format.validate import is_extend_mode
+        cfg, issues = load_config(args.files, backend="glafic", with_defaults=True)
+        if cfg.applied_defaults:
+            print(f"\n[defaults] {', '.join(sorted(cfg.applied_defaults))}", flush=True)
+        for w in (i for i in issues if not i.is_error):
+            print(f"[warning] {w.message}", flush=True)
+        errors = [i for i in issues if i.is_error]
+        if errors:
+            print("\n[blocked] configuration errors:", flush=True)
+            for e in errors:
+                print(f"  ✗ {e.message}", flush=True)
+            write_status(state="error", errors=[e.message for e in errors])
+            return 2
+        if is_extend_mode(cfg):
+            print("[blocked] the glafic amoeba rail fits point sources; "
+                  "extended-source configs use the CPU/GPU rails.", flush=True)
+            write_status(state="error", errors=["amoeba rail does not support extend mode"])
+            return 2
+        out = glade_to_glafic(cfg, base_name="amoeba")
+        if not out["optimize"]:
+            print("[blocked] no {lo,hi} optimizable parameters — glafic amoeba has "
+                  "nothing to fit. Widen at least one parameter into {lo, hi}.",
+                  flush=True)
+            write_status(state="error", errors=["no optimizable parameters"])
+            return 2
+        if not out["constraint"]:
+            print("[blocked] no point-source observations (obs_*_list) found; "
+                  "glafic amoeba needs image constraints.", flush=True)
+            write_status(state="error", errors=["no observation constraints"])
+            return 2
+        run_dir = args.out
+        input_path = os.path.join(run_dir, "amoeba_model.input")
+        with open(input_path, "w", encoding="utf-8") as fh:
+            fh.write(out["model"])
+        with open(os.path.join(run_dir, "amoeba_obs.dat"), "w", encoding="utf-8") as fh:
+            fh.write(out["constraint"])
+        with open(os.path.join(run_dir, "amoeba_prior.dat"), "w", encoding="utf-8") as fh:
+            fh.write(out["prior"])
+        prefix = _glafic_prefix(out["model"])
+        nflag = sum(1 for ln in out["prior"].splitlines() if ln.startswith("range"))
+        print("  converted glade -> temp glafic files (amoeba_model.input, "
+              "amoeba_obs.dat, amoeba_prior.dat)", flush=True)
+        print(f"  optimizing {nflag} parameter(s) via glafic's amoeba simplex",
+              flush=True)
+
+    write_status(state="running")
+    _hr("glafic optimize (amoeba simplex)")
+    rc = _exec_glafic_stream(bin_path, input_path, run_dir)
+    if rc != 0:
+        # glafic's terminator() exits non-zero on any hard error; surface that as a
+        # failed job (consistent with the other rails) rather than a green "done".
+        print(f"\n[blocked] glafic exited with code {rc} (see its output above).",
+              flush=True)
+        write_status(state="error", errors=[f"glafic exited with code {rc}"])
+        return 2
+
+    chi2 = _read_glafic_chi2(os.path.join(run_dir, f"{prefix}_optresult.dat"))
+    images = None
+    try:
+        from core.verify import _read_glafic_point
+        images = _read_glafic_point(os.path.join(run_dir, f"{prefix}_point.dat"))
+    except Exception:  # noqa: BLE001
+        images = None
+
+    _hr("glafic amoeba result")
+    if chi2 is not None:
+        print(f"  best chi^2  : {chi2:.6g}", flush=True)
+    print(f"  images found: {len(images) if images else 0}", flush=True)
+    with open(os.path.join(args.out, "best_params.txt"), "w", encoding="utf-8") as fh:
+        fh.write(f"# glafic amoeba result  prefix={prefix}\n")
+        if chi2 is not None:
+            fh.write(f"chi^2 = {chi2:.10g}\n")
+        for i, im in enumerate(images or [], start=1):
+            fh.write(f"image{i} = x {im[0]:.8g}  y {im[1]:.8g}  mag {im[2]:.8g}\n")
+    if chi2 is not None:
+        write_status(loss=float(chi2))
+
+    if cfg is not None:
+        try:
+            _amoeba_figure(args, cfg, run_dir, prefix, images, chi2, write_status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [warn] result figure failed: {exc}", flush=True)
+
+    _hr("DONE")
+    write_status(state="done")
+    print("RUN_COMPLETE", flush=True)
+    return 0
 
 
 if __name__ == "__main__":

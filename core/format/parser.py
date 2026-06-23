@@ -28,11 +28,18 @@ from .values import (
     Assignment,
     Bounds,
     Component,
+    Expr,
     Fixed,
     ParsedFile,
     Ref,
     Unfilled,
 )
+
+# names like ``img1_x`` / ``img12_y`` alias an observed image position; they are
+# only resolvable once observations are merged, so they defer to an Expr.
+_IMG_ALIAS_RE = re.compile(r"^img\d+_[xy]$")
+# arithmetic operators permitted inside a .dat expression.
+_ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow)
 
 # ---------------------------------------------------------------------------
 # placeholder handling
@@ -158,6 +165,11 @@ def _split_statements(text: str) -> list[tuple[str, int]]:
 # ---------------------------------------------------------------------------
 
 
+def _defer(node: ast.AST) -> Expr:
+    """Capture *node* as a deferred expression (resolved at merge time)."""
+    return Expr(ast.unparse(node), is_bounds=isinstance(node, ast.Set))
+
+
 def _eval_node(node: ast.AST, symbols: dict[str, float], lineno: int,
                path: str | None) -> Any:
     if isinstance(node, ast.Constant):
@@ -173,9 +185,22 @@ def _eval_node(node: ast.AST, symbols: dict[str, float], lineno: int,
 
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
         val = _eval_node(node.operand, symbols, lineno, path)
-        if not isinstance(val, (int, float)):
-            raise GladeSyntaxError("unary +/- requires a number", lineno, path)
-        return -val if isinstance(node.op, ast.USub) else +val
+        if isinstance(val, (int, float)):
+            return -val if isinstance(node.op, ast.USub) else +val
+        if isinstance(val, (Ref, Expr)):
+            return _defer(node)               # e.g. -img1_x
+        raise GladeSyntaxError("unary +/- requires a number", lineno, path)
+
+    if isinstance(node, ast.BinOp) and isinstance(node.op, _ALLOWED_BINOPS):
+        lhs = _eval_node(node.left, symbols, lineno, path)
+        rhs = _eval_node(node.right, symbols, lineno, path)
+        if isinstance(lhs, (int, float)) and isinstance(rhs, (int, float)):
+            return _fold_binop(node.op, lhs, rhs, lineno, path)   # fold locally
+        if isinstance(lhs, (int, float, Ref, Expr)) and \
+                isinstance(rhs, (int, float, Ref, Expr)):
+            return _defer(node)               # e.g. img1_x - 0.075
+        raise GladeSyntaxError(
+            "arithmetic operands must be numbers or references", lineno, path)
 
     if isinstance(node, ast.Name):
         ph = _decode_sentinel(node.id)
@@ -183,8 +208,13 @@ def _eval_node(node: ast.AST, symbols: dict[str, float], lineno: int,
             return ph
         if node.id in symbols:
             return symbols[node.id]
-        # unresolved -> defer to merge-time resolution
+        if _IMG_ALIAS_RE.match(node.id):
+            return _defer(node)               # img1_x ... -> resolved with obs data
+        # unresolved -> defer to merge-time Ref resolution (lens_z, user vars)
         return Ref(node.id)
+
+    if isinstance(node, ast.Subscript):
+        return _defer(node)                   # obs_positions_mas_list[0][0] ...
 
     if isinstance(node, ast.Set):
         elts = [_eval_node(e, symbols, lineno, path) for e in node.elts]
@@ -198,12 +228,13 @@ def _eval_node(node: ast.AST, symbols: dict[str, float], lineno: int,
             if isinstance(v, Unfilled):
                 # a placeholder inside bounds -> whole thing is unfilled+opt
                 return Unfilled(kind="float", optimizable=True)
-        if isinstance(lo, Ref) or isinstance(hi, Ref):
-            raise GladeSyntaxError(
-                "bounds {lo, hi} may not reference other names", lineno, path)
-        if not isinstance(lo, (int, float)) or not isinstance(hi, (int, float)):
-            raise GladeSyntaxError("bounds {lo, hi} must be numeric", lineno, path)
-        return Bounds(float(lo), float(hi))
+        if isinstance(lo, (int, float)) and isinstance(hi, (int, float)):
+            return Bounds(float(lo), float(hi))
+        if isinstance(lo, (int, float, Ref, Expr)) and \
+                isinstance(hi, (int, float, Ref, Expr)):
+            return _defer(node)               # {img1_x-0.075, img1_x+0.075} ...
+        raise GladeSyntaxError(
+            "bounds {lo, hi} must be numbers or expressions", lineno, path)
 
     if isinstance(node, ast.List):
         return [_eval_node(e, symbols, lineno, path) for e in node.elts]
@@ -213,9 +244,30 @@ def _eval_node(node: ast.AST, symbols: dict[str, float], lineno: int,
 
     raise GladeSyntaxError(
         f"unsupported expression ({type(node).__name__}); only numbers, "
-        "{lo,hi} bounds, lists, tuples and name references are allowed",
+        "arithmetic, {lo,hi} bounds, lists, tuples, subscripts and name "
+        "references are allowed",
         lineno, path,
     )
+
+
+def _fold_binop(op: ast.operator, lhs: float, rhs: float, lineno: int,
+                path: str | None) -> float:
+    if isinstance(op, ast.Add):
+        return lhs + rhs
+    if isinstance(op, ast.Sub):
+        return lhs - rhs
+    if isinstance(op, ast.Mult):
+        return lhs * rhs
+    if isinstance(op, ast.Div):
+        if rhs == 0:
+            raise GladeSyntaxError("division by zero", lineno, path)
+        return lhs / rhs
+    if isinstance(op, ast.Pow):
+        try:
+            return lhs ** rhs
+        except (ArithmeticError, ValueError) as exc:
+            raise GladeSyntaxError(f"invalid '**' ({exc})", lineno, path) from None
+    raise GladeSyntaxError("unsupported operator", lineno, path)  # pragma: no cover
 
 
 def _eval_expr(expr_text: str, symbols: dict[str, float], lineno: int,
@@ -275,17 +327,26 @@ def _find_top_assign(stmt: str) -> int:
     return -1
 
 
+def _contains_expr(v: Any) -> bool:
+    """Whether *v* is (or nests, inside a list/tuple) a deferred Expr."""
+    if isinstance(v, Expr):
+        return True
+    if isinstance(v, (list, tuple)):
+        return any(_contains_expr(e) for e in v)
+    return False
+
+
 def _wrap_param(v: Any, lineno: int, path: str | None, what: str):
     from .values import Fixed as _Fixed
     if isinstance(v, bool):
         raise GladeSyntaxError(f"{what} cannot be a boolean", lineno, path)
     if isinstance(v, (int, float)):
         return _Fixed(float(v))
-    if isinstance(v, (Bounds, Unfilled, Ref)):
+    if isinstance(v, (Bounds, Unfilled, Ref, Expr)):
         return v
     raise GladeSyntaxError(
-        f"{what} must be a number, {{lo,hi}} bounds, a reference or a placeholder, "
-        f"got {type(v).__name__}", lineno, path)
+        f"{what} must be a number, {{lo,hi}} bounds, an expression, a reference "
+        f"or a placeholder, got {type(v).__name__}", lineno, path)
 
 
 def _parse_component(name: str, rest: str, lineno: int, path: str | None,
@@ -360,6 +421,16 @@ def _parse_assignment(stmt: str, eq: int, lineno: int, path: str | None,
 
     out: list[Assignment] = []
     for name, val in zip(targets, values):
+        if _contains_expr(val):
+            # obs-position / arithmetic expressions are resolved per-component at
+            # merge time; a scalar assignment (including a list element) has no
+            # such context. Caught here so it never slips past validation into a
+            # raw float() crash at fit time.
+            raise GladeSyntaxError(
+                f"'{name}': expressions that reference observations "
+                f"(img1_x, obs_positions_mas_list[...], ...) are only allowed "
+                f"inside component (...) tuples, not scalar assignments",
+                lineno, path)
         if isinstance(val, Ref):
             # the parser is file-local: the name may simply not be a numeric
             # scalar defined ABOVE in this file (e.g. a {lo, hi} variable,

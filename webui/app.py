@@ -134,7 +134,14 @@ def files_import():
 
 @app.route("/api/files/export", methods=["POST"])
 def files_export():
-    """Translate selected glade .dat file(s) into a glafic input + obs file."""
+    """Translate selected glade .dat file(s) into a runnable glafic input bundle.
+
+    When the selection has any ``{lo, hi}`` parameters the exported ``.input``
+    gains a ``start_setopt`` matrix + an ``optimize`` command (glafic's amoeba),
+    and the matching ``readobs_point`` constraint (``_obs.dat``) and ``parprior``
+    ranges (``_prior.dat``) are written too; otherwise just the model + a
+    round-trip ``_obs.dat`` are written (findimg-only).
+    """
     from core.format.config import apply_defaults, merge
     from core.format.parser import parse_file
     from core.translate import glade_to_glafic
@@ -142,14 +149,20 @@ def files_export():
     paths = [os.path.join(INPUT_DIR, p) for p in data["files"]]
     cfg, _ = merge([parse_file(p) for p in paths])
     apply_defaults(cfg)
-    out = glade_to_glafic(cfg)
     base = data.get("name", "glade_export")
+    out = glade_to_glafic(cfg, base_name=base)
     written = []
     if out.get("model"):
         store.write(f"{base}_model.input", out["model"]); written.append(f"{base}_model.input")
-    if out.get("obs"):
+    if out.get("optimize"):
+        # optimize-ready: the model references these by name (readobs_point / parprior)
+        if out.get("constraint"):
+            store.write(f"{base}_obs.dat", out["constraint"]); written.append(f"{base}_obs.dat")
+        if out.get("prior"):
+            store.write(f"{base}_prior.dat", out["prior"]); written.append(f"{base}_prior.dat")
+    elif out.get("obs"):
         store.write(f"{base}_obs.dat", out["obs"]); written.append(f"{base}_obs.dat")
-    return jsonify({"ok": True, "written": written})
+    return jsonify({"ok": True, "written": written, "optimize": bool(out.get("optimize"))})
 
 
 # --------------------------------------------------------------------------- #
@@ -177,14 +190,48 @@ def _rail_engine(rail_backend: str) -> str:
 def _resolve_engine_mode(rail_backend: str, cfg) -> tuple[str, str]:
     """Map a FindImage rail choice to (engine, mode).
 
+    'glafic' rail -> glafic's own amoeba (`optimize`), NOT DE. Glade selections
+    are converted to temp glafic files first (see webui.runjob._run_amoeba).
     'mcmc' rail -> MCMC-only on the CPU/glafic engine.
     'mcmc-gpu' rail -> MCMC-only on the GPU engine (batched when possible).
-    'cpu'/'gpu'/'glafic' -> DE; also MCMC afterwards iff MCMC_ENABLED is set.
+    'cpu'/'gpu' -> DE; also MCMC afterwards iff MCMC_ENABLED is set.
     """
+    if rail_backend == "glafic":
+        return "glafic", "amoeba"
     if rail_backend in _MCMC_RAILS:
         return _MCMC_RAILS[rail_backend], "mcmc"
     mode = "de+mcmc" if bool(cfg.algorithm.get("MCMC_ENABLED", False)) else "findimage"
     return rail_backend, mode
+
+
+def _glafic_selection_kind(rel_files) -> str:
+    """Classify a Glafic-rail selection: 'native', 'glade', or 'mixed'.
+
+    'native'  -> every file is a glafic .input (run directly via amoeba),
+    'glade'   -> none are (convert then amoeba),
+    'mixed'   -> a blend (rejected with a clear message, since the two paths
+                 differ and load_config would otherwise emit a raw parse error).
+    """
+    from core.translate import looks_like_glafic_input
+    if not rel_files:
+        return "glade"
+    flags = []
+    for p in rel_files:
+        try:
+            with open(os.path.join(INPUT_DIR, p), encoding="utf-8",
+                      errors="replace") as fh:
+                flags.append(looks_like_glafic_input(fh.read()))
+        except OSError:
+            flags.append(False)
+    if all(flags):
+        return "native"
+    if any(flags):
+        return "mixed"
+    return "glade"
+
+
+_MIXED_MSG = ("mixed selection: choose EITHER glade .dat file(s) OR a glafic "
+              ".input on the Glafic rail — not both.")
 
 
 def _display_defaults(cfg, engine: str, mode: str) -> dict:
@@ -211,6 +258,19 @@ def run_check():
     data = request.get_json(force=True)
     rail = data["backend"]
     engine = _rail_engine(rail)
+    # the Glafic rail runs glafic's amoeba; native .input selections skip glade
+    # validation entirely, and a mixed selection is rejected with a clear message.
+    if rail == "glafic":
+        kind = _glafic_selection_kind(data["files"])
+        if kind == "mixed":
+            return jsonify({"ok": False, "mode": "amoeba", "engine": "glafic",
+                            "errors": [_MIXED_MSG], "warnings": [],
+                            "defaulted": {}, "ndim": 0})
+        if kind == "native":
+            return jsonify({
+                "ok": True, "mode": "amoeba", "engine": "glafic", "errors": [],
+                "warnings": ["native glafic input — runs directly via glafic's amoeba"],
+                "defaulted": {}, "ndim": 0})
     files = [os.path.join(INPUT_DIR, p) for p in data["files"]]
     cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
@@ -236,8 +296,20 @@ def run_start():
     rel_files = data["files"]
     force = bool(data.get("force"))
     engine = _rail_engine(rail)
-    files = [os.path.join(INPUT_DIR, p) for p in rel_files]
 
+    # the Glafic rail runs glafic's amoeba. Native .input selections run directly
+    # (no glade parsing / defaults confirmation); a mixed selection is rejected.
+    if rail == "glafic":
+        kind = _glafic_selection_kind(rel_files)
+        if kind == "mixed":
+            return jsonify({"ok": False, "errors": [_MIXED_MSG]}), 200
+        if kind == "native":
+            job = jobs.start("glafic", [os.path.join("InputFiles", p) for p in rel_files],
+                             mode="amoeba", force=True)
+            return jsonify({"ok": True, "job_id": job.id, "terminal": job.terminal,
+                            "mode": "amoeba"})
+
+    files = [os.path.join(INPUT_DIR, p) for p in rel_files]
     cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
     if errors:

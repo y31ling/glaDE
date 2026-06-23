@@ -19,6 +19,7 @@ from core.format.values import Bounds, Fixed  # noqa: E402
 from core.translate import (  # noqa: E402
     glade_to_glafic,
     glafic_to_glade,
+    looks_like_glafic_input,
     parse_glafic_input,
 )
 
@@ -161,6 +162,107 @@ obs_x_flip = False
     assert m.obs is not None and len(m.obs.images) == 2
     # -266 mas -> -0.266 arcsec
     assert math.isclose(m.obs.images[0][0], -0.266, rel_tol=1e-6)
+
+
+_GLADE_BRACES = """
+omega = 0.3
+lambda_cosmo = 0.7
+weos = -1.0
+hubble = 0.7
+source_z = 2.0
+lens_z = 0.5
+source_x = {-0.2, 0.2}
+source_y = {-0.2, 0.2}
+obs_positions_mas_list = [[-1500.0, 800.0], [1200.0, -900.0], [400.0, 1300.0]]
+obs_magnifications_list = [-3.5, 2.1, -1.5]
+obs_mag_errors_list = [0.3, 0.2, 0.2]
+obs_pos_sigma_mas_list = [5.0, 5.0, 5.0]
+center_offset_x = 0.1
+center_offset_y = -0.05
+obs_x_flip = True
+'sie1': (1, 'sie', lens_z, {250, 400}, {-0.1, 0.1}, {-0.1, 0.1}, {0.0, 0.4}, {0, 180}, 0.0)
+"""
+
+
+def test_glade_to_glafic_braces_emit_optimize_and_setopt():
+    cfg, _ = merge([parse_text(_GLADE_BRACES, path="g.dat")])
+    apply_defaults(cfg)
+    out = glade_to_glafic(cfg, base_name="demo")
+    assert out["optimize"] is True
+    model = out["model"]
+    # the matrix + amoeba command + the two referenced files must all be present
+    assert "start_setopt" in model and "end_setopt" in model
+    assert "\noptimize\n" in model
+    assert "readobs_point demo_obs.dat" in model
+    assert "parprior demo_prior.dat" in model
+    assert "end_startup" in model            # required by glafic, was missing before
+    # the setopt flags round-trip through the parser: sie sigma/x/y/e/pa optimizable
+    m = parse_glafic_input(model)
+    assert m.lenses[0].opt == [0, 1, 1, 1, 1, 1, 0, 0]
+    assert m.point_opt == [0, 1, 1]          # source x,y free, zs fixed
+    # prior ranges cover the five lens params + the two source coords
+    assert out["prior"].count("range lens 1") == 5
+    assert out["prior"].count("range point 1") == 2
+    # constraint is a readobs_point file (no start_obs wrapper) with the x-flip +
+    # center-offset applied: obs x = -(-1500/1000) - (-0.1) = 1.6
+    assert "start_obs" not in out["constraint"]
+    first = [ln for ln in out["constraint"].splitlines()
+             if ln.strip() and not ln.startswith("#")][1].split()
+    assert math.isclose(float(first[0]), 1.6, rel_tol=1e-6)
+    assert float(first[2]) == 3.5 and int(first[-1]) == -1   # |mu| + parity sign
+
+
+def test_glade_to_glafic_shared_var_emits_match_tie():
+    # one shared {lo,hi} variable referenced by TWO lens params must export as a
+    # single free dimension + a glafic `match` tie (not two independent dims).
+    glade = """
+omega = 0.3
+source_z = 2.0
+lens_z = 0.5
+source_x = 0.0
+source_y = 0.0
+shared_pa = {0.0, 180.0}
+'sie1': (1, 'sie', lens_z, {250, 400}, 0.0, 0.0, 0.2, shared_pa, 0.0)
+'sie2': (2, 'sie', lens_z, {250, 400}, 0.1, 0.1, 0.2, shared_pa, 0.0)
+"""
+    cfg, _ = merge([parse_text(glade, path="g.dat")])
+    apply_defaults(cfg)
+    out = glade_to_glafic(cfg, base_name="sh")
+    prior = out["prior"]
+    # the shared pa (p5 -> param_no 6) is a free dim on the FIRST lens only...
+    assert "range lens 1 6" in prior
+    assert "range lens 2 6" not in prior
+    # ...and the second reference is hard-tied to it via match (rat 1.0, sig 0.0)
+    assert "match lens 2 6 1 6 1.0 0.0" in prior
+    # setopt: lens1 pa flag set (free), lens2 pa flag clear (driven by match)
+    m = parse_glafic_input(out["model"])
+    assert m.lenses[0].opt[5] == 1
+    assert m.lenses[1].opt[5] == 0
+
+
+def test_glade_to_glafic_no_braces_stays_findimg_only():
+    glade = """
+omega = 0.3
+source_z = 0.409
+lens_z = 0.216
+source_x = 0.0
+source_y = 0.0
+'point1': (1, 'point', lens_z, 1e6, 0.1, 0.1)
+"""
+    cfg, _ = merge([parse_text(glade, path="g.dat")])
+    apply_defaults(cfg)
+    out = glade_to_glafic(cfg)
+    assert out["optimize"] is False
+    assert "optimize" not in out["model"]
+    assert "start_setopt" not in out["model"]
+    assert out["prior"] == "" and out["constraint"] == ""
+
+
+def test_looks_like_glafic_input_discriminates():
+    assert looks_like_glafic_input(GLAFIC_INPUT_WITH_STARTUP) is True
+    assert looks_like_glafic_input(SN_BESTFIT) is True       # has 'lens' lines
+    glade = "omega = 0.3\n'sie1': (1, 'sie', 0.5, 300.0, 0.0, 0.0)\n"
+    assert looks_like_glafic_input(glade) is False
 
 
 def _run_all() -> int:
