@@ -230,7 +230,6 @@ echo "日志已保存到 glafic_run.log"
 |------|------|------|
 | `run_glafic.py` | 仅运行 glafic 计算 | glafic 输出文件 |
 | `drawgraph.py` | 运行 glafic + 生成三联图 | 图片 + glafic 输出 |
-| `glafic_optimize.py` | 使用 glafic 内置优化 | 优化结果 + 图片 |
 | `mcmc_from_result.py` | MCMC 后验采样 | MCMC 链 + 统计 |
 
 ---

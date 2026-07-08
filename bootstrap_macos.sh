@@ -235,7 +235,7 @@ export GLADE_ROOT
 export GLAFIC_HOME
 export GLAFIC_PYTHON_PATH
 export GLAFIC_LIB_PATH
-export PYTHONPATH="${GLAFIC_PYTHON_PATH}:${GLADE_ROOT}/Rhongomyniad:${GLADE_ROOT}/tools:${PYTHONPATH:-}"
+export PYTHONPATH="${GLADE_ROOT}:${GLAFIC_PYTHON_PATH}:${GLADE_ROOT}/Rhongomyniad:${GLADE_ROOT}/tools:${PYTHONPATH:-}"
 # macOS resolves brew dylibs by absolute install_name; this fallback is defensive.
 export DYLD_FALLBACK_LIBRARY_PATH="${GLAFIC_LIB_PATH}:${DYLD_FALLBACK_LIBRARY_PATH:-/usr/local/lib:/usr/lib}"
 export PATH="${GLAFIC_HOME}:${PATH}"

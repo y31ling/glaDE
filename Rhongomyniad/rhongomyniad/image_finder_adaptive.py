@@ -25,10 +25,15 @@ Image search walks every level and triangle-tests every *leaf* box (flag=0)
 in one batched kernel, then Newton-refines on GPU (same refinement code as
 the uniform finder — that part already worked).
 
-Gap check (point.c:434-476) is implemented exactly as glafic does: for
-each level-L box at sub-index k%4==0, look in four directions for a
-coarser neighbour and, if found, run the 4-point triangle tests that close
-the gap across the level boundary.
+Gap check (point.c:434-476) is NOT implemented. glafic, after the per-leaf
+triangle tests, additionally looks across each refinement boundary for a
+coarser neighbour and runs extra triangle tests to catch an image that
+straddles a fine/coarse level edge. This port omits that step (see
+`collect_candidates`, which triangle-tests leaf boxes only), so an image
+sitting exactly on a refinement boundary can be missed — a known, documented
+difference from glafic's finder, consistent with the project's recorded
+"finders differ" caveat (the uniform finder and glafic's own coarse-to-fine
+search have their own analogous near-boundary / near-critical blind spots).
 
 Design choice: corners are duplicated across neighbouring boxes (same as
 glafic), which costs 4× memory but keeps every box independent → trivial

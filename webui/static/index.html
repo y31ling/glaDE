@@ -5,22 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GLADE</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script>
+    // apply the saved theme before first paint (default: dark)
+    document.documentElement.dataset.theme =
+      localStorage.getItem("glade_theme") || "dark";
+  </script>
 </head>
 <body>
   <!-- top navigation -->
   <header id="topnav">
     <div class="brand">GLADE</div>
     <nav class="navtabs">
-      <button class="navtab active" data-page="findimage">FindImage</button>
-      <button class="navtab" data-page="editor">Editor</button>
+      <button class="navtab active" data-page="findimage" data-i18n="nav.findimage">FindImage</button>
+      <button class="navtab" data-page="editor" data-i18n="nav.editor">Editor</button>
+      <button class="navtab" data-page="clave" data-i18n="nav.clave">Clave</button>
     </nav>
-    <div class="nav-right"><span id="status-chip"></span></div>
+    <div class="nav-right">
+      <button id="btn-lang" class="nav-btn" data-i18n-title="nav.lang_title"></button>
+      <button id="btn-theme" class="nav-btn" data-i18n-title="nav.theme_title"></button>
+      <span id="status-chip"></span>
+    </div>
   </header>
 
   <!-- ============ FindImage page ============ -->
   <main id="page-findimage" class="page active">
     <aside id="findimage-rail">
-      <div class="rail-title">Backend</div>
+      <div class="rail-title" data-i18n="fi.backend">Backend</div>
       <button class="backend-opt active" data-backend="cpu">
         <span class="bo-name">CPU</span><span class="bo-sub">glafic</span></button>
       <button class="backend-opt" data-backend="gpu">
@@ -28,34 +38,27 @@
       <button class="backend-opt" data-backend="glafic">
         <span class="bo-name">Glafic</span><span class="bo-sub">amoeba</span></button>
       <button class="backend-opt" data-backend="mcmc">
-        <span class="bo-name">MCMC</span><span class="bo-sub">emcee only</span></button>
+        <span class="bo-name">MCMC</span><span class="bo-sub" data-i18n="fi.mcmc_sub">emcee only</span></button>
       <button class="backend-opt" data-backend="mcmc-gpu">
-        <span class="bo-name">MCMC-GPU</span><span class="bo-sub">emcee · batched CUDA</span></button>
-      <div class="rail-note">Glafic runs glafic's own amoeba (<code>optimize</code>),
-        not DE — glade <code>.dat</code> files are converted to temp glafic files
-        first, or pick a native glafic <code>.input</code> directly. CPU/GPU also
-        run MCMC if the config sets <code>MCMC_ENABLED = True</code>. MCMC-GPU
-        evaluates half the walker ensemble per CUDA call (emcee StretchMove) — it
-        needs a large <code>MCMC_NWALKERS</code> to saturate the GPU; when unset
-        it auto-raises to 1024.</div>
+        <span class="bo-name">MCMC-GPU</span><span class="bo-sub" data-i18n="fi.mcmcgpu_sub">emcee · batched CUDA</span></button>
     </aside>
 
     <section id="findimage-main">
       <div class="fi-cols">
         <div class="fi-files">
           <div class="panel-head">
-            <span>Select .dat files</span>
-            <button id="fi-refresh" class="mini-btn" title="Refresh">⟳</button>
+            <span data-i18n="fi.select">Select .dat files</span>
+            <button id="fi-refresh" class="mini-btn" data-i18n-title="common.refresh" title="Refresh">⟳</button>
           </div>
           <div id="fi-filelist" class="filelist"></div>
         </div>
         <div class="fi-run">
           <div class="run-controls">
             <div class="selected-summary" id="fi-summary">No files selected</div>
-            <button id="fi-run" class="run-btn" disabled>▶ Run</button>
+            <button id="fi-run" class="run-btn" disabled data-i18n="fi.run">▶ Run</button>
           </div>
           <div class="panel-head term-head">
-            <span id="term-title">Terminal output</span>
+            <span id="term-title" data-i18n="fi.term_title">Terminal output</span>
             <span id="term-state" class="term-state"></span>
           </div>
           <pre id="terminal" class="terminal"></pre>
@@ -68,26 +71,26 @@
   <!-- ============ Editor page ============ -->
   <main id="page-editor" class="page">
     <div id="icon-rail">
-      <button class="icon-btn active" data-panel="explorer" title="Explorer">
+      <button class="icon-btn active" data-panel="explorer" data-i18n-title="ed.explorer" title="Explorer">
         <img src="/assets/icon/Explorer.png" alt="Explorer" /></button>
-      <button class="icon-btn" data-panel="template" title="Template">
+      <button class="icon-btn" data-panel="template" data-i18n-title="ed.template" title="Template">
         <img src="/assets/icon/Template.png" alt="Template" /></button>
     </div>
 
     <div id="side-panel">
       <div id="explorer-panel" class="side-content active">
         <div class="panel-head">
-          <span>Explorer · InputFiles</span>
+          <span data-i18n="ed.explorer_head">Explorer · InputFiles</span>
           <div class="head-actions">
-            <button class="mini-btn" id="exp-new-file" title="New file">＋</button>
-            <button class="mini-btn" id="exp-new-folder" title="New folder">🗀</button>
-            <button class="mini-btn" id="exp-refresh" title="Refresh">⟳</button>
+            <button class="mini-btn" id="exp-new-file" data-i18n-title="ed.new_file" title="New file">＋</button>
+            <button class="mini-btn" id="exp-new-folder" data-i18n-title="ed.new_folder" title="New folder">🗀</button>
+            <button class="mini-btn" id="exp-refresh" data-i18n-title="common.refresh" title="Refresh">⟳</button>
           </div>
         </div>
         <div id="file-tree" class="tree"></div>
       </div>
       <div id="template-panel" class="side-content">
-        <div class="panel-head"><span>Templates</span></div>
+        <div class="panel-head"><span data-i18n="ed.templates_head">Templates</span></div>
         <div id="template-tree" class="tree"></div>
       </div>
     </div>
@@ -98,11 +101,16 @@
       <div id="tabbar"></div>
       <div id="editor-host"></div>
       <div id="editor-footer">
-        <button id="btn-delete" class="footer-btn danger" disabled>🗑 Delete</button>
+        <button id="btn-delete" class="footer-btn danger" disabled data-i18n="ed.delete">🗑 Delete</button>
         <span id="editor-path" class="editor-path"></span>
-        <button id="btn-save" class="footer-btn primary" disabled>💾 Save</button>
+        <button id="btn-save" class="footer-btn primary" disabled data-i18n="ed.save">💾 Save</button>
       </div>
     </div>
+  </main>
+
+  <!-- ============ Clave page (lens calculator, lazy iframe) ============ -->
+  <main id="page-clave" class="page">
+    <iframe id="clave-frame" title="Clave"></iframe>
   </main>
 
   <!-- context menu + modal -->

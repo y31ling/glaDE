@@ -461,13 +461,18 @@ def test_unknown_model_blocks():
     assert any(i.code == "unknown_model" for i in issues)
 
 
-def test_gpu_unsupported_model_blocks_only_on_gpu():
-    # V0.5.0: nearly every model runs on the GPU now; 'gals' (file-based
-    # catalogue) is the remaining CPU-only one
-    text = _GOOD + "'g1': (3, 'gals', lens_z, 1.0)\n"
+def test_gpu_supports_every_lens_model():
+    # V0.6: Rhongomyniad covers ALL glafic lens models (crline/acnfw/gals
+    # added), so no lens component may raise gpu_unsupported on either backend.
+    from core.format import schema
+    lens_keys = [k for k, spec in schema.MODELS.items()
+                 if spec.category in ("lens", "substructure")]
+    assert set(lens_keys) <= schema.GPU_MODELS, \
+        set(lens_keys) - schema.GPU_MODELS
+    text = _GOOD + "'g1': (3, 'gals', lens_z, 200.0)\n"
     _, issues_gpu = lint_text(text, backend="gpu", with_defaults=True)
     _, issues_cpu = lint_text(text, backend="cpu", with_defaults=True)
-    assert any(i.code == "gpu_unsupported" for i in issues_gpu)
+    assert not any(i.code == "gpu_unsupported" for i in issues_gpu)
     assert not any(i.code == "gpu_unsupported" for i in issues_cpu)
 
 

@@ -63,11 +63,20 @@ IterCallback = Optional[Callable[[int, np.ndarray, float, np.ndarray], None]]
 def run_de(objective, bounds, cfg: DEConfig,
            on_iteration: IterCallback = None,
            record_population: bool = True) -> DEResult:
+    # Pin updating='deferred' on EVERY path (GPU-batched, GPU/CPU per-candidate,
+    # and multi-worker). scipy's default for a single-process solver is
+    # 'immediate', which advances the population mid-generation and therefore
+    # produces a DIFFERENT same-seed DE trajectory than the batched-GPU and
+    # multi-worker paths (both of which require 'deferred'). Forcing 'deferred'
+    # everywhere preserves the project's same-seed cross-backend parity invariant:
+    # the same config + seed walks an identical trajectory regardless of backend
+    # or worker count. 'deferred' is valid for workers==1 (serial, one population
+    # update per generation).
     if cfg.gpu_vectorized:
         workers, updating, vectorized = 1, "deferred", True
     else:
         workers = cfg.workers if cfg.workers else 1
-        updating = "deferred" if workers != 1 else "immediate"
+        updating = "deferred"
         vectorized = False
 
     solver = DifferentialEvolutionSolver(

@@ -36,7 +36,7 @@ import numpy as np
 from ..format import schema
 from ..format.config import GladeConfig
 from ..format.values import Bounds, Fixed, SharedBounds
-from .batched import _CHUNK_ENV, _SCHRAMM
+from .batched import _CHUNK_ENV, _SCHRAMM, _chunk_from_env
 from .extend import INVALID_LOSS, PENALTY_FLOOR, ExtendSpec
 from .loss import ExtendLossConfig
 from .problem import OptProblem
@@ -226,12 +226,13 @@ class BatchedExtendGPUObjective:
         ctx_pts = [self._LensContext.build(cosmo, zl=zl, zs=po.zs)
                    for po in point_obs]
 
-        chunk = os.environ.get(_CHUNK_ENV)
-        if chunk is not None:
-            chunk = max(1, int(chunk))
-        else:
-            heavy = any(name in _SCHRAMM for name, _ in lens_specs)
-            chunk = 32 if heavy else 128
+        # GLADE_GPU_CHUNK override (32/128 heavy-model heuristic otherwise). Reuse
+        # batched._chunk_from_env so a malformed value (e.g. 'auto') is warned and
+        # ignored instead of raising int() -> which, swallowed by __call__'s
+        # except, would peg the whole population at 1e15 every generation. The
+        # extend field phase is fp64, so fp32_fields stays False.
+        heavy = any(name in _SCHRAMM for name, _ in lens_specs)
+        chunk = _chunk_from_env(heavy)
 
         self._static = dict(
             cosmo=cosmo, h_ref=h_ref, zl=zl,
@@ -865,7 +866,19 @@ class BatchedExtendGPUObjective:
                 comp, missing = self._evaluate_components(sub)
                 loss[s:s + sub.shape[1]] = self._combine(comp, missing)
             return loss
-        except Exception:  # noqa: BLE001 - never let DE die on a GPU hiccup
+        except Exception as exc:  # noqa: BLE001 - never let DE die on a GPU hiccup
+            # ...but say WHY once. A config/memory problem (CUDA OOM on a large
+            # grid, a FITS shape mismatch, a kernel bug) would otherwise surface
+            # only as the whole population stuck at INVALID_LOSS (1e15) every
+            # generation -- indistinguishable from a genuinely bad fit, and the
+            # run is in fact NOT optimizing. Mirrors batched.BatchedGPUObjective.
+            if not getattr(self, "_warned", False):
+                self._warned = True
+                print(f"  [warn] batched extend GPU objective failed "
+                      f"({type(exc).__name__}: {exc}); returning INVALID_LOSS for "
+                      f"the whole population. If this is a GPU out-of-memory, lower "
+                      f"{_CHUNK_ENV} or shrink the grid/observed image; a persistent "
+                      f"failure means the run is NOT optimizing.", flush=True)
             return np.full(popsize, INVALID_LOSS)
 
     def components_for(self, candidate) -> Optional[tuple]:

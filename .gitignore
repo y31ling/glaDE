@@ -160,8 +160,11 @@ InputFiles/*
 # session handoff note for a future Claude Code (local only, not shipped)
 memory.md
 
-# Rhongomyniad table-interpolation caches (auto-built on first use)
-Rhongomyniad/rhongomyniad/_tab_cache/
+# Rhongomyniad table-interpolation caches (auto-built on first use).
+# EXCEPTION: the acnfw CSE table is verbatim source data extracted from
+# glafic's app_cnfw.c (not re-buildable at runtime) and ships in git.
+Rhongomyniad/rhongomyniad/_tab_cache/*
+!Rhongomyniad/rhongomyniad/_tab_cache/acnfw_cse_v1.npz
 # one-off tensorization verification artifact (not referenced by any test)
 Rhongomyniad/tests/_tensorize_ref.npz
 
@@ -179,3 +182,14 @@ tools/MCMC_GPU.py
 tools/mcmc_gpu_v_2.py
 # stray editor duplicates
 * copy.py
+
+# ==================== V0.6.0-GREY ====================
+# the bilingual user manuals (manual/*.md) ship in git — verified that no
+# existing rule matches them (the blanket *.dat/*.png/*.pdf rules don't).
+# release image referenced at the end of README.md; defensive keep in case a
+# *.jpg rule is ever added later (none exists today)
+!source/GREY.jpg
+# local Claude Code session config
+.claude/
+# internal correspondence draft (kept local, like the V0.5.1 dev notes)
+EMAIL_to_Oguri.txt

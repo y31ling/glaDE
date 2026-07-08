@@ -10,43 +10,27 @@ substructure searches, Differential Evolution, and MCMC. It wraps a modified
 and the `Rhongomyniad/` GPU lens engine behind a browser UI and
 command-line tools.
 
-> **V0.5.0 current release — Rhongomyniad major update**: the PyTorch/CUDA GPU
-> engine leaves beta and takes its first real version name. The GPU backend now
-> matches the CPU's full behaviour: every deflector model except the file-based
-> `gals` (24 tensor-parameterised kernels) plus all 5 extended-source (FITS)
-> profiles run on the GPU; **any** optimizable lens model is evaluated
-> whole-DE-population batched (a free 20-dim main-lens fit drops from ~21 s to
-> ~0.86 s per generation, ~27×); a new `gpu_precision = 64/48/32` key adds a
-> mixed fp32/fp64 mode (48: fp32 speed at fp64 accuracy, recommended for
-> Schramm-heavy models); MCMC gains a batched-CUDA `MCMC-GPU` rail with
-> auto-tuned walkers. The `.dat` format adds user-defined shared variables
-> (`lens_x = {-0.1, 0.1}` ties one fitted value across components), an
-> `abs_mag` parity-insensitive magnification chi2/plot convention (default),
-> and `Nl`/`Ns` component classification suffixes. Verified throughout against
-> scipy-exact references and the glafic binary; pure point-mass configs keep
-> bit-identical same-seed DE trajectories. See [Update.txt](Update.txt).
+> **V0.6.0 current release — Clave integration + full GPU model coverage +
+> library packaging + WebUI theme/i18n**: the Clave interactive lens calculator
+> joins the WebUI as the third tab (`/clave`, also standalone via
+> `python -m clave`); Rhongomyniad now implements **all 27 glafic lens models**
+> on the GPU — the last three (`crline`, `acnfw`, `gals`) added and verified
+> against the glafic binary to machine precision (multi-plane stays CPU-only);
+> `import glade` turns GLADE into a library (path bootstrap + lazy heavy
+> imports; `glade.engine("cpu"|"gpu")` exposes the imperative glafic-style
+> API); the WebUI gains a dark/light theme (default dark), an English/中文
+> toggle (default English) and Explorer right-click Copy/Paste for files and
+> folders.
 >
-> **V0.4.5**: GLADE adds **macOS deployment support** (Apple
-> Silicon and Intel) via a new `bootstrap_macos.sh` one-click installer and a
-> platform-aware multiprocessing layer (`core/parallel.py`) that keeps Linux on
-> `fork` while macOS uses `spawn`, so multi-process DE/MCMC runs safely on a Mac
-> with results identical to Linux. GPU stays optional (CPU fallback on Macs).
->
-> ⚠️ **The macOS support is UNTESTED**: it has not yet been compiled or run on a
-> real Mac — it was only verified on Linux to not regress existing behavior
-> (core tests 81/81, Linux multiprocessing still `fork`). On a Mac, trust the
-> `import glafic` self-check at the end of `bootstrap_macos.sh`, and please
-> report any build/link issues. See [Update.txt](Update.txt) for details.
->
-> **V0.4.4**: GLADE fits extended sources (FITS images). A `.dat` can reference
-> an observed FITS image plus external file addresses (`extended_file`,
-> `constraint_file`, `prior_file`, …) and is optimized on the CPU via glafic's
-> per-component `c2calc`, with weightable chi2 terms
-> (`W_POS`/`W_FLUX`/`W_TD`/`W_EXT`/`W_PRIOR`), an optionally optimizable Hubble
-> constant, MCMC support, and a graded `missing_img_penalty` for under-imaged
-> candidates.
+> The **V0.6.0-GREY** documentation release adds two comprehensive,
+> adversarially fact-checked user manuals:
+> [English](manual/GLADE_Manual_en.md) / [中文](manual/GLADE_Manual_zh.md).
+> See [Update.txt](Update.txt) for full changelogs.
 
 Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
+
+User manual (V0.6.0-GREY, comprehensive & fact-checked):
+[English](manual/GLADE_Manual_en.md) / [中文](manual/GLADE_Manual_zh.md).
 
 ## Features
 
@@ -58,8 +42,14 @@ Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
 - **Composable lens stacks**: main lenses and substructures share one component
   list, so point mass, NFW, King, pseudo-Jaffe, Sersic, SIE, shear, and other
   glafic models can be mixed where the chosen backend supports them.
-- **GPU acceleration**: Rhongomyniad provides a PyTorch lens calculator and a
-  batched GPU path for compatible point-mass optimization and MCMC workloads.
+- **GPU acceleration**: Rhongomyniad provides a PyTorch lens calculator covering
+  **all 27 glafic lens models** (V0.6) and a batched GPU path that evaluates the
+  whole DE/MCMC population in single CUDA calls.
+- **Library use**: `import glade` from any script — the facade package
+  bootstraps `sys.path` and exposes `load_config` / `optimize` / `build_obs` /
+  `make_triptych` / `run_mcmc` / `verify_with_glafic` with lazy heavy imports.
+- **Clave lens calculator**: the interactive drag-and-compute lens visualizer is
+  built in as the third WebUI tab (mounted at `/clave`, CPU/GPU backends).
 - **MCMC workflows**: run MCMC only, or run DE first and seed emcee walkers from
   the DE best fit; corner, trace, summary, and result figures are written to the
   run directory and surfaced in the WebUI.
@@ -71,8 +61,10 @@ Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
   through the glafic binary, while the scipy-exact check reports Sersic
   deflection accuracy and source-plane consistency.
 - **Browser workbench**: the current `webui/` app provides FindImage runs,
-  real-time terminal streaming, result previews, an Explorer, Monaco editor, and
-  template insertion for `InputFiles/`.
+  real-time terminal streaming, result previews, an Explorer with right-click
+  copy/paste, Monaco editor, template insertion for `InputFiles/`, a dark/light
+  theme toggle (default dark) and an English/中文 language toggle (default
+  English), both in the top-right corner.
 - **Translation tools**: convert between glafic input/obs files and GLADE `.dat`
   files from the WebUI or `python -m core.translate.cli`.
 
@@ -81,7 +73,8 @@ Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
 ### System Requirements
 
 - Linux (GCC + standard build tools), or macOS (Xcode Command Line Tools +
-  Homebrew) — see the macOS note below; macOS support is **untested** in v0.4.5
+  Homebrew) — macOS support is **untested** (never compiled or run on a real
+  Mac so far)
 - Python 3.8 or higher
 - CFITSIO, FFTW3, and GSL for building glafic2 (apt on Linux, Homebrew on macOS)
 - Optional CUDA-capable PyTorch environment for GPU runs (NVIDIA only; Macs run
@@ -97,7 +90,7 @@ cd glaDE
 bash bootstrap_linux.sh      # Linux
 
 # macOS (Apple Silicon or Intel) — requires Homebrew + Xcode Command Line Tools.
-# NOTE: untested on a real Mac in v0.4.5; the script self-checks `import glafic`.
+# NOTE: untested on a real Mac; the script self-checks `import glafic`.
 bash bootstrap_macos.sh      # macOS
 ```
 
@@ -144,6 +137,30 @@ python webui/runjob.py \
 Backends are `cpu`, `gpu`, and `glafic`. Modes are `findimage`, `de+mcmc`, and
 `mcmc`.
 
+### Use as a Python Library (`import glade`)
+
+Since V0.6 GLADE is importable like glafic itself. With the repo root on
+`sys.path` (automatic when your working directory is the repo, or from anywhere
+after `source env.sh`):
+
+```python
+import glade
+
+cfg, issues = glade.load_config(
+    ["constants.dat", "images_data.dat", "lens.dat"], backend="gpu")
+assert not glade.has_errors(issues)
+
+result = glade.optimize(cfg, backend="gpu")          # DE fit
+glade.make_triptych(result, glade.build_obs(cfg), "triptych.png")
+```
+
+Importing `glade` bootstraps the paths for the whole tree, so `import core`,
+`import glafic`, and `import rhongomyniad` all work afterwards. Heavy modules
+(matplotlib, emcee, torch, the glafic C extension) load lazily on first use.
+`glade.engine("cpu")` / `glade.engine("gpu")` return the low-level engine
+modules with the glafic-style imperative API (`init` / `set_lens` /
+`point_solve` / ...).
+
 ## `.dat` Configuration
 
 The v0.4 `.dat` format is the canonical format used by the Editor and optimizer.
@@ -171,7 +188,8 @@ See [core/SPEC.md](core/SPEC.md) for the full specification.
 
 ## WebUI Workflow
 
-1. Put or create `.dat` files under `InputFiles/` from the Editor page.
+1. Put or create `.dat` files under `InputFiles/` from the Editor page
+   (the file tree supports right-click Copy/Paste of files and whole folders).
 2. Use the Template panel to insert constants, observation data, lenses,
    substructures, and MCMC settings.
 3. Select one or more `.dat` files in FindImage.
@@ -179,6 +197,12 @@ See [core/SPEC.md](core/SPEC.md) for the full specification.
 5. Run and watch the spawned terminal stream back into the browser.
 6. Inspect `result.png`, `mcmc_corner.png`, `mcmc_trace.png`, `best_params.txt`,
    `mcmc_summary.txt`, `status.json`, and verification outputs in `runs/<job>/`.
+
+The third tab, **Clave**, embeds the interactive lens calculator: drag lenses
+and sources on a gridded canvas and watch the lensed images update in real time
+(CPU via glafic, GPU via Rhongomyniad). The top-right buttons switch the UI
+language (English/中文, default English) and the theme (dark/light, default
+dark).
 
 ## Project Structure
 
@@ -195,7 +219,9 @@ glade/
 │   ├── mcmc/               # emcee posterior sampling and plotting
 │   ├── plot/               # triptych, critical curves, iteration frames
 │   └── translate/          # glafic <-> glade conversion
+├── glade/                  # importable facade package (import glade)
 ├── webui/                  # current Flask + Monaco browser workbench
+├── clave/                  # Clave lens calculator (Flask blueprint at /clave)
 ├── glafic2/                # modified glafic v2 source and Python bindings
 ├── Rhongomyniad/           # GPU lens engine (PyTorch/CUDA, glafic-matching)
 ├── legacy/                 # archived pre-v0.4 model scripts
@@ -204,22 +230,17 @@ glade/
 
 ## Supported Models
 
-CPU/glafic support follows the known glafic models registered in
-`core/format/schema.py`. GPU support currently covers:
+All glafic lens models are registered in `core/format/schema.py`, and since
+V0.6 the GPU backend (Rhongomyniad) implements **every one of glafic's 27 lens
+models** — including the V0.6 additions `crline` (straight critical line),
+`acnfw` (CSE-approximated cored NFW), and `gals` (external galaxy catalogue,
+summed pseudo-Jaffe) — each verified against the glafic binary to machine
+precision. Multi-plane lensing remains CPU/glafic-only.
 
-| Model | Typical Role | GPU |
-|:---|:---|:---:|
-| `point` | point-mass substructure | yes |
-| `nfw`, `nfwpot` | NFW substructure | yes |
-| `king` | King-profile substructure | yes |
-| `jaffe` | pseudo-Jaffe substructure | yes |
-| `sers` | Sersic lens component | yes |
-| `sie` | SIE lens component | yes |
-| `pert` | external shear/convergence | yes |
-| `gaupot` | Gaussian potential | yes |
-
-Other registered glafic models can still be used on CPU/direct glafic when their
-parameters are provided in the `.dat` component syntax.
+`gals` reads its catalogue like glafic does: a `galfile.dat` (rows
+`x y L [e pa]`) in the working directory, loaded lazily on first use; or inject
+it explicitly with `rhongomyniad.set_galfile(path)` / `readgals()` /
+`set_gals(rows)`.
 
 ## Translation
 
@@ -267,6 +288,8 @@ also require built glafic bindings and, for GPU, a working PyTorch/CUDA setup.
 
 | version | comments |
 |:---|:---|
+| 0.6.0-GREY | **Bilingual user manuals**: two comprehensive manuals — [manual/GLADE_Manual_en.md](manual/GLADE_Manual_en.md) (English) and [manual/GLADE_Manual_zh.md](manual/GLADE_Manual_zh.md) (中文) — covering installation (incl. WSL2), the three WebUI tabs, the full `.dat` reference (27-model parameter tables, every key + default), DE/MCMC/extended-source fitting, run outputs, CLI & `import glade`, a dedicated `TOL_ROMBERG_JHK` accuracy chapter, troubleshooting and appendices; written for physics undergraduates and adversarially fact-checked against the code (20 corrections applied). README gains the GREY release image; `update_en.txt` back-filled with the missing V0.6.0 entry. |
+| 0.6.0 | **Clave integration + full lens-model coverage + library packaging + WebUI theme/i18n**: Rhongomyniad gained the last three glafic lens models (`crline`, `acnfw`, `gals`) — all 27 now run on GPU, verified against the glafic binary to machine precision; the Clave interactive lens calculator was merged into the repo as the third WebUI tab (`/clave` blueprint); `import glade` works as a library facade with lazy heavy imports; the WebUI gained dark/light themes (default dark), an English/中文 toggle (default English), Explorer right-click Copy/Paste for files and folders, and dropped the FindImage rail note. |
 | 0.5.1 | Repository cleanup: internal dev notes (glafic upstream-issue drafts, the GPU-MCMC exploration report), exploration-phase dev scripts and the deprecated pre-V0.4 `web/` UI were untracked and gitignored (files stay local); `source/` assets are kept for the future WebUI. |
 | 0.5.0 | **Rhongomyniad major update** (consolidates the unreleased 0.4.6–0.4.8): full GPU/CPU behaviour parity (24 tensor-parameterised kernels, extended-source FITS pipeline on GPU), whole-population batched DE/MCMC for any optimizable model (~27× on free main-lens fits), `gpu_precision` 64/48/32 mixed precision, user-defined shared `.dat` variables, parity-insensitive `abs_mag` magnification convention, `MCMC-GPU` rail with walker auto-tuning, `Nl`/`Ns` classification suffixes, scipy-exact + glafic cross-verification tools, and extensive adversarial-review hardening. |
 | 0.4.5 | macOS deployment support was added: a `bootstrap_macos.sh` one-click installer (Homebrew deps, macOS glafic build) and a platform-aware multiprocessing layer (`core/parallel.py`) that keeps Linux on `fork` and uses `spawn` on macOS so multi-process DE/MCMC is safe and result-identical. **Untested on a real Mac**; Linux behavior is unchanged (core tests 81/81). |
@@ -293,3 +316,7 @@ modified glafic for research.
 - **Rhongomyniad**: local GPU lens-calculation component used by GLADE.
 - **SciPy, NumPy, Astropy, emcee, corner, matplotlib, Flask, Monaco**: the
   scientific and UI ecosystem supporting the current workflow.
+
+---
+
+![GREY](source/GREY.jpg)

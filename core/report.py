@@ -55,6 +55,50 @@ def compute_crit_curves(scene, prefix: str):
         return [], []
 
 
+def mag_at_points(scene, points, prefix: str):
+    """Model magnification ``mu = 1/det(A)`` at each image-plane point, via
+    ``glafic.calcimage``.
+
+    ``points`` are ``(x, y)`` pairs in the model/glafic frame (arcsec). Returns a
+    list of signed magnifications aligned with *points*, or ``None`` if glafic is
+    unavailable or the call fails (the caller then falls back to the predicted-
+    image magnifications). Uses glafic for consistency with the critical curves.
+
+    This feeds the triptych's ``mu@obs`` diagnostic: the model's magnification
+    exactly at the *observed* image positions, which differs from the
+    magnification at the model's own *predicted* images near critical curves,
+    where mu is hypersensitive to position.
+    """
+    try:
+        import glafic  # noqa: PLC0415
+    except Exception:
+        return None
+    try:
+        glafic.init(scene.omega, scene.lam, scene.weos, scene.hubble, prefix,
+                    scene.xmin, scene.ymin, scene.xmax, scene.ymax,
+                    scene.pix_ext, scene.pix_poi, scene.maxlev, verb=0)
+        glafic.startup_setnum(len(scene.components), 0, 1)
+        for k, comp in enumerate(scene.components, start=1):
+            glafic.set_lens(k, comp.glafic_type, comp.z, *_pad7(comp.params))
+        glafic.set_point(1, scene.source_z, scene.source_x, scene.source_y)
+        glafic.model_init(verb=0)
+        mags = []
+        for (x, y) in points:
+            # calcimage returns [ax, ay, tdelay, kappa, gam1, gam2, ...]
+            out = glafic.calcimage(scene.source_z, float(x), float(y), verb=0)
+            kappa, gam1, gam2 = out[3], out[4], out[5]
+            mu_inv = (1.0 - kappa) ** 2 - (gam1 ** 2 + gam2 ** 2)
+            mags.append(1.0 / mu_inv if mu_inv != 0.0 else float("inf"))
+        glafic.quit()
+        return mags
+    except Exception:
+        try:
+            glafic.quit()
+        except Exception:
+            pass
+        return None
+
+
 def _subhalo_markers(opt_result: OptResult, center_offset) -> list:
     markers = []
     cfg_comps = opt_result.problem.cfg.components
@@ -171,6 +215,20 @@ def make_triptych(opt_result: OptResult,
 
     markers = _subhalo_markers(opt_result, obs.center_offset)
     img_numbers = list(range(1, obs.n + 1))
+
+    # mu@obs: the model's magnification AT the observed image positions. obs.positions
+    # live in the observation frame (predicted = model frame; obs = model +
+    # center_offset), so the model-frame coordinate of each observed image is
+    # obs.position - center_offset. Falls back to the predicted-image mags
+    # (matched_mag) when glafic is unavailable. select_images above guarantees
+    # n_pred == obs.n, so this is row-aligned with mu_pred / img_numbers.
+    co = np.asarray(obs.center_offset, dtype=float)
+    obs_model_xy = np.asarray(obs.positions, dtype=float) - co
+    _muobs_prefix = os.path.join(
+        os.path.dirname(os.path.abspath(output_file)) or ".", "best_muobs")
+    mu_at_obs = mag_at_points(opt_result.scene, obs_model_xy, _muobs_prefix)
+    mu_at_obs_pred = (np.asarray(mu_at_obs, dtype=float)
+                      if mu_at_obs is not None else matched_mag)
     # the magnification panel follows the loss convention (abs_mag, default
     # True: |mu| bars upward from 0; False keeps the signed values)
     abs_mag = bool(opt_result.problem.cfg.algorithm.get("abs_mag", True))
@@ -182,7 +240,7 @@ def make_triptych(opt_result: OptResult,
         mu_obs=obs.magnifications,
         mu_obs_err=obs.mag_errors,
         mu_pred=matched_mag,
-        mu_at_obs_pred=matched_mag,   # stand-in until calcimage-at-obs is wired
+        mu_at_obs_pred=mu_at_obs_pred,
         obs_positions_arcsec=obs.positions,
         pred_positions_arcsec=matched_pos,
         crit_segments=crit_segments,

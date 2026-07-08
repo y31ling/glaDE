@@ -156,6 +156,25 @@ def _check_obs(cfg: GladeConfig, issues: list[Issue]) -> None:
                     f"obs_positions_mas_list[{i}] must be a [x, y] pair"))
                 break
 
+    # measurement errors must be finite and strictly positive: a 0/negative or
+    # non-finite position-sigma or magnification-error divides the chi2 by zero
+    # (or carries a NaN), so the loss becomes inf/NaN. np.argmin then selects the
+    # NaN as the "best" candidate and DE never improves -- a silent stall with no
+    # diagnostic. Catch it here at load time instead.
+    for key in ("obs_pos_sigma_mas_list", "obs_mag_errors_list"):
+        arr = arrays.get(key)
+        if not isinstance(arr, list):
+            continue
+        for i, v in enumerate(arr):
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                continue  # non-numeric entries are reported by the obs_type check
+            if not math.isfinite(v) or v <= 0:
+                issues.append(Issue(
+                    ERROR, "obs_error_nonpositive",
+                    f"{key}[{i}] = {v} must be a finite, positive measurement "
+                    f"error; a zero/negative/non-finite value makes the chi2 loss "
+                    f"NaN/Inf and silently stalls the optimizer"))
+
 
 def _check_component(comp: Component, backend: Optional[str],
                      distinct_z: set, issues: list[Issue],

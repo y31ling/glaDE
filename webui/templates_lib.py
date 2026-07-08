@@ -153,7 +153,7 @@ MCMC_NSTEPS = $int          # e.g. 2000
 MCMC_BURNIN = $int          # steps discarded before thinning, e.g. 300
 MCMC_THIN = $int            # e.g. 2
 MCMC_PERTURBATION = $float  # walker init spread (fraction of bound width), e.g. 0.01
-MCMC_WORKERS = $int         # -1 = all CPU cores (ignored on the vectorized GPU path)
+MCMC_WORKERS = $int         # default 1; -1 = all CPU cores, only in a foreground terminal (ignored on the vectorized GPU path)
 MCMC_PROGRESS = True
 """
 

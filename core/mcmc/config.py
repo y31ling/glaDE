@@ -14,7 +14,11 @@ class MCMCConfig:
     burnin: int = 300
     thin: int = 2
     perturbation: float = 0.01    # walker init spread as a fraction of bound width (DE+MCMC)
-    workers: int = -1             # CPU pool size for the likelihood (-1 = all cores)
+    # CPU pool size for the likelihood. Default 1 (single process) to match
+    # DE_WORKERS: a fork pool left at -1 in a detached/backgrounded terminal can
+    # orphan its workers and spin at ~full CPU after the parent is killed mid-run.
+    # Set MCMC_WORKERS=-1 explicitly (in a real foreground terminal) to use all cores.
+    workers: int = 1
     progress: bool = True
     seed: Optional[int] = None    # reuse DE_SEED when None
 
@@ -27,7 +31,7 @@ class MCMCConfig:
             burnin=int(a.get("MCMC_BURNIN", 300)),
             thin=int(a.get("MCMC_THIN", 2)),
             perturbation=float(a.get("MCMC_PERTURBATION", 0.01)),
-            workers=int(a.get("MCMC_WORKERS", -1)),
+            workers=int(a.get("MCMC_WORKERS", 1)),
             progress=bool(a.get("MCMC_PROGRESS", True)),
             seed=int(a["DE_SEED"]) if "DE_SEED" in a else None,
         )

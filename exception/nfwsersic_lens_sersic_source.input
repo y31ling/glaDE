@@ -1,0 +1,32 @@
+# parameters
+omega 0.315
+lambda 0.685
+weos -1.03
+hubble 0.674 # cosmological parameters from PLANCK18
+
+xmin -2
+xmax 2
+ymin -2
+ymax 2
+
+pix_poi 0.001 # higher resolution
+pix_ext 0.001
+
+ran_seed -1
+
+startup 2 1 0
+lens anfw 0.5 3.378e13 0 0 0.2 0 4 0
+lens sers 0.5 1.199e11 0 0 0.2 0 0.9688 4 0
+#extend sersic 0.5 0.01992510625 0 0 0 0 0.6 4
+extend sersic 2 1 0.02 0.02 0.4 0 0.1609 4
+end_startup
+
+start_command
+#writelens 2
+writeimage 0 0
+writeimage_ori 0 0
+#calcextend 0 -0.5 5
+#findimg
+writecrit 2
+
+quit

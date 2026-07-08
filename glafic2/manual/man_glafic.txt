@@ -1,0 +1,3500 @@
+glafic: gravitational lens adaptive-mesh fitting code
+(version 2.1.14)
+
+Masamune Oguri
+
+April 21, 2026
+
+© Copyright 2008– by Masamune Oguri
+All rights reserved.
+
+Contents
+1 Overview
+1.1 General descriptions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.2 Features . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.3 Updates from version 1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+1
+1
+1
+5
+
+2 Running glafic
+2.1 Getting Started . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+2.2 Format of Input File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+2.3 Example of Input File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+6
+6
+6
+8
+
+3 Parameter Reference
+3.1 Primary Parameters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3.2 Secondary Parameters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+9
+9
+10
+
+4 Model Reference
+4.1 Lens . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.2 Extended Source . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.3 Point Source . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4.4 PSF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+15
+15
+15
+16
+16
+
+5 Command Reference
+5.1 Basic calculations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.1.1 Lens properties . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.1.2 Extended sources . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.1.3 Point sources . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.1.4 Composite sources . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.2 Model optimization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.2.1 Preparation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.2.2 Optimization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5.2.3 Markov-Chain Monte-Carlo (MCMC) . . . . . . . . . . . . . . . . . .
+5.3 Utilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+19
+19
+19
+20
+21
+23
+23
+23
+26
+27
+28
+
+6 More information
+
+30
+iii
+
+iv
+A Computing Lensing Properties
+A.1 Circular Mass Distribution . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+A.2 Elliptical Mass Distribution . . . . . . . . . . . . . . . . . . . . . . . . . . .
+A.3 Elliptical Potential . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+31
+31
+32
+33
+
+B Catalog of Mass Models
+B.1 External Perturbation (pert) . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.2 Third-Order Perturbation (clus3) . . . . . . . . . . . . . . . . . . . . . . . .
+B.3 Multipole Perturbation (mpole) . . . . . . . . . . . . . . . . . . . . . . . . .
+B.4 Straight critical curve (crline) . . . . . . . . . . . . . . . . . . . . . . . . .
+B.5 Point mass (point) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.6 Isothermal Ellipsoid (sie) . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.7 Pseudo-Jaffe Ellipsoid (jaffe) . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.8 Power-Law Profile (pow/powpot) . . . . . . . . . . . . . . . . . . . . . . . . .
+B.9 Sérsic Profile (sers/serspot) . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.10 Hernquist Profile (hern/ahern/hernpot) . . . . . . . . . . . . . . . . . . . .
+B.11 NFW Profile (nfw/anfw/nfwpot) . . . . . . . . . . . . . . . . . . . . . . . .
+B.12 Generalized NFW Profile (gnfw/gnfwpot) . . . . . . . . . . . . . . . . . . .
+B.13 Truncated NFW Profile (tnfw/tnfwpot) . . . . . . . . . . . . . . . . . . . .
+B.14 Cored NFW Profile (acnfw) . . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.15 Einasto Profile (ein/einpot) . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.16 Gaussian Profile (gaupot) . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+B.17 Multiple galaxies (gals) . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+35
+35
+36
+36
+37
+37
+37
+39
+39
+40
+41
+42
+43
+43
+45
+45
+46
+47
+
+C Halo Overdensity
+
+48
+
+D Catalog of Extended Source Models
+D.1 Gaussian profile (gauss) . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+D.2 Sérsic profile (sersic) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+D.3 Tophat profile (tophat) . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+D.4 Moffat profile (moffat) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+D.5 Jaffe profile (jaffe) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+D.6 Multiple sources (srcs) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+49
+49
+49
+49
+50
+50
+50
+
+Acknowledgement
+The development of this gravitational lens software owes a great deal to existing public
+softwares, gravlens by Chuck Keeton and glamroc by Ted Baltz. Actually I “borrow” a lot
+from these codes’ concepts, designs and user interfaces. I thank Ted Baltz also for stimulating
+discussions about algorithms for solving lens equation. I’m grateful to many people including
+Issha Kayo, Eduard Rusu, Anupreeta More, Keiichi Umetsu, Fabian Koehlinger, Gabriel
+Caminha, Christoph Becker, Akiyoshi Tsujita, Tsuyoshi Ishida, Jeremy Lim, Mandy Chen,
+Dani Chao, and Yuting Liu for feedbacks and comments. I also thank members of Hyper
+Suprime-cam weak lensing working group for many useful discussions on imaging simulations.
+
+v
+
+vi
+
+Chapter 1
+Overview
+1.1
+
+General descriptions
+
+glafic 1 is a software for studying strong gravitational lenses (Oguri 2010). Its main functions are to solve lens equation, to calculate lensed images for both point and extended
+sources, and to model observed strong lensing. Adaptive-meshing with increased resolution
+near the critical curves allows a fast and efficient computation of lensed images. It is designed
+to model strong lensing by a cluster of galaxies, which often involves multiple lensed sources
+at several different redshifts, but it should be useful to model galaxy-scale lenses too.
+I think the code works fine. That said, I basically make no guarantee of it. Please use
+it at your own risk, though I’m more than happy to hear what you feel on the code. If you
+have any questions, suggestions, and comments, please contact me.
+To help you get a sense of how the code works, here I give some examples. Figure 1.1
+basically shows mesh structure, critical curves and caustics, and example source and corresponding image positions. The figure demonstrates how the adaptive-meshing scheme successfully resolves critical curves, including those associated with small clumps. Also shown
+in Figure 1.2 are example lensed images of extended sources. The code can handle various
+brightness profiles for extended sources. One can also generates lensed mock-images of many
+galaxies using the code (Figure 1.3).
+
+1.2
+
+Features
+
+• Basically glafic handles dimensional units. In particular, the lens and source planes
+are always in units of arcsecond. This makes it easy and straightforward to compare
+the results with observations.
+• glafic supports a wide range of current standard lens mass models (e.g., point mass,
+SIE, NFW, Einasto, various perturbations, ....).
+• It also supports a wide range of sources, including point sources and extended sources,
+multiple sources at different redshifts, etc.
+1
+
+https://www.slac.stanford.edu/˜oguri/glafic/
+
+1
+
+2
+
+image plane
+
+20
+
+20
+
+10
+
+10
+
+0
+
+−10
+
+−20
+
+−20
+−20
+
+−10
+
+0
+θ1 [arcsec]
+
+10
+
+20
+
+−30
+−30
+
+30
+
+source plane
+
+15
+10
+
+10
+
+5
+
+5
+
+0
+
+−5
+
+−10
+
+−10
+−10
+
+−5
+
+0
+β1 [arcsec]
+
+−10
+
+5
+
+10
+
+15
+
+0
+θ1 [arcsec]
+
+10
+
+20
+
+30
+
+5
+
+10
+
+15
+
+source plane
+
+0
+
+−5
+
+−15
+−15
+
+−20
+
+15
+
+β2 [arcsec]
+
+β2 [arcsec]
+
+0
+
+−10
+
+−30
+−30
+
+image plane
+
+30
+
+θ2 [arcsec]
+
+θ2 [arcsec]
+
+30
+
+−15
+−15
+
+−10
+
+−5
+
+0
+β1 [arcsec]
+
+Figure 1.1: Example of lens equation solving for point sources. I use square grids (thin black
+lines) that are adaptively refined near critical curves to derive image positions for a given
+source. Upper panels show image planes, and lower panels are corresponding source planes.
+Critical curves and caustics are drawn by blue lines. Positions of sources and images are
+indicated by red triangles. Left panels show an example from a simple mass model that
+consist of NFW and SIE profiles at different redshifts. A source near the center is producing
+7 lensed images. In right panels, I add small galaxies to the primary NFW lens potential.
+This time 5 lensed images are produced.
+
+3
+
+Figure 1.2: Example of lens mapping for extended sources. The lens model is same as the one
+that was used in the left panels of Figure 1.1. I put two sources with different orientations
+and sizes in the source plane (lower panel). Lensed images are shown in the image plane
+(upper panel).
+
+4
+
+Figure 1.3: Simulated wide-field image. Galaxy images of the central region are distorted
+due to the foreground cluster.
+
+5
+• Functional lens model optimizations with many options including source-plane χ2 minimizations, randomization/reoptimizations, and Markov-chain Monte-Carlo.
+
+1.3
+
+Updates from version 1
+
+Several features are newly implemented in glafic version 2. As a result, input files for
+version 2 are not compatible with those for version 1. Here is a quick summary of important
+updates.
+• Multiple lens planes (gravitational lensing by multiple structures at different redshifts)
+are now fully supported.
+• Because of this, lens redshifts are now specified as one of model parameters of each
+lens, rather than as a primary parameter. Hence, 8 parameters are used to characterize
+each lens component (cf. 7 in version 1). Input files, and most likely prior files as well,
+in version 1 need to be updated to reflect this change to get them work in version 2.
+• Default values of cosmological parameters are changed.
+• The source code is now free from Numerical Recipes and is publicly available in github2 .
+• Because of changes of some routines such as numerical integrations and interpolations,
+as well as changes of some constants (such as speed of light) to include more digits,
+output values can be slightly different between version 1 and 2, even for the same
+input parameters. Because of changes in the optimization (χ2 minimization) routine,
+optimize can also behave differently. The differences should be small enough and
+therefore should not be crucial in most cases.
+• The fast analytic calculation of pow lens model based on Tessore & Metcalf (2015)
+is implemented. Fast approximated NFW (anfw) and and Hernquist (ahern) models
+based on Oguri (2021) are also implemented from version 2.1.0.
+• Although it is not covered in this manual, the python interface is now available.
+
+2
+
+https://github.com/oguri/glafic2
+
+Chapter 2
+Running glafic
+2.1
+
+Getting Started
+
+glafic is run from the command-line in unix/linux/mac. After setting the path to the
+binary, you can start glafic simply by
+foo% glafic file.input
+where file.input is an input text file that specifies the parameters, mass model, and
+commands executed. Please note that glafic requires this input file to be run. The format
+of the file will be explained in § 2.2. Unless the input file contains a command quit, it
+automatically enters an interactive mode — you’ll see a prompt like this
+glafic>
+You can execute commands here to check results, to do modeling further, etc. To end glafic
+please use the quit command.
+glafic> quit
+
+2.2
+
+Format of Input File
+
+The input file consists of parameter setting, the definition of mass models and sources used
+in the run, and a list of commands. The basic structure of the input file is as follows:
+[parameters setting]
+startup
+[define mass models and sources]
+end_startup
+start_setopt
+[define flags for optimizations]
+end_setopt
+6
+
+7
+
+start_command
+[your commands here]
+The file should start with setting of parameters, both primary and secondary parameters, followed by the definition of mass models and sources. All the commands after start command
+will be executed in order. Any lines that start with # will be ignored — so you can insert
+any comments in the input file with this.
+In the beginning of the input file, parameters can be defined by simply listing parameter
+names and corresponding parameter values. Examples of these are
+omega
+lambda
+maxlev
+....
+
+0.3
+0.7
+5
+
+Next you should define mass models used in the code between startup and end startup.
+In the first line containing startup, the numbers of lenses, extended sources, and point
+sources have to be specified. It is followed by sentences specifying individual components
+(the order matters). Here is an example:
+startup 1 2 3
+lens sie 0.5 300.0 0.0 0.0 0.2 45.0 0.02 0.0
+extend sersic 1.5 150.0 0.0 0.5 0.3 90.0 0.8 1.0
+extend gauss 1.5 150.0 -0.2 0.3 0.2 10.0 0.6 0.0
+point 1.5 -0.2 0.1
+point 2.5 0.6 0.4
+point 2.5 0.8 0.3
+#psf 0.8 0.02 60.0 5.0 1.2 0.02 -30.0 3.0 0.7
+end_startup
+The lens component consists of the name of the mass model and 8 parameters characterizing
+the model. An extended source is described by the name of the source model and 8 model
+parameters. A point source requires just 3 parameters, the redshift and xy-position. The
+last one, psf, is optional; it is used only for extended sources and specifies the shape of PSF.
+If not included (note that you may also include PSF by supplying a fits file, as shown later),
+the extended source images are created without convolving with PSF. You can use # to
+comment out any of these components (however note that number of components specified
+at the beginning and the number of subsequent component entries must agree).
+If you are doing χ2 minimizations, you need to indicate which parameters you want to
+vary. In the input files, this is done between start setopt and end setopt. An example is
+start_setopt
+0 1 0 0 1 1 0 0
+0 1 1 1 1 1 0 0
+0 1 1 1 1 1 0 0
+0 1 1
+
+8
+1 1 1
+1 1 1
+#0 0 0 0 0 0 0 0 0
+end_setopt
+The structure above must be exactly same as the one indicated by startup. 1 indicates that
+the parameter is varied, whereas 0 means the parameter is fixed.
+
+2.3
+
+Example of Input File
+
+glafic provides an example input file. To see it, please just run glafic with -d option:
+foo% glafic -d
+You can also save the example to a file and run it for a test:
+foo% glafic -d > example.input
+foo% glafic example.input
+It will help you to learn about the code, e.g., how it runs commands, what are outputs, how
+to write input files, etc.
+
+Chapter 3
+Parameter Reference
+3.1
+
+Primary Parameters
+
+Primary parameters consist of most important parameters whose values I strongly recommend to specify explicitly at the beginning of the input file. These parameters, however, can
+be changed afterward by using the command reset par (see §5.3). Table 3.1 summarizes
+the primary parameters. Below are brief descriptions of these parameters.
+• omega, lambda, weos, hubble
+These are standard cosmological parameters, ΩM , ΩDE , w0 , and h, respectively.
+• prefix
+The prefix for any output files. For example, the result of lens mass modeling is written
+in a file named prefix optresult.dat. Note that results are overwritten.
+• xmin, ymin, xmax, ymax
+These parameters specify the rectangular region of the lens plane in which lens equation
+is solved (in units of arcsecond). Any images outside the region will not be identified
+by the code, so you should select the region large enough to cover all possible images
+of interest (but small enough to speed up calculations).
+• pix ext
+The pixel (grid) size for extended sources, in units of arcsecond. No subgrid is made
+for extended sources, and thus this pixel size corresponds to the spatial resolution for
+extended sources.
+• pix poi, maxlev
+pix poi denotes the largest pixel (grid) size for point sources, in units of arcsecond.
+maxlev gives the maximum recursion level of adaptive meshing. If maxlev is greater
+than 1, the subgrid recursion is performed to enhance the resolution near critical curves,
+and thus the resulting minimum pixel size is pix poi×21−maxlev .
+
+9
+
+10
+Name
+omega
+lambda
+weos
+hubble
+prefix
+xmin
+ymin
+xmax
+ymax
+pix ext
+pix poi
+maxlev
+
+Description
+matter density ΩM
+dark energy density ΩDE
+dark energy EOS w0
+Hubble constant h
+output file name prefix
+x-coord minimum [arcsec]
+y-coord minimum [arcsec]
+x-coord maximum [arcsec]
+y-coord maximum [arcsec]
+pixel size for extended sources [arcsec]
+largest pixel size for point sources [arcsec]
+maximum level of adaptive meshing
+
+Type
+double
+double
+double
+double
+char
+double
+double
+double
+double
+double
+double
+int
+
+Default
+0.3
+0.7
+−1.0
+0.7
+out
+−60.0
+−60.0
+60.0
+60.0
+0.2
+3.0
+5
+
+Table 3.1: Primary parameters.
+
+3.2
+
+Secondary Parameters
+
+Secondary parameters are less important parameters which control various commands. One
+can define these parameters at the beginning of the input file, or afterward as well by using
+the command reset par (see §5.3). Table 3.2 summarizes some of secondary parameters
+that are frequently used in the code.1 The brief explanations of these parameters are shown
+below.
+• galfile
+The name of the data file used for the mass model gals. The format of the file should
+be
+x[1] y[1] L[1] e[1] PA[1]
+x[2] y[2] L[2] e[2] PA[2]
+.....
+where x[i] and y[i] are xy-coordinates of i-th galaxy, L[i] is the luminosity normalized by a fiducial luminosity L∗ , e[i] is an ellipticity, and PA[i] is a position angle
+measured East of North (assuming North is up).
+• srcfile
+The name of the data file used for the extended source model srcs. The format of the
+file should be
+f[1] x[1] y[1] e[1] PA[1] re[1] n[1]
+f[2] x[2] y[2] e[2] PA[2] re[2] n[2]
+.....
+1
+
+There are some additional secondary parameters, which are used for minor tweak of some commands.
+
+11
+i.e., parameters p[2]–p[8] for the sersic model should be indicated in each line. If
+re<= 0 or n<= 0, PSF is drawn at the position (apparently PSF must be define for
+this).
+• ran seed
+Seed for the random number generator, which has to be a negative integer.
+• outformat exp
+This is a flag whether to use the exponential form for some result outputs. If = 0 result
+values are shown in normal fixed-point notation, whereas for = 0 values are shown in
+the exponential form. This flag affects only outputs related to lensed point source
+images (e.g., findimg command), the Einstein radii (calcein command), and lensing
+properties (calcimage command).
+• flag hodensity, hodensity
+The flag flag hodensity specifies which nonlinear overdensity is used, for mass models nfw, anfw, gnfw, tnfw, acnfw, and ein. In the case of flag hodensity=0, the
+overdensity computed from the spherical collapse model is adopted (see Appendix C).
+On the other hand, for flag hodensity=1 the code uses a fixed mean overdensity
+(i.e., ρ̄(< rvir ) = ∆ × ρ̄M (z)), and for flag hodensity=2 a fixed critical overdensity
+(i.e., ρ̄(< rvir ) = ∆ × ρcrit (z)) is adopted. The value of the fixed overdensity ∆ can be
+specified by hodensity.
+• gnfw usetab, ein usetab
+Computing lensing properties of generalized NFW profiles and Einasto profiles are
+time-consuming (see Appendix B), and thus I prepared tabulated models for these
+profiles. If the parameter is set to =1, the code makes tables of lensing properties when
+the model is first called (it can take a few minutes), and estimates all the deflection
+angles etc. by interpolating the table values. If you do not want to use the tabulated
+model, just set the parameter to =0.
+• nfw users
+If the parameter is set to =1, the code uses rs in arcsec for the model parameter p[7],
+instead of c or c−2 , for mass models nfw, anfw, gnfw, tnfw, acnfw, and ein.
+• flag extnorm
+This indicates normalizations of extended sources. If =0, the peak surface brightness
+per pixel, Σ0 , is used as the normalization of the model, i.e., the parameter p[2] of
+the extended source. If =1, the total counts ftot is adopted for the definition of p[2].
+See also §4.2.
+• flatfix
+If the parameter is set to =1, a flat Universe (omega+lambda=1) will always be assumed
+when cosmological parameters are varied.
+• chi2 checknimg
+This is a flag used for point source optimizations. If =1 the code checks the number
+of images, and discard any models that predict different number of images from the
+
+12
+observation. If =0 no check is made during the optimization. This option does not
+work for the source-plane χ2 .
+• chi2 splane
+Another flag used for point source optimizations. While the standard image-plane χ2
+is used for =0, the code uses the source-plane χ2 , which is much faster to compute but
+less robust and accurate, if =1.
+• chi2 usemag
+This is for the command readobs point. If =1, magnitude differences have to be
+specified rather than the (default) relative fluxes, and if =−1 the absolute magnification
+factors have to be specified. Some discussions are also given in §5.2.
+• chi2 restart
+The is a parameter for optimizations of both point and extended sources. It indicates
+the number of restarts — repeated optimizations from the previous best-fit models
+to check whether it reaches a true χ2 minimum or not. Thus the code performs
+optimizations (chi2 restart+1) times in total. If a negative number is indicated, the
+code repeats optimizations until χ2 converges.
+• obs gain, obs ncomb, obs readnoise
+These parameters are for observed extended images ready by the readobs extend.
+They are nothing but gain (i.e., the conversion factor between ADU and electron
+counts) and number of frames combined for the input fits image. Then a noise for each
+pixel is computed by
+2
+σ 2 = σsky
++ (f lux − ⟨sky⟩)/(gain × ncomb).
+
+(3.1)
+
+When adding the noise to the image, the Gaussian distribution is assumed for this
+case. If the sky noise of < 0 is indicated, the code compute the noise from the total
+count from object and sky, and add obs readnoise to the noise. Specifically,
+σ 2 = f lux/(gain × ncomb) + readnoise × readnoise/(gain2 × ncomb).
+
+(3.2)
+
+This time, the Poisson distribution is used to assign a noise to each pixel.
+• skyfix, skyfix value
+The flag skyfix specifies whether to vary a sky level when optimizing extended sources
+(sky level is fixed if =1, varied and optimized if =0). skyfix value indicates the fixed
+value of sky counts; if skyfix value> 109 the fixed sky value is estimated directly
+from the input fits image. When skyfix= 0, skyfix value specifies the initial sky
+value for optimization.
+• psfconv size
+psfconv size specifies half the box size of the PSF image used for the convolution, in
+units of arcsec. The software crashes if the convolution size is too big compared with the
+image size for extended sources, in that case please choose the smaller psfconv size.
+
+13
+• seeing sub
+If seeing sub> 1, oversampled PSF by a factor of seeing sub is used for the PSF
+convolution. Note that various interpolations are employed to derive values in subpixels.
+• flag srcsbin, srcsbinsize
+The extended source model srcs sometimes contains a large number of sources, and
+for this case the calculation gets quite time-consuming. One can get around this by
+dividing sources into bins. flag srcsbin specifies whether to use this binning. The
+bin size srcsbinsize should be chosen such that it is much larger compared with
+typical source sizes.
+• flag mcmcall
+If flag mcmcall is non-zero, model parameters for rejected points are also written to
+the MCMC output file. Commands that use a MCMC output file (e.g., mcmc kaprad)
+support both the flag mcmcall=0 and !=0 output formats.
+• flag outpot
+If flag outpot is non-zero, in writelens lens potential is written to the file instead
+of time delays. This works only for the single lens plane case.
+• addwcs, wcs ra0, wcs dec0
+If addecs is non-zero, WCS info is added to fits output files. The coordinates corresponding to (x, y)=(0, 0) must be specified by wcs ra0 and wcs dec0. Currently +y
+is always North and +x is always West.
+• ovary, lvary, wvary, hvary
+Flags whether to vary corresponding cosmological parameters when optimizations. The
+cosmological parameters will be optimized if =1, and fixed if =0.
+
+14
+
+Name
+galfile
+srcfile
+ran seed
+outformat exp
+flag hodensity
+hodensity
+gnfw usetab
+ein usetab
+nfw users
+flag extnorm
+flatfix
+chi2 checknimg
+chi2 splane
+chi2 usemag
+chi2 restart
+obs gain
+obs ncomb
+obs readnoise
+skyfix
+skyfix value
+psfconv size
+seeing sub
+flag srcsbin
+srcsbinsize
+flag mcmcall
+flag outpot
+addwcs
+wcs ra0
+wcs dec0
+ovary
+lvary
+wvary
+hvary
+
+Description
+filename for the mass model gals
+filename for the extended source model srcs
+seed for the random number generator
+flag for whether to use the exp format
+flag for the halo overdensity
+fixed halo overdensity ∆
+flag for whether to use a tabulated model for gnfw
+flag for whether to use a tabulated model for ein
+flag for whether to use rs [arcsec] instead of c or c−2
+flag for the normalization of extended sources
+flag for whether to assume a flat Universe
+flag for whether to check the number of images
+flag for whether to use the source-plane χ2
+use magnitude differences instead of flux ratios
+number of restarts in χ2 minimizations
+gain [e-/ADU] for extended image
+number of combined frames for extended images
+readout noise [e-] for extended images
+flag for whether to fix the sky value
+fixed sky value
+half the box size for the PSF convolution [arcsec]
+oversampling factor for PSF convolution
+flag for whether to use bins for srcs
+bin size for binned srcs calculation [arcsec]
+flag for whether to dump rejected points in MCMC
+flag for whether to outpot lens potential in writelens
+flag for whether to add WCS info in fits outputs
+RA value corresponding to x = 0
+Dec value corresponding to y = 0
+flag for whether to vary omega
+flag for whether to vary lambda
+flag for whether to vary weos
+flag for whether to vary hubble
+
+Table 3.2: Secondary parameters.
+
+Type
+char
+char
+int
+int
+int
+double
+int
+int
+int
+int
+int
+int
+int
+int
+int
+double
+int
+double
+int
+double
+double
+int
+int
+double
+int
+int
+int
+double
+double
+int
+int
+int
+int
+
+Default
+galfile.dat
+srcfile.dat
+−1234
+0
+0
+200.0
+1
+1
+0
+0
+0
+1
+0
+0
+0
+3.0
+1
+10.0
+0
+1.0e10
+4.0
+1
+1
+20.0
+0
+0
+0
+150.0
+30.0
+0
+0
+0
+0
+
+Chapter 4
+Model Reference
+4.1
+
+Lens
+
+As described in §2.2, lens models are specified at the beginning of the input file, between
+startup and end startup. The required format for lens models is
+lens name p[1] p[2] p[3] p[4] p[5] p[6] p[7] p[8]
+For all lens models, the parameters p[1] refers to the lens redshift zl . The meaning of the
+other parameters is different for different mass models, but in general the parameter p[2]
+indicates a mass scale, p[3] and p[4] are xy-coordinates, p[5] and p[6] are an ellipticity
+and position angle, p[7] and p[8] are miscellaneous but often assigned to scale radii or
+power-law index.
+Table 4.1 summarizes all available lens models. Note that calculations of various lensing
+properties are summarized in Appendix A, and detailed descriptions of each mass model in
+Appendix B.
+For most mass models, the ellipticity is introduced either in isodensity contours or in
+isopotential contours. Mass models for the latter are indicated by the suffix pot. Note
+that the ellipticities for these two cases are different; e is the ellipticity of the isodensity
+contour, whereas ep is the ellipticity of the isopotential contour. In general lens potentials
+are more circular than the corresponding surface mass densities, and thus for models with
+similar degree of ellipticities we have ep < e. The position angle θe is defined East of North,
+assuming +y direction is North. In other words, θe is the angle measured counterclockwise
+from +y-axis.
+
+4.2
+
+Extended Source
+
+Sources should also be defined at the beginning of the input file, between startup and
+end startup. The format for extended sources is
+extend name p[1] p[2] p[3] p[4] p[5] p[6] p[7] p[8]
+Models are summarized in Table 4.2, and the definition of each model in Appendix D. The
+definition of the parameter p[2] can be switched by changing the parameter flag extnorm,
+15
+
+16
+except for the point model for which the total flux is always used. Obviously, the PSF must
+be defined to use the point model.
+
+4.3
+
+Point Source
+
+Point sources are defined simply by
+point p[1] p[2] p[3]
+where p[1] is the source redshift zs , and p[2] and p[3] are xy-coordinates of the point
+source in units of arcsecond.
+
+4.4
+
+PSF
+
+In glafic, an analytic PSF model based on the sum of two Moffat profiles is supported. It
+is specified by
+psf p[1] p[2] p[3] p[4] p[5] p[6] p[7] p[8] p[9]
+where p[1], p[2], p[3], p[4] are FWHM [arcsec], e, θe , β of the first Moffat component,
+respectively, and p[5], p[6], p[7], p[8] are those for the second Moffat component. p[9]
+is the fraction of the first component to the total, f1 /(f1 + f2 ), where f1 and f2 are“ total
+fluxes” for the first and second Moffat components.
+
+17
+
+Name
+pert
+clus3
+mpole
+crline
+point
+sie
+jaffe
+pow
+powpot
+sers
+serspot
+hern
+ahern
+hernpot
+nfw
+anfw
+nfwpot
+gnfw
+gnfwpot
+tnfw
+tnfwpot
+acnfw
+ein
+einpot
+gaupot
+gals
+
+Description
+external convergence/shear
+3rd external perturbation
+multipole perturbation
+straight critical curve
+point mass
+isothermal elliptical density
+pseudo-Jaffe elliptical density
+power-law elliptical density
+power-law elliptical potential
+Sérsic (elliptical density)
+Sérsic (elliptical potential)
+Hernquist (elliptical density)
+Hernquist (approx. elliptical density)
+Hernquist (elliptical potential)
+NFW (elliptical density)
+NFW (approx. elliptical density)
+NFW (elliptical potential)
+generalized NFW (elliptical density)
+generalized NFW (elliptical potential)
+truncated NFW (elliptical density)
+truncated NFW (elliptical potential)
+cored NFW (approx. elliptical density)
+Einasto (elliptical density)
+Einasto (elliptical potential)
+Gaussian (elliptical potential)
+many galaxies (sum of jaffe)
+
+p[2]
+zs, fid
+zs, fid
+zs, fid
+zs, fid
+Mtot
+σ
+σ
+zs, fid
+zs, fid
+Mtot
+Mtot
+Mtot
+Mtot
+Mtot
+M
+M
+M
+M
+M
+M
+M
+M
+M
+M
+zs, fid
+σ∗
+
+p[5]
+γ
+δ
+ϵ
+—
+—
+e
+e
+e
+ep
+e
+ep
+e
+e
+ep
+e
+e
+ep
+e
+ep
+e
+ep
+e
+e
+ep
+ep
+—
+
+p[6]
+θγ
+θδ
+θm
+θ0
+—
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+θe
+—
+
+p[7]
+—
+—
+m
+ϵ
+—
+rcore
+rtrun
+rEin
+rEin
+re
+re
+rb
+rb
+rb
+c or rs
+c or rs
+c or rs
+c−2 or rs
+c−2 or rs
+c or rs
+c or rs
+c or rs
+cE or rs
+cE or rs
+σ
+rtrun, ∗
+
+p[8]
+κ
+—
+n
+κ0
+—
+—
+rcore
+γ
+γ
+n
+n
+—
+—
+—
+—
+—
+—
+α
+α
+t
+t
+β
+αE
+αE
+κ0
+η
+
+Table 4.1: Lens models. See Appendix B for detailed descriptions and definitions of model
+parameters for each mass model. For all source models, the parameters p[1] refers to the
+lens redshift zl , and in most cases the parameters p[2] and p[3] denote the xy-coordinates
+of the model in units of arcsecond. All mass scales M is in units of h−1 M⊙ , the velocity
+dispersion σ in units of km s−1 , angle scales θ in units of degree (measured “East of North”,
+i.e., counterclockwise from +y-axis), and length scales r in units of arcsecond.
+
+18
+
+Name
+gauss
+sersic
+tophat
+moffat
+jaffe
+point
+srcs
+
+Description
+Gaussian profile
+Sérsic profile
+tophat source
+Moffat profile
+pseudo Jaffe profile
+point source
+many sources (sum of sersic)
+
+p[2]
+Σ0 or ftot
+Σ0 or ftot
+Σ0 or ftot
+Σ0 or ftot
+Σ0 or ftot
+ftot
+fnorm
+
+p[5]
+e
+e
+e
+e
+e
+—
+—
+
+p[6]
+θe
+θe
+θe
+θe
+θe
+—
+—
+
+p[7]
+σ
+re
+r0
+α
+rtrun
+—
+—
+
+p[8]
+—
+n
+—
+β
+rcore
+—
+—
+
+Table 4.2: Models of extended sources. See Appendix D for the definition of each model.
+For all source models, the parameters p[1] refers to the source redshift zs , and p[3] and
+p[4] indicates xy-coordinates of the source. Σ0 is in units of counts/pixel2 , and θe is in units
+of degree (measured “East of North”).
+
+Chapter 5
+Command Reference
+5.1
+
+Basic calculations
+
+5.1.1
+
+Lens properties
+
+calcimage ⟨zs ⟩ ⟨x⟩ ⟨y⟩
+Compute various lensing properties for an image at (x, y) for the source redshift zs .
+calcein ⟨zs ⟩
+Compute the Einstein radius of each lens component for the source redshift zs . Ellipticities are ignored in computing the Einstein radii. Also shown is the mass enclosed
+by the Einstein radius, i.e., M (< θEin ). The result is written to prefix ein.dat.
+calcein2 ⟨zs ⟩ ⟨x⟩ ⟨y⟩ ⟨i⟩
+Compute the Einstein radius for the source redshift zs from the definition κ̄(< rEin ) = 1
+with the center (x, y). The parameter i indicates the lens ID, i.e., κ is computed only
+from the corresponding lens model. If i = 0 (or not indicated), the sum of κ of all
+the lens models is used to compute the Einstein radius, taking account of multiple
+lens planes. The mass enclosed by the Einstein radius is also computed. The result is
+written to prefix ein2.dat.
+calcmr
+Compute the total mass, virial mass, and virial radius (both in arcsec and h−1 Mpc
+physical) for each lens model. If flag hodensity̸=0, the virial mass and radius are
+replaced by the mass and radius for the given overdensity.
+writelens ⟨zs ⟩
+Write various lensing properties to prefix lens.fits, assuming the source redshift zs .
+The output file contains tables of values in a regular grid with a pixel size defined by
+pix ext. A list of lensing properties written in the file is (ϕx , ϕy , ∆t (or ϕ), κ, γ1 , γ2 ,
+µ−1 , ω), in order of appearance.
+kapparad ⟨zs ⟩ ⟨x⟩ ⟨y⟩ ⟨r1 ⟩ ⟨r2 ⟩ ⟨n⟩ ⟨i⟩
+Compute circular-average convergences κ with the center (x, y) for the source redshift
+zs . They are computed in a range of radii between r1 and r2 , with an interval of
+19
+
+20
+(r2 − r1 )/n (thus κ is computed at (n + 1) different radii). If n < 0, a logarithmic
+spacing between r1 and r2 is adopted instead of a linear spacing. The parameter i
+indicates the lens ID (see calcein2). The result is written to prefix kaprad.dat.
+kappacum ⟨zs ⟩ ⟨x⟩ ⟨y⟩ ⟨r1 ⟩ ⟨r2 ⟩ ⟨n⟩ ⟨i⟩
+Rr
+Similar to kapparad, but the average κ within the radius, κ̄(< r) = 2 0 κ(r)dr/r2 , is
+computed. The result is written to prefix kapcum.dat.
+lenscenter ⟨zs ⟩
+Derive observed centers (xy-positions) of all lens components. While in the case of a
+single lens plane, these are simply input positions, in the case of multiple lens planes,
+observed lens positions can be different from input lens positions, and this command
+allows one to check observed centers for given input centers. The result is written to
+prefix lenscenter.dat. The format of the file is
+lens_plane_ID lens_plane_z center_x center_y
+....
+
+5.1.2
+
+Extended sources
+
+writeimage ⟨sky⟩ ⟨noise⟩
+Write images of lensed extended sources to prefix image.fits. A mean sky level
+and 1σ noise can be specified by sky and noise, respectively. The fits data cube
+includes lensed images of individual extended sources first, and finally show images of
+all extended sources. The pixel size of the images is pix ext. No noise is added if
+noise = 0. If noise < 0, the code derives noises for individual pixels from the sum of
+the counts from the objects and sky.
+writeimage ori ⟨sky⟩ ⟨noise⟩
+Same as writeimage, but unlensed (i.e., original) images are shown. The output file
+is prefix source.fits.
+calcextend ⟨i⟩ ⟨fth ⟩ ⟨rlim ⟩
+Calculate a total flux, peak count, and peak location for i-th extended image. If
+i = 0 (or not indicated) they are computed for all extended sources. fth is the count
+threshold; the area and summed flux of pixels with values larger than fth are also
+computed. For −1 < fth < 0, the threshold is set to |fth | times the global peak value.
+If fth is ignored (or = 0 is indicated), fth is assumed to −0.5 (i.e., threshold equal to
+half the peak value). The code also compute the length-to-width ratio r of each arc,
+and derive the maximum ratio rarc . Also the number of arcs having r > rlim is counted.
+The result is written to prefix extend.dat. In addition, properties of arcs defined by
+r > rlim are stored in prefix extend arc.dat. The format of the file is
+x_arc y_arc r area_th ftot_th
+....
+
+21
+calcextend ori ⟨i⟩ ⟨fth ⟩ ⟨rlim ⟩
+Same as calcextend, but for unlensed (i.e., original) images.
+writetd extend
+Write time delay surfaces (Fermat potentials) for all extended sources to prefix td extend.fits.
+This command works only in the case of a single lens plane. The pixel size of the output
+fits is determined by pix ext.
+mockext1 ⟨n⟩ ⟨i⟩ ⟨x1 ⟩ ⟨x2 ⟩ ⟨y1 ⟩ ⟨y2 ⟩ ⟨emin ⟩ ⟨emax ⟩ ⟨fth ⟩ ⟨rlim ⟩
+Randomly redistribute i-th extended sources for n times, in a rectangular region defined
+by x1 < x < x2 and y1 < y < y2 . The ellipticity is also redistributed in a range
+emin < e < emax with a random position angle. For each source, image properties
+computed by calcextend are obtained. The result is written to prefix mockext.dat.
+The format of the file is
+# n area model p[1] p[2] p[7] p[8] r_lim
+xs ys e PA ftot pflux px py fth area_th ftot_th r_max n_arc
+....
+Also properties of arcs are written to prefix mockext arc.dat.
+mockext2 ⟨n⟩ ⟨i⟩ ⟨r⟩ ⟨x0 ⟩ ⟨y0 ⟩ ⟨emin ⟩ ⟨emax ⟩ ⟨fth ⟩ ⟨rlim ⟩
+Same as mockext1, but this time the region is defined by a circle with a center (x0 , y0 )
+and a radius r.
+mockext3 ⟨n⟩ ⟨i⟩ ⟨frec ⟩ ⟨emin ⟩ ⟨emax ⟩ ⟨fth ⟩ ⟨rlim ⟩
+Same as mockext1, but the rectangular region is defined by frec times the extent of the
+caustics.
+writepsf
+Write the PSF image to prefix psf.fits.
+readpsf ⟨psf f ile.f its⟩
+Read the PSF fits file and use it for calculations of extended source images. The input
+PSF file has to be similar to that used in galfit, i.e., it must be a square, centered
+and background-subtracted. The input PSF image overrides PSF parameters.
+
+5.1.3
+
+Point sources
+
+findimg ⟨i⟩
+Find all lensed images for point sources. Magnifications and time delays for these
+images are also calculated. The parameter i specifies the point source ID, i.g., the lens
+equation is solved for only i-th point source. If not specified (or i = 0), the code will
+find lensed images for all point sources. In the display output, the magnitude without
+zero-point for each image, i.e., −2.5 log |µ|, is shown in the square bracket following
+the magnification. The result is written to prefix point.dat.
+
+22
+findsrcimg ⟨i⟩ ⟨xi ⟩ ⟨yi ⟩
+Move the source position of the i-th image to the position calculated from an image
+position (xi , yi ), and then perform findimg for the new source position.
+writecrit ⟨zs ⟩
+Compute critical curves and caustics for the source redshift zs . The output filename
+is prefix crit.dat. Each line of the file contains following entry:
+xi[1] yi[1] xs[1] ys[1] xi[2] yi[2] xs[2] ys[2]
+A set of segments connecting (xi[1], yi[1]) and (xi[2], yi[2]) represents critical
+curves of the lens system. Similarly, a set of segments defined by xs and ys represents
+caustics. The resolution of these curves is determined by pix poi and maxlev.
+writemesh ⟨zs ⟩
+Write the mesh pattern used to find lensed point images for the source redshift zs to
+prefix mesh.dat. The structure of the output file is same as that of the writecrit
+output (see above).
+writetd point
+Write time delay surfaces (Fermat potentials) for all point sources to prefix td point.fits.
+This command works only in the case of a single lens plane. The pixel size of the output
+fits is determined by pix ext.
+writelens splane ⟨zs ⟩ ⟨x1 ⟩ ⟨x2 ⟩ ⟨y1 ⟩ ⟨y2 ⟩ ⟨pix⟩
+Write lens properties in the source plane to prefix lens splane.fits, in the rectangular region of the source plane specified by x1 , x2 , y1 , and y2 , with a pixel size of pix.
+A list of lensing properties written in the file is the total magnification, the maximum
+magnification among multiple images, and the number of multiple images.
+mock1 ⟨n⟩ ⟨zs ⟩ ⟨x1 ⟩ ⟨x2 ⟩ ⟨y1 ⟩ ⟨y2 ⟩
+Randomly distribute n point sources at the source redshift zs in a rectangular region
+defined by x1 < x < x2 and y1 < y < y2 , and compute their lensed images. The result
+is written to prefix mock.dat. The format of the file is
+# n zs area
+n_img[1] zs[1] xs[1] ys[1]
+x1[1] y1[1] mu1[1] dt1[1]
+....
+xn[1] yn[1] mun[1] dtn[1]
+n_img[2] zs[2] xs[2] ys[2]
+x1[2] y1[2] mu1[2] dt1[2]
+....
+mock2 ⟨n⟩ ⟨zs ⟩ ⟨r⟩ ⟨x0 ⟩ ⟨y0 ⟩
+Same as mock1, but this time the region is defined by a circle with a center (x0 , y0 )
+and a radius r.
+
+23
+mock3 ⟨n⟩ ⟨zs ⟩ ⟨frec ⟩
+Same as mock1, but the rectangular region is defined by frec times the extent of the
+caustics.
+mockline ⟨n⟩ ⟨zs ⟩ ⟨x1 ⟩ ⟨x2 ⟩ ⟨y1 ⟩ ⟨y2 ⟩ ⟨f lag out⟩
+Compute lensing properties for equally spaced n point sources (redshift zs ) on a line
+segment between (x1 , y1 ) and (x2 , y2 ). The result is written to prefix mockline.dat. If
+f lag out is set to 0 only the number of images and the total magnification are recorded.
+Otherwise for each source all the image properties are recorded with the format similar
+to mock1.
+
+5.1.4
+
+Composite sources
+
+point flux ⟨f luxf ile.dat⟩
+Read a file that defines fluxes for point sources. The format of the file should be, the
+first line is an integer indicating the number of point sources, and second to last lines
+should list flux values for individual point sources. The value of the flux is either the
+peak count Σ0 or the total flux ftot , depending on the parameter flag extnorm.
+writeimageall ⟨sky⟩ ⟨noise⟩
+Write images of both lensed point and extended sources to prefix image.fits. See
+writeimage for meaning of sky and noise. Fluxes of point sources should be defined
+by point flux before running this command. Images of point sources are defined by
+the PSF, so flag seeing must be =1 and the seeing parameters should be defined
+appropriately.
+writeimageall ori ⟨sky⟩ ⟨noise⟩
+Same as writeimageall, but unlensed (i.e., original) images are shown. The output
+file is prefix source.fits.
+
+5.2
+
+Model optimization
+
+5.2.1
+
+Preparation
+
+readobs extend ⟨obsf ile.f its⟩ ⟨maskf ile.f its⟩
+Read an image of lensed arcs with the filename obsf ile.f its. The size of the image has
+to be consistent with that determined from pix ext and xmin/xmax/ymin/ymax. You
+may also include a mask file (maskf ile.f its); pixels with values in the mask file = 0
+are used for optimization, and those with the mask value > 0 are ignored.
+readnoise extend ⟨noisef ile.f its⟩
+Read a fits fine with the filename noisef ile.f its that defines noise values for each
+pixel. The size of the image has to be consistent with that determined from pix ext
+and xmin/xmax/ymin/ymax.
+
+24
+writenoise
+Calculate noises from the observed image read by readobs extend, and write them to
+prefix obsnoise.fits.
+addnoise ⟨sky⟩ ⟨noise⟩
+Add mean sky and 1σ sky noise indicated by sky and noise, respectively, to the
+observed image. If noise < 0, noises for individual pixels are computed from the sum
+of the counts from the objects and sky. This command may be useful for simulating
+real images. The output will be written to prefix addnoise.fits.
+readobs point ⟨obsf ile.dat⟩
+Read a data file obsf ile.dat for point source optimization. The format of the file is
+ID n_img zs err_zs
+x[1] y[1] f[1] err_xy[1] err_f[1] dt[1] err_dt[1] parity[1]
+....
+x[n] y[n] f[n] err_xy[n] err_f[n] dt[n] err_dt[n] parity[n]
+Here ID is the point source ID, n img is the total number of images for this source.
+zs is the source redshift zs and err zs is 1σ error on zs , both of which are optional
+(i.e., you do not need to specify any values here if you do not need any prior on zs ).
+x, y, and f are xy-coordinates and relative flux of each image (f should be replaced
+with the magnitude difference if chi2 usemag=1) and the the absolute magnification
+factors if if chi2 usemag=−1), dt is time delay. The code assumes Gaussian errors
+for all these parameters with the standard deviation indicated by err. If err=0.0,
+the corresponding parameter is not used for model optimizations (e.g., if you do not
+have any time delay measurements, just set err dt=0.0 for all images). parity is an
+integer, if it is set to a positive (negative) integer, the image is forced to have a positive
+(negative) parity during optimization. If you do not want any parity constraint, just
+set parity=0.
+parprior ⟨priorf ile.dat⟩
+Read a text file priorf ile.dat which lists priors on parameters. In the file you can
+specify various types of priors, which I will explain in turn.
+— range: This indicates the desired range of a parameter. Optimization will be
+performed only in this range. Examples are
+range lens 2 5 0.1 0.5
+range omega 0.2 0.4
+The first line means that p[5] of the 2-nd lens model is restricted in the range between
+0.1 and 0.5. The second line simply restricts the range of ΩM between 0.2 and 0.4.
+— relrange: This indicates the desired range of a parameter relative to another
+parameter. Optimization will be performed only in this range. Examples are
+
+25
+relrange lens 2 7 1 8 1.0 1.0e10
+relrange extend 2 2 1 2 0.5 1.5
+The first line means that the ratio p[7] of the 2-nd lens model to p[8] of the 1-st lens
+model is restricted in the range between 1.0 and 1.0e10 (e.g., effectively the condition
+that p[7] of the 2-nd lens model is always larger than p[8] of the 1-st lens model).
+The second line means that the ratio p[2] of the 2-nd extended source to p[2] of the
+1-st extended source is restricted in the range between 0.5 and 1.5.
+— gauss: Add a Gaussian prior to a parameter when optimizing the model. Again,
+examples are
+gauss extend 1 6 -10.0 20.0
+gauss hubble 0.72 0.04
+In the first line p[6] of 1-st extended source is constrained to −10.0 ± 20.0. In the
+second example the Hubble constant is assumed to h = 0.72 ± 0.04. If negative values
+are indicated for errors, the code interprets their absolute values as errors on log10 of
+the parameters (i.e., uses a long-normal distribution for priors).
+— match: This is used to relate one parameter to another, and is currently available
+for lens, point (redshifts only), extend, and psf. The cross-match between point
+and lens is supported by poilens, and extend and lens is supported by extlens.
+Here are some examples:
+match lens 2 4 1 4 1.0 0.0
+match lens 2 1 1 4 0.7 5.0
+match extlens 2 3 1 2 1.0 0.0
+In the first example, p[4] of 2-nd lens model is forced to match p[4] of 1-st lens
+model (with a ratio of 1.0 and zero tolerance). In the second example, a combination
+something like p[1](2-nd lens)−0.7×p[3](1-st lens) is assumed to have a Gaussian
+prior with an error of 5.0. In the third example, p[3] of 2-nd extended source is forced
+to match p[2] of 1-st lens model. For PSF parameters, it should be something like
+match psf 1 5 1.0 0.0
+In this example, the FWHMs of two Moffat components are forced to match.
+— obsext: This is for optimization of extended sources. Since it is hard to know
+from observed images which part of arcs correspond to which sources, obsext tells
+the (approximated) correspondence between points in the image plane and extended
+source IDs. An example is
+obsext 1 -5.1 20.1
+This tells the code that a arc at around (−5.1, 20.1) is associated with 1-st extended
+source.
+
+26
+mapprior ⟨mappriorf ile.dat⟩
+Read a text file mappriorf ile.dat which lists priors on map values. The format of the
+file is
+name[1] zs[1] x[1] y[1] ave[1] sig[1]
+name[2] zs[2] x[2] y[2] ave[2] sig[2]
+....
+Each line contains one constraint. name indicates which map value you want to constrain: Available names include kappa (κ), mag (|µ|, i.e., no sign), gamma1 (γ1 ), gamma2
+(γ2 ), g1 (γ1 /(1 − κ)), and g2 (γ2 /(1 − κ)). Map values are computed at the position
+(x[i], y[i]) with the source redshift zs[i], and are constrained by Gaussian priors
+with ave[i]±sig[i].
+
+5.2.2
+
+Optimization
+
+optimize ⟨extend/point⟩
+Perform model optimization, using a downhill simplex method (Press et al. 1992) to
+look for minimum χ2 . By default (without any argument) both extended and point
+sources are considered. If the argument is specified, the code considers extended/point
+sources only. By setting chi2 restart you can automatically restart optimization from
+the best-fit model, which provides an easy (but not so robust) check of the convergence
+of the result. The result will be written to prefix optresult.dat.
+optextend
+Perform optimization only for parameters of extended sources (except for source redshifts which can only be fitted with optimize). The result will be written to prefix optresult extend.dat.
+optpoint
+Perform optimization only for parameters of point sources (except for source redshifts which can only be fitted with optimize). The result will be written to prefix optresult point.dat.
+c2calc
+Calculate χ2 value for the current parameter set without any optimization and display
+the value.
+randomize
+All the parameters varied during optimization are randomized in the range defined by
+parprior. This can also be used to check the convergence of optimization. Please
+remember to set reasonable parameter ranges for all parameters by parprior before
+running this command!
+opt explore ⟨n⟩ ⟨χ2 limit⟩ ⟨extend/point⟩
+Repeat optimize and randomize n times for finding global χ2 minimum. Fitted
+models will be written to prefix explore.dat if χ2 is smaller than χ2 limit which can
+be indicated in the argument.
+
+27
+varyone ⟨i⟩ ⟨j⟩ ⟨pmin⟩ ⟨pmax⟩ ⟨n⟩ ⟨extend/point⟩
+Calculate one-dimensional χ2 slice. The parameter p[j] of i-th lens model is change
+from pmin to pmax with an interval of ((pmax − pmin)/n). A logarithmic spacing is
+adopted if n < 0. For each point the other parameters are optimized, and the resulting
+χ2 is written to prefix vary.dat.
+varytwo ⟨i1⟩ ⟨j1⟩ ⟨pmin1⟩ ⟨pmax1⟩ ⟨n1⟩ ⟨i2⟩ ⟨j2⟩ ⟨pmin2⟩ ⟨pmax2⟩ ⟨n2⟩ ⟨extend/point⟩
+Same as varyone, but two-dimensional χ2 surface is explored.
+varyzs extend ⟨i⟩ ⟨pmin⟩ ⟨pmax⟩ ⟨n⟩ ⟨extend/point⟩
+Same as varyone, but the source redshift of i-th extended source is varied.
+varyzs point ⟨i⟩ ⟨pmin⟩ ⟨pmax⟩ ⟨n⟩ ⟨extend/point⟩
+Same as varyone, but the source redshift of i-th point source is varied.
+varycosmo ⟨name⟩ ⟨pmin⟩ ⟨pmax⟩ ⟨n⟩ ⟨extend/point⟩
+Same as varyone, but a cosmological parameter is varied. The name of parameter
+(omega, lambda, weos, or hubble) should be specified at name.
+
+5.2.3
+
+Markov-Chain Monte-Carlo (MCMC)
+
+mcmc sigma ⟨sigf ile.dat⟩
+Read a file that lists σ values for model parameters. The format of the file should
+be, the first line is an integer indicating the number of parameters, and second to
+last lines should list Gaussian σ of proposal distributions for individual parameters.
+The order matters; the correct order of MCMC parameters is, lens model parameters,
+cosmological parameters, parameters for extended sources, the sky value for extended
+source fitting, source redshifts for point sources, and PSF parameters for extended
+source fitting. If a negative value is indicated, a log-normal distribution (with |σ| =
+σ(log10 par)) is used as a proposal distribution.
+mcmc ⟨n⟩ ⟨extend/point⟩
+Perform MCMC calculations. Before running this command σ values should be defined
+by mcmc sigma. χ2 is computed n times, and result is written to prefix mcmc.dat.
+mcmc kaprad ⟨f ile mcmc.dat⟩ ⟨npar⟩ ⟨zs ⟩ ⟨x⟩ ⟨y⟩ ⟨r1 ⟩ ⟨r2 ⟩ ⟨n⟩ ⟨i⟩
+Read a resulting chain file of mcmc (with npar MCMC parameters), and for each chain
+circular-average convergences κ are computed. See kapparad for meaning of the other
+arguments. The output file is prefix mcmc kaprad.dat.
+mcmc kapcum ⟨f ile mcmc.dat⟩ ⟨npar⟩ ⟨zs ⟩ ⟨x⟩ ⟨y⟩ ⟨r1 ⟩ ⟨r2 ⟩ ⟨n⟩ ⟨i⟩
+Similar to mcmc kaprad, but the average κ within the radius are computed from the
+MCMC chain (see also kappacum). The output file is prefix mcmc kapcum.dat.
+mcmc ein ⟨f ile mcmc.dat⟩ ⟨npar⟩ ⟨zs ⟩ ⟨i⟩
+Read a rusting chain file of mcmc (with npar MCMC parameters), and for each chain
+
+28
+the Einstein radius (for i-th lens model only, if specified) for the source redshift zs is
+calculated. The output file is prefix mcmc ein.dat.
+mcmc ein2 ⟨f ile mcmc.dat⟩ ⟨npar⟩ ⟨zs ⟩ ⟨x⟩ ⟨y⟩ ⟨i⟩
+Similar to mcmc ein, but the Einstein radius is computed from the definition κ̄(<
+rEin ) = 1 with the center (x, y).
+mcmc calcim ⟨f ile mcmc.dat⟩ ⟨npar⟩ ⟨zs ⟩ ⟨x⟩ ⟨y⟩
+Read a resulting chain file of mcmc (with npar MCMC parameters), and for each chain
+various image properties for the source at redshift zs located at (x, y) are derived. The
+output file is prefix mcmc calcim.dat. Specifically for each chain µ, κ, γ1 , γ2 , γ, ϕx ,
+ϕy , ω are computed and written to the file.
+mcmc findimg ⟨f ile mcmc.dat⟩ ⟨npar⟩ ⟨i⟩
+Read a resulting chain file of mcmc (with npar MCMC parameters), and for each
+chain solve the lens equation to find multiple images for the i-th point source. Before
+finding multiple images for each chain, optpoint is performed to find the best-fit source
+position. The output file is prefix mcmc findimg.dat.
+
+5.3
+
+Utilities
+
+reset par ⟨parname⟩ ⟨value⟩
+Change a value of any primary or secondary parameter parname (see Chapter 3) to
+value.
+reset lens ⟨i⟩ ⟨j⟩ ⟨value⟩
+Change a parameter value of i-th lens model, i.e., p[j]=value.
+reset extend ⟨i⟩ ⟨j⟩ ⟨value⟩
+Change a parameter value of i-th extended source model, i.e., p[j]=value.
+reset point ⟨i⟩ ⟨j⟩ ⟨value⟩
+Change a parameter value of i-th point source model, i.e., p[j]=value.
+reset psf ⟨j⟩ ⟨value⟩
+Change a parameter value of the PSF model, i.e., p[j]=value.
+resetopt lens ⟨i⟩ ⟨j⟩ ⟨value⟩
+Change a optimization flag for j-th parameter of i-th lens model. value should be 0
+or 1.
+resetopt extend ⟨i⟩ ⟨j⟩ ⟨value⟩
+Change a optimization flag for j-th parameter of i-th extended source model. value
+should be 0 or 1.
+resetopt point ⟨i⟩ ⟨j⟩ ⟨value⟩
+Change a optimization flag for j-th parameter of i-th point source model. value should
+be 0 or 1.
+
+29
+resetopt psf ⟨j⟩ ⟨value⟩
+Change a optimization flag for j-th parameter of the PSF model. value should be 0
+or 1.
+mv lens ⟨i⟩ ⟨x⟩ ⟨y⟩
+Move the position of i-th lens model to (x, y).
+mv extend ⟨i⟩ ⟨x⟩ ⟨y⟩
+Move the position of i-th extended source model to (x, y).
+mv point ⟨i⟩ ⟨x⟩ ⟨y⟩
+Move the position of i-th point source model to (x, y).
+reset obs point ⟨i⟩ ⟨j⟩ ⟨k⟩ ⟨value⟩
+Change k-th parameter value of j-th multiple images of i-th point source that is originally specified by readobs point command.
+printmodel
+Print current model parameters to display.
+printopt
+Print current optimization flags to display.
+printlensplane
+Print lens planes to display.
+arcsec2mpc ⟨z⟩ ⟨theta⟩
+Convert theta arcsec to h−1 Mpc (physical) for a redshift z.
+mpc2arcsec ⟨z⟩ ⟨x⟩
+Convert x h−1 Mpc (physical) to arcsec for a redshift z.
+critdens ⟨zl ⟩ ⟨zs ⟩
+Compute a physical (i.e., not comoving) critical surface mass density Σcrit for the lens
+redshift zl and the source redshift zs .
+dismod ⟨z⟩
+Compute a distance modulus for a redshift z.
+xy2coord ⟨x⟩ ⟨y⟩
+Convert (x, y) to (RA, Dec) when addwcs is set.
+coord2xy ⟨RA⟩ ⟨Dec⟩
+Convert (RA, Dec) to (x, y) when addwcs is set.
+quit
+End the program.
+
+Chapter 6
+More information
+I’m showing some examples on the web.
+
+30
+
+Appendix A
+Computing Lensing Properties
+A.1
+
+Circular Mass Distribution
+
+When a mass profile has circular symmetry, p
+the lens equation reduces to the one-dimensional
+form, written as a function of a radius r = x2 + y 2 from the center of the mass model. In
+general we define a mass model by the surface density profile κ(r):
+Σ(r)
+,
+Σcrit
+
+(A.1)
+
+c2 Dos
+,
+4πG Dol Dls
+
+(A.2)
+
+κ(r) =
+
+Σcrit =
+
+where Σ(r) is projected surface mass density. We can then compute the deflection angle α
+and the lens potential ϕ(r) as follows:
+Z
+2 r ′ ′ ′
+r κ(r )dr ,
+(A.3)
+α(r) = rκ̄(< r) =
+r 0
+Z r
+Z r
+r
+′
+′
+′ ′
+κ(r )r ln ′ dr′ .
+ϕ(r) =
+α(r )dr = 2
+(A.4)
+r
+0
+0
+The derivative of the defection angle, which is important for calculating shear and magnification, is obtained as
+α(r)
+α′ (r) = 2κ(r) −
+= 2κ(r) − κ̄(< r).
+(A.5)
+r
+For circular symmetric lenses, shear γ is always tangentially-aligned. Its size is given by
+γ(r) = κ̄(< r) − κ(r) = κ(r) − α′ (r).
+
+(A.6)
+
+These are related to the first derivatives of the lens potential as
+x
+ϕx = α(r) ,
+r
+y
+ϕy = α(r) ,
+r
+31
+
+(A.7)
+(A.8)
+
+32
+and second derivatives as
+ϕxx
+ϕyy
+ϕxy
+
+x2
+y2
+x2
+x2 − y 2
+= α (r) 2 + α(r) 3 = 2κ(r) 2 − α(r)
+,
+r
+r
+r
+r3
+y2
+x2
+y2
+x2 − y 2
+= α′ (r) 2 + α(r) 3 = 2κ(r) 2 + α(r)
+,
+3
+r
+r
+ r
+ r
+xy
+xy
+α(r) xy
+= α′ (r) 2 − α(r) 3 = 2 κ(r) −
+.
+r
+r
+r
+r2
+′
+
+(A.9)
+(A.10)
+(A.11)
+
+Therefore, we have
+1
+(ϕxx + ϕyy ) = κ(r),
+2
+1
+(ϕxx − ϕyy ) = −γ(r) cos 2θ = γ1 ,
+2
+ϕxy = −γ(r) sin 2θ = γ2 .
+
+(A.12)
+(A.13)
+(A.14)
+
+It is sometimes useful to rewrite these lensing properties in a dimensionless form using a
+new variable u ≡ r/r0 :
+κ(r) = bnorm κdl (u),
+α(r) = r0 bnorm αdl (u),
+ϕ(r) = r02 bnorm ϕdl (u),
+
+(A.15)
+(A.16)
+(A.17)
+
+where bnorm is a dimensionless normalization factor and r0 is a characteristic radius for the
+mass profile.
+
+A.2
+
+Elliptical Mass Distribution
+
+The most natural (and observation-motivated) way to extend them to non-circular ones is
+to consider the elliptical surface mass density. This can be done by simply replacing r in
+κ(r) by v which is defined as
+s
+κ(r) :
+
+r→v≡
+
+x̃2
++ (1 − e)ỹ 2 ,
+(1 − e)
+
+(A.18)
+
+where e is an ellipticity (the axis ratio is 1 − e), and x̃ and ỹ are defined by
+x̃ = x cos θe + y sin θe ,
+ỹ = −x sin θe + y cos θe .
+
+(A.19)
+(A.20)
+
+In some case the lensing properties can be computed analytically, but in most case we have
+to resort to numerical integrations. I adopt the method of Schramm (1990,see also Keeton
+2001b) which allows us to calculate lensing properties as a set of one-dimensional integrals. I
+
+33
+first rewrite the convergence as a function of ξ ≡
+Then the lens potential and its derivatives are
+ϕ =
+ϕx̃
+ϕỹ
+ϕx̃x̃
+ϕỹỹ
+ϕx̃ỹ
+
+=
+=
+=
+=
+=
+
+p
+x̃2 /q 2 + ỹ 2 with q ≡ 1 − e, i.e., κ = κ(ξ).
+
+q
+I(x̃, ỹ),
+2
+qx̃J1 (x̃, ỹ),
+q ỹJ0 (x̃, ỹ),
+2qx̃2 K2 (x̃, ỹ) + qJ1 (x̃, ỹ),
+2q ỹ 2 K0 (x̃, ỹ) + qJ0 (x̃, ỹ),
+2qx̃ỹK1 (x̃, ỹ),
+
+(A.21)
+(A.22)
+(A.23)
+(A.24)
+(A.25)
+(A.26)
+
+where the integrals are
+Z 1
+I(x, y) =
+
+ζα(ζ)
+
+u [1 − (1 − q 2 )u]1/2
+Z 1
+κ(ζ)
+
+du,
+
+(A.27)
+
+0
+
+Jn (x, y) =
+
+du,
+[1 − (1 − q 2 )u]n+1/2
+Z 1
+uκ′ (ζ)
+1
+Kn (x, y) =
+du.
+n+1/2 2ζ
+0 [1 − (1 − q 2 )u]
+
+(A.28)
+
+0
+
+(A.29)
+
+Here the variable ζ is defined by
+s 
+ζ≡ u
+
+
+x2
+2
++y .
+1 − (1 − q 2 )u
+
+(A.30)
+
+From the definitions of x̃ and ỹ, one can easily derive the derivatives in the original coordinates:
+ϕx
+ϕy
+ϕxx
+ϕyy
+ϕxy
+
+A.3
+
+=
+=
+=
+=
+=
+
+ϕx̃ cos θe − ϕỹ sin θe ,
+ϕx̃ sin θe + ϕỹ cos θe ,
+ϕx̃x̃ cos2 θe − 2ϕx̃ỹ sin θe cos θe + ϕỹỹ sin2 θe ,
+ϕx̃x̃ sin2 θe + 2ϕx̃ỹ sin θe cos θe + ϕỹỹ cos2 θe ,
+ϕx̃x̃ sin θe cos θe + ϕx̃ỹ (cos2 θe − sin2 θe ) − ϕỹỹ sin θe cos θe .
+
+(A.31)
+(A.32)
+(A.33)
+(A.34)
+(A.35)
+
+Elliptical Potential
+
+Another simple way to introduce non-circularity in the projected mass distribution is to
+make the lens potential (eq. [A.4]) elliptical. An advantage of this is that all the lensing
+properties can be described by simple arithmetic combinations of circular-symmetric quantities. However, when the ellipticity is large, it could result in “unphysical” surface mass
+distributions, such as concave isodensity contours and negative mass densities.
+Specifically, I replace r in equation (A.4) by the following variable v:
+q
+(A.36)
+ϕ(r) : r → v ≡ (1 + ep )x̃2 + (1 − ep )ỹ 2 ,
+
+34
+where x̃ and ỹ are same as those in equations (A.19) and (A.20). Note that the ellipticity
+of the potential, ep , in general differs from the ellipticity of the projected mass distribution.
+In the standard situations the lens potential is rounder than the corresponding mass distribution. Calculations of the first and second derivatives of the lens potential are then quite
+straightforward:
+ϕx
+ϕy
+ϕxx
+ϕxy
+ϕyy
+
+=
+=
+=
+=
+=
+
+α(v)vx ,
+α(v)vy ,
+α′ (v)vx2 + α(v)vxx ,
+α′ (v)vx vy + α(v)vxy ,
+α′ (v)vy2 + α(v)vyy ,
+
+(A.37)
+(A.38)
+(A.39)
+(A.40)
+(A.41)
+
+where α(u) and α′ (u) are circular-symmetric deflection angle and its derivative. The derivatives of v are given by
+vx =
+vy =
+vxx =
+vyy =
+vxy =
+
+x + ep (x cos 2θe + y sin 2θe )
+,
+v
+y + ep (x sin 2θe − y cos 2θe )
+,
+v
+1 + ep cos 2θe − vx2
+,
+v
+1 − ep cos 2θe − vy2
+,
+v
+ep sin 2θe − vx vy
+.
+v
+
+(A.42)
+(A.43)
+(A.44)
+(A.45)
+(A.46)
+
+Appendix B
+Catalog of Mass Models
+B.1
+
+External Perturbation (pert)
+
+Objects near the lens sometimes affect the potential of the main lens. In case the perturbation
+is weak, one usually expands the effect as a Taylor series and keeps only low-order terms
+(e.g., Kochanek 1991). The (observable) lowest-order term is constant convergence κ and
+constant tidal shear γ. They are described by the following potential:
+1
+1 2
+r κ + r2 γ cos 2(θ − θγ )
+2
+2
+1 2
+1
+=
+(x + y 2 )κ + (x2 − y 2 )γ1 + xyγ2 ,
+2
+2
+
+ϕ =
+
+(B.1)
+(B.2)
+
+where
+γ1 = γ cos 2θγ ,
+γ2 = γ sin 2θγ .
+
+(B.3)
+(B.4)
+
+The deflection angles are easily computed as
+ϕx = xκ + xγ1 + yγ2 ,
+ϕy = yκ − yγ1 + xγ2 .
+
+(B.5)
+(B.6)
+
+ϕxx = κ + γ1 ,
+ϕyy = κ − γ1 ,
+ϕxy = γ2 ,
+
+(B.7)
+(B.8)
+(B.9)
+
+The second derivatives,
+
+clearly illustrate that the lens potential induces constant κ and γ. These amplitudes are
+defined for a fiducial source redshift zs,fid ; for sources at different redshifts, I simply scale
+them by ∝ Dls /Dos .
+35
+
+36
+
+B.2
+
+Third-Order Perturbation (clus3)
+
+The third-order term of the Taylor series may be useful when the perturbation is rather
+strong. To suppress the number of parameters, I consider a “restricted” third-order perturbation defined by (e.g., Bernstein & Fischer 1999)
+
+δ
+ϕ = r3 [sin(θ − θδ ) + sin 3(θ − θδ )] .
+4
+
+(B.10)
+
+This is an exact third-order term for a singular isothermal sphere perturber, and will be
+reasonable for other perturbers. The derivatives are
+
+ϕx =
+ϕy =
+ϕxx =
+
+ϕyy =
+
+ϕxy =
+
+B.3
+
+δ
+r [3x {sin(θ − θδ ) + sin 3(θ − θδ )} − y {cos(θ − θδ ) + 3 cos 3(θ − θδ )}] ,
+(B.11)
+4
+δ
+r [3y {sin(θ − θδ ) + sin 3(θ − θδ )} + x {cos(θ − θδ ) + 3 cos 3(θ − θδ )}] ,
+(B.12)
+4 
+
+δ
+x2
+xy
+3 r+
+{sin(θ − θδ ) + sin 3(θ − θδ )} − 4 {cos(θ − θδ ) + 3 cos 3(θ − θδ )}
+4
+r
+r
+
+2
+y
+− {sin(θ − θδ ) + 9 sin 3(θ − θδ )} ,
+(B.13)
+r
+ 
+
+δ
+y2
+xy
+3 r+
+{sin(θ − θδ ) + sin 3(θ − θδ )} + 4 {cos(θ − θδ ) + 3 cos 3(θ − θδ )}
+4
+r
+r
+
+2
+x
+− {sin(θ − θδ ) + 9 sin 3(θ − θδ )} ,
+(B.14)
+r
+
+δ xy
+x2 − y 2
+{cos(θ − θδ ) + 3 cos 3(θ − θδ )}
+3 {sin(θ − θδ ) + sin 3(θ − θδ )} + 2
+4
+r
+r
+i
+xy
++ {sin(θ − θδ ) + 9 sin 3(θ − θδ )} .
+(B.15)
+r
+
+Multipole Perturbation (mpole)
+
+One can consider more general perturbations defined by
+
+ϕ=−
+
+ϵ n
+r cos m(θ − θϵ − π/2).
+m
+
+(B.16)
+
+37
+For example, m = 2 and n = 2 describes an external shear. The derivatives are
+ϵ n−2
+r
+[nx cos m(θ − θϵ − π/2) + my sin m(θ − θϵ − π/2)] ,
+(B.17)
+m
+ϵ
+(B.18)
+− rn−2 [ny cos m(θ − θϵ − π/2) − mx sin m(θ − θϵ − π/2)] ,
+m
+ϵ
+− rn−4 [(n − 2)x {nx cos m(θ − θϵ − π/2) + my sin m(θ − θϵ − π/2)}
+m
+
++(nr2 − m2 y 2 ) cos m(θ − θϵ − π/2) + nmxy sin m(θ − θϵ − π/2) ,
+(B.19)
+ϵ n−4
+− r
+[(n − 2)y {ny cos m(θ − θϵ − π/2) − mx sin m(θ − θϵ − π/2)}
+m
+
++(nr2 − m2 x2 ) cos m(θ − θϵ − π/2) − nmxy sin m(θ − θϵ − π/2) ,
+(B.20)
+ϵ n−4 
+− r
+n(n − 2) + m2 xy cos m(θ − θϵ − π/2)
+m
+
++m(n − 1)(y 2 − x2 ) sin m(θ − θϵ − π/2) .
+(B.21)
+
+ϕx = −
+ϕy =
+ϕxx =
+
+ϕyy =
+
+ϕxy =
+
+B.4
+
+Straight critical curve (crline)
+
+This model realizes a straight critical curve. The lens potential is given by
+ϕ=
+
+ ϵ
+1
+κ0 (x2 + y 2 ) + (1 − κ0 )(x2 − y 2 ) − x3 .
+2
+6
+
+(B.22)
+
+The convergence at the origin is given by κ0 , and ϵ describes the tilt of the convergence
+and shear field. When θ0 = 0 the critical curve is aligned along North-South direction, and
+θ0 ̸= 0 rotates the critical curve counterclockwise.
+
+B.5
+
+Point mass (point)
+
+The density profile of a point mass lens is described simply by δ-function, ρ(x) = Mtot δ(x).
+Obviously, no elliptical model is available for this model. The lens potential is computed as
+2
+ϕ = rEin
+ln r,
+
+where rEin is the Einstein radius. In angular units it is give by
+r
+Mtot
+1
+rEin =
+.
+Dol πΣcrit
+
+(B.23)
+
+(B.24)
+
+The lensing properties can be computed easily (see §A.1).
+
+B.6
+
+Isothermal Ellipsoid (sie)
+
+The Singular Isothermal Ellipsoid (SIE; the three-dimensional radial profile of ρ ∝ r−2 ) is
+used most frequently to model lensing galaxies. More generally, isothermal ellipsoids with
+
+38
+finite core radii are useful in modeling galaxy-scale lenses. The convergence of the model is
+given by
+bSIE (q)
+κ= p
+,
+(B.25)
+2 s2 (q) + x̃2 + ỹ 2 /q 2
+where q = 1 − e. For a spherical case (q = 1) the normalization factor bSIE is related to the
+galaxy velocity dispersion σ as
+ σ 2 D
+ls
+.
+(B.26)
+bSIE (1) = 4π
+c Dos
+It agrees with the Einstein radius in the singular limit rcore → 0. Similarly, the parameter
+s(q) should coincide with the core radius rcore for q = 1
+s(1) = rcore .
+
+(B.27)
+
+For non-spherical galaxies the choice of the normalization is not trivial. I adopt the
+following normalization:1
+bSIE (q)
+s(q)
+1
+f (q) =
+=
+=√ .
+(B.28)
+bSIE (1)
+s(1)
+q
+This corresponds to choosing the dynamical normalization λ(e) = 1 in the notation of Chae
+(2003) and Oguri et al. (2008). The coordinates x̃ and ỹ are rotated by an angle θe :
+x̃ = x sin θe − y cos θe ,
+ỹ = x cos θe + y sin θe .
+
+(B.29)
+(B.30)
+
+An advantage of this model is that lensing properties can be described analytically (Kassiola
+& Kovner 1993; Kormann et al. 1994). The lens potential and its first derivative (in the
+rotated frame) become
+#
+"
+(1 + q)s(q)
+,
+(B.31)
+ϕ = x̃ϕx̃ + ỹϕỹ + bSIE (q)qs(q) ln p
+(ψ + s(q))2 + (1 − q 2 )x̃2
+"p
+#
+2
+1 − q x̃
+bSIE (q)q
+ϕx̃ = p
+arctan
+,
+(B.32)
+2
+ψ + s(q)
+1−q
+"p
+#
+2
+1
+−
+q
+ỹ
+bSIE (q)q
+ϕỹ = p
+arctanh
+,
+(B.33)
+ψ + q 2 s(q)
+1 − q2
+where ψ is defined by
+ψ=
+
+p
+q 2 (s2 (q) + x̃2 ) + ỹ 2 .
+
+(B.34)
+
+Note that in the limit q → 1 the deflection angle reduces to
+
+1
+
+bSIE (q)x̃
+,
+ψ + s(q)
+bSIE (q)ỹ
+.
+=
+ψ + s(q)
+
+ϕx̃ =
+
+(B.35)
+
+ϕỹ
+
+(B.36)
+
+Note that my normalization differs from the one used in gravlens. It adopts f (q) =
+
+p
+(1 + q 2 )/(2q 2 ).
+
+39
+The second derivatives are
+bSIE (q)q
+q 2 s2 (q) + ỹ 2 + s(q)ψ
+,
+ψ
+(1 + q 2 )s2 (q) + 2ψs(q) + x̃2 + ỹ 2
+s2 (q) + x̃2 + s(q)ψ
+bSIE (q)q
+,
+=
+ψ
+(1 + q 2 )s2 (q) + 2ψs(q) + x̃2 + ỹ 2
+bSIE (q)q
+x̃ỹ
+= −
+.
+ψ
+(1 + q 2 )s2 (q) + 2ψs(q) + x̃2 + ỹ 2
+
+ϕx̃x̃ =
+
+(B.37)
+
+ϕỹỹ
+
+(B.38)
+
+ϕx̃ỹ
+
+(B.39)
+
+Then the first and second derivative in the original frame can be derived as follows:
+ϕx
+ϕy
+ϕxx
+ϕyy
+ϕxy
+
+B.7
+
+=
+=
+=
+=
+=
+
+ϕx̃ sin θe + ϕỹ cos θe ,
+−ϕx̃ cos θe + ϕỹ sin θe ,
+ϕx̃x̃ sin2 θe + 2ϕx̃ỹ sin θe cos θe + cos2 θe ϕỹỹ ,
+ϕx̃x̃ cos2 θe − 2ϕx̃ỹ sin θe cos θe + sin2 θe ϕỹỹ ,
+−ϕx̃x̃ sin θe cos θe + ϕx̃ỹ (sin2 θe − cos2 θe ) + ϕỹỹ sin θe cos θe .
+
+(B.40)
+(B.41)
+(B.42)
+(B.43)
+(B.44)
+
+Pseudo-Jaffe Ellipsoid (jaffe)
+
+The original Jaffe profile has the three-dimensional radial profile of ρ ∝ r−2 (r+rtrun )−2 (Jaffe
+2
+2
+1983). For lensing purposes, it is useful to modify the profile to ρ ∝ (r2 +rcore
+)−1 (r2 +rtrun
+)−1
+(Keeton 2001b), because the lensing properties can be expressed by a combination of those
+of isothermal ellipsoids (see §B.6). Specifically, we can define this model by the following
+convergence κ:
+#
+"
+1
+bSIE (q)
+1
+p
+−p
+,
+(B.45)
+κ=
+2
+s2 (q) + x̃2 + ỹ 2 /q 2
+a2 (q) + x̃2 + ỹ 2 /q 2
+where a(1) = rtrun and a(q)/a(1) = f (q). This is simply the difference of two convergences
+of isothermal ellipsoids; thus, the lensing properties of this model can be computed easily
+using those of isothermal ellipsoid shown in §B.6.
+
+B.8
+
+Power-Law Profile (pow/powpot)
+
+The power-law model, ρ(r) ∝ r−γ (1 < γ < 3), is useful, say in studying the effect of the
+radial density slope on lensing. I adopt the Einstein radius of the lens (for a fiducial source
+redshift zs,fid ) for the characteristic scale, r0 = rEin . The dimensionless lensing properties
+then become (see §A.1)
+u3−γ
+ϕdl (u) =
+,
+(B.46)
+3−γ
+αdl (u) = u2−γ ,
+
+κdl (u) =
+
+3 − γ 1−γ
+u ,
+2
+
+(B.47)
+(B.48)
+
+40
+(3 − γ)(1 − γ) −γ
+u .
+(B.49)
+2
+Note that bnorm = 1. While in version 1 the ellipticity is introduced using methods described
+in §A.2 or §A.3, in version 2 the analytic calculation presented in Tessore & Metcalf (2015) is
+implemented and is used by default. This enables much faster calculations in the power-law
+elliptical density model.
+κ′dl (u) =
+
+B.9
+
+Sérsic Profile (sers/serspot)
+
+The Sérsic profile (Sérsic 1968) is widely used to describe light profiles of galaxies. The
+profile is defined in projection:
+"   #
+1/n
+Mtot
+r
+Σ(r) = 2
+exp −
+,
+(B.50)
+πrs Γ(2n + 1)
+rs
+where Mtot is the total mass, rs is the scale radius, and Γ(z) is the Gamma function defined
+by
+Z
+∞
+
+tz−1 e−t dt.
+
+Γ(z) =
+
+(B.51)
+
+0
+
+The Sérsic index n controls the shape of the profile; the exponential disk is expressed by
+n = 1, whereas the de Vaucouleurs profile corresponds to n = 4. In the code, the half-light
+(half-mass, actually) radius re instead of rs is used as a parameter. They are related with
+each other by
+rs = re b−n
+(B.52)
+n ,
+where bn is computed from
+
+1
+P (2n, bn ) = ,
+2
+with P (z, x) being the regularized Gamma function:
+Z x
+γ(z, x)
+1
+P (z, x) =
+=
+tz−1 e−t dt.
+Γ(z)
+Γ(z) 0
+
+(B.53)
+
+(B.54)
+
+In practice I adopt fitting formulae of bn . For n > 0.36 (Ciotti & Bertin 1999)
+bn = 2n −
+
+1
+4
+46
+131
+2194697
++
++
++
+−
+,
+2
+3
+3 405n 25515n
+1148175n
+30690717750n4
+
+(B.55)
+
+and for 0.06 < n < 0.36 (MacArthur et al. 2003)
+bn = 0.01945 − 0.8902n + 10.95n2 − 19.67n3 + 13.43n4 .
+
+(B.56)
+
+Note that the range of the Sérsic index is restricted to 0.06 < n < 20 in the code.
+To compute dimensionless lensing properties, I adopt
+bnorm =
+
+Mtot
+,
+2
+πrs Γ(2n + 1)Σcrit
+
+(B.57)
+
+41
+r0 = rs .
+
+(B.58)
+
+
+1
+ϕdl (u) = u2 2 F2 2n, 2n; 2n + 1, 2n + 1; −u1/n ,
+2
+
+(B.59)
+
+αdl (u) = Γ(2n + 1)u−1 P (2n, u1/n ),
+
+(B.60)
+
+Then I obtain (Cardone 2004)
+
+κdl (u) = exp(−u1/n ),
+1
+κ′dl (u) = − u1/n−1 exp(−u1/n ).
+n
+The ellipticity is introduced using methods described in §A.2 or §A.3.
+
+B.10
+
+(B.61)
+(B.62)
+
+Hernquist Profile (hern/ahern/hernpot)
+
+The Hernquist profile (Hernquist 1990) was proposed to model the light profile of an elliptical
+galaxy. The three-dimensional radial profile is
+ρ(r) =
+
+Mtot
+.
+2π(r/rb )(1 + r/rb )3
+
+(B.63)
+
+Note that the scale radius rb is related to the effective (half-mass) radius Re of a project
+surface mass density by
+rb = 0.551Re .
+(B.64)
+A natural choice of the dimensionless normalization and characteristic scale should be (see
+§A.1)
+Mtot
+bnorm =
+,
+(B.65)
+2πrb2 Σcrit
+r0 = rb .
+(B.66)
+In this case, the dimensionless lensing properties are (Keeton 2001b)
+ϕdl (u) = 2F (u) + ln
+αdl (u) =
+κdl (u) =
+κ′dl (u) =
+where F (u) is defined by
+
+1
+
+2u
+
+(B.67)
+
+[1 − F (u)] ,
+
+(B.68)
+
+
+
+−3 + (2 + u2 )F (u) ,
+
+(B.69)
+
+u2 − 1
+
+(u2 − 1)2
+
+x2
+,
+4
+
+
+
+1
+2
+2 2
+2
++
+13u
+−
+3u
+(u
++
+4)F
+(u)
+,
+u(u2 − 1)3
+
+(B.70)
+
+
+√
+1
+
+arctanh 1 − u2 (u < 1),
+√
+1 − u2
+F (u) =
+(B.71)
+√
+1
+
+√
+arctan u2 − 1
+(u > 1).
+u2 − 1
+The ellipticity is introduced using methods described in §A.2 or §A.3. ahern uses the fast
+approximated calculation of hern proposed by Oguri (2021).
+
+42
+
+B.11
+
+NFW Profile (nfw/anfw/nfwpot)
+
+The NFW density profile (Navarro et al. 1997) describes the structure of dark matter halos
+seen in N -body simulations. Te three-dimensional spherical density profile is defined by
+ρs
+,
+(B.72)
+ρ(r) =
+(r/rs )(1 + r/rs )2
+where rs is the scale radius and ρs is the characteristic density. Instead of the scale radius,
+the concentration parameter c is used in most cases to describe the profile. It is defined by
+the ratio of the virial radius rvir to the the scale radius:
+rvir
+.
+(B.73)
+c=
+rs
+The scale radius and the characteristics density can be related to the virial mass M and the
+concentration parameter c using the following relation.
+Z rvir
+4π 3
+(B.74)
+M=
+r ∆(z)ρ̄(z) =
+ρ(r)4πr2 dr,
+3 vir
+0
+where ∆(z) is the nonlinear overdensity (see Appendix C). This leads to
+
+1/3
+rvir
+3M
+1
+rs =
+=
+,
+c
+4π∆(z)ρ̄(z)
+c
+ρs =
+
+∆(z)ρ̄(z)c3
+,
+3mnfw (c)
+
+(B.75)
+(B.76)
+
+Z c
+
+r
+c
+dr = ln(1 + c) −
+.
+(B.77)
+2
+1+c
+0 (1 + r)
+Here ρ̄(z) denotes the mean matter density of the universe at redshift z.
+Now let’s consider the lensing properties. I choose the dimensionless normalization and
+characteristic scale as (see §A.1)
+4ρs rs
+bnorm =
+,
+(B.78)
+Σcrit
+r0 = rs .
+(B.79)
+mnfw (c) =
+
+Then lensing properties can be described as (Bartelmann 1996)
+ u i
+
+1h 2
+ϕdl (u) =
+u − 1 F 2 (u) + ln2
+,
+(B.80)
+2
+2
+1h
+ui
+αdl (u) =
+F (u) + ln
+,
+(B.81)
+u
+2
+1
+κdl (u) =
+[1 − F (u)] ,
+(B.82)
+2
+2(u − 1)
+
+
+1
+2
+2
+κ′dl (u) =
+−1
+−
+2u
++
+3u
+F
+(u)
+,
+(B.83)
+2u(u2 − 1)2
+where F (u) was defined in equation (B.71). The ellipticity is introduced using methods
+described in §A.2 or §A.3. anfw uses the fast approximated calculation of nfw proposed by
+Oguri (2021).
+
+43
+
+B.12
+
+Generalized NFW Profile (gnfw/gnfwpot)
+
+The controversy over the inner slope of the NFW profile motivated the following generalization of the radial profile (e.g., Jing & Suto 2000)
+ρ(r) =
+
+ρs
+.
+(r/rs )α (1 + r/rs )3−α
+
+(B.84)
+
+In this model the inner slope is parametrized by α (0 < α < 2); the original NFW profile
+corresponds to α = 1. Instead of the standard concentration parameter for the NFW profile,
+we adopt the following “modified” concentration parameter as a model parameter:
+c−2 =
+
+rvir
+c
+rvir
+=
+=
+,
+r−2
+(2 − α)rs
+2−α
+
+(B.85)
+
+where r−2 indicates the radius where the radial slope becomes d ln ρ/d ln r = −2. The
+characteristic density is
+∆(z)ρ̄(z)c3
+ρs =
+,
+(B.86)
+3mgnfw (c)
+Z c
+r2−α
+mgnfw (c) =
+dr.
+(B.87)
+3−α
+0 (1 + r)
+Using the same bnorm and r0 as those for the NFW profile, the lensing properties can be
+described as
+Z u
+αdl (u′ )du′ ,
+
+ϕdl (u) =
+
+(B.88)
+
+0
+
+√
+Z 1
+1 − z2
+1
+2−α
+γ−3 1 −
+(z + u)
+dz,
+αdl (u) = mgnfw (u) + u
+u
+z
+0
+Z
+1 ∞
+1
+κdl (u) =
+√
+√
+α
+3−α dz,
+2 0
+u2 + z 2
+1 + u2 + z 2
+√
+Z
+u ∞
+α + 3 u2 + z 2
+′
+κdl (u) = −
+√
+√
+2+α
+4−α dz.
+2 0
+u2 + z 2
+1 + u2 + z 2
+
+(B.89)
+(B.90)
+
+(B.91)
+
+The ellipticity is introduced using methods described in §A.2 or §A.3. Since no analytic
+expression is available even for the circular symmetric case, the elliptical density of the generalized NFW model requires multiple numerical integrals, making the computation quite
+slow. Thus I prepare gnfw usetab flag – if this is on, the code first make tables of dimensionless deflection angles and convergences as a function of u and α, and compute lensing
+properties by interpolating the values in the tables.
+
+B.13
+
+Truncated NFW Profile (tnfw/tnfwpot)
+
+A possible concern of the NFW profile (eq. [B.72]) is its outer radial slope of −3 which
+suggests that the total mass of the profile diverges. In practice one might expect real dark
+
+44
+halos to be truncated due to tidal effects. Bearing this in mind, Baltz et al. (2009) proposed
+the truncated NFW profile of the following form:
+
+2
+1
+ρs
+ρ(r) =
+,
+(B.92)
+(r/rs )(1 + r/rs )2 1 + (r/rt )2
+where rt denotes the tidal radius. The model should also be useful to model subhalos whose
+density profiles are well approximated by the NFW profile with the tidal truncation.
+Instead of rt , the code adopts the following dimensionless tidal radius in units of the
+virial radius as a model parameter:
+rt
+,
+(B.93)
+t=
+rvir
+here we compute rvir without the truncation, i.e., in the rt → ∞ limit. The use of untruncated rvir (or M ) is convenient because it assumes ρtnfw (r) ≈ ρnfw (r) at r ≪ rt , including
+overall normalizations.
+An advantage of this truncated NFW profile is that lensing properties can be computed
+analytically. First we introduce a auxiliary parameter τ defined by
+rt
+= ct.
+(B.94)
+τ=
+rs
+Adopting the same bnorm and r0 as those used for the NFW profile (eqs. [B.78] and [B.79]),
+the lensing properties can be written as (Baltz et al. 2009)
+(
+h
+i
+√
+√
+1
+3
+2
+2 + u2 ) − 4τ τ 2 + u2
+τ
+π
+(3τ
+−
+1)
+ln(τ
++
+τ
+ϕdl (u) =
+2(τ 2 + 1)3
+√
++(3τ 4 − 6τ 2 − 1)τ τ 2 + u2 L(u) + τ 4 (τ 2 − 3) L2 (u)
++8τ 4 (u2 − 1)F (u) + τ 4 (τ 2 − 3)(u2 − 1)F 2 (u)
+
+
++τ 2 2τ 2 (τ 2 − 3) ln τ − 3τ 4 − 2τ 2 + 1 ln u
+h
++τ 2 τ 2 (4τ π + (τ 2 − 3) ln2 2 + 8 ln 2)
+)
+i
+− ln(2τ )(1 + 6τ 2 − 3τ 4 + τ 2 (τ 2 − 3) ln(2τ ) + τ π(3τ 2 − 1)) , (B.95)
+(
+
+τ4
+1
+2
+2
+2
+2
+π(3τ
+−
+1)
++
+2τ
+(τ
+−
+3)
+ln
+τ
+αdl (u) =
+2[τ
++
+1
++
+4(u
+−
+1)]F
+(u)
++
+2(τ 2 + 1)3 u
+τ
+
+1
++ √
+− τ 3 π[4(τ 2 + u2 ) − τ 2 − 1] +
+τ 3 τ 2 + u2
+)
+
++[τ 2 (1 − τ 4 ) + (τ 2 + u2 )(3τ 4 − 6τ 2 − 1)]L(u) ,
+(B.96)
+τ4
+κdl (u) =
+4(τ 2 + 1)3
+
+(
+
+2(τ 2 + 1)
+τ4 − 1
+π[4(τ 2 + u2 ) + τ 2 + 1]
+[1
+−
+F
+(u)]
++
+8F
+(u)
++
+−
+u2 − 1
+τ 2 (τ 2 + u2 )
+(τ 2 + u2 )3/2
+)
+τ 2 (τ 4 − 1) + (τ 2 + u2 )(3τ 4 − 6τ 2 − 1)
++
+L(u) ,
+(B.97)
+τ 3 (τ 2 + u2 )3/2
+
+45
+κ′dl (u)
+
+τ4
+=
+4(τ 2 + 1)3
+
+(
+
+
+2(τ 2 + 1) 
+2
+2
+−1
+−
+2u
++
+3u
+F
+(u)
+u(u2 − 1)2
+
+
+
+8
+2u(τ 4 − 1)
+πu[4(τ 2 + u2 ) + 3(τ 2 + 1)]
+2
+1
+−
+u
+F
+(u)
+−
++
+u(u2 − 1)
+τ 2 (τ 2 + u2 )2
+(τ 2 + u2 )5/2
+τ 2 (τ 4 − 1) + (τ 2 + u2 )(3τ 4 − 6τ 2 − 1)
++
+uτ 2 (τ 2 + u2 )2
+)
+3τ 2 (τ 4 − 1) + (τ 2 + u2 )(3τ 4 − 6τ 2 − 1)
+−
+uL(u) .
+(B.98)
+τ 3 (τ 2 + u2 )5/2
++
+
+Here F (u) is from equation (B.71) and L(u) is defined by
+!
+√
+2
+2
+τ +u −τ
+L(u) = ln
+.
+u
+
+(B.99)
+
+The ellipticity is introduced using methods described in §A.2 or §A.3.
+
+B.14
+
+Cored NFW Profile (acnfw)
+
+To study the inner density profile of dark matter halos, the NFW profile (eq. [B.72]) with
+the modification of the inner density profile to include a finite density core is sometimes
+considered (e.g., Andrade et al. 2022). Specifically it is defined by
+ρ(r) =
+
+ρs
+,
+(rc /rs + r/rs )(1 + r/rs )2
+
+(B.100)
+
+where rc denotes the core radius. Instead of rc , the code adopts the following dimensionless
+core radius in units of the scale radius as a model parameter:
+β=
+
+rc
+.
+rs
+
+(B.101)
+
+In the code we use rs and ρs as a function of the mass and the concentration parameter
+without rc (i.e., those for the normal NFW profile), meaning that e.g., the true virial mass
+of this profile can be different from the input mass when rc ̸= 0. This choice is meant for the
+easier comparison with results using the normal NFW profile. While analytic expressions
+of the convergence and the deflection angle for a spherical cored NFW profile are presented
+in Andrade et al. (2022), currently the code implements only the approximated elliptical
+density model that is derived following the methodology in Oguri (2021). In the code the
+range of β is restricted to 0 ≤ β < 100.
+
+B.15
+
+Einasto Profile (ein/einpot)
+
+Recent very high-resolution N -body simulations suggest that the radial density profile of
+dark matter halos may be fitted better by the Einasto profile (e.g., Merritt et al. 2006; Gao
+
+46
+et al. 2008). I consider the following form:
+
+
+2
+ρ(r) = ρs exp −
+αE
+
+
+
+r
+rs
+
+αE 
+.
+
+(B.102)
+
+With this particular form, the density profile has the logarithmic slope of −2 at r = rs .
+In N -body simulations a typical value of αE for dark matter halos is ≈ 0.2. In a manner
+analogous to an NFW profile, I define the concentration parameter as
+rvir
+cE =
+.
+(B.103)
+rs
+Then ρs can be described as
+∆(z)ρ̄(z)c3E
+ρs =
+,
+(B.104)
+3mEin (cE )
+
+
+1  αE 3/αE
+3 2 αE
+,
+x
+.
+(B.105)
+mEin (x) =
+γ
+αE 2
+αE αE
+If I adopt the following normalization and characteristic scale
+4ρs rs
+bnorm =
+,
+(B.106)
+Σcrit
+r0 = rs ,
+(B.107)
+the lensing properties are
+
+Z u
+
+ϕdl (u) =
+αdl (u′ )du′ ,
+(B.108)
+0
+√
+√
+Z
+1 ∞ mEin (u 1 + z 2 ) + u mEin (u 1 + z 2 /z)
+αdl (u) =
+dz,
+(B.109)
+u 0
+(1 + z)3/2
+
+
+Z
+
+2
+1 ∞
+2
+2 αE /2
+exp −
+κdl (u) =
+u +z
+dz,
+(B.110)
+2 0
+αE
+
+
+Z
+
+
+2
+u ∞ 2
+2 αE /2−1
+2
+2 αE /2
+′
+u +z
+exp −
+u +z
+dz.
+(B.111)
+κdl (u) = −
+4 0
+αE
+See Keeton (2001b) for the derivation of equation (B.109). The ellipticity is introduced using
+methods described in §A.2 or §A.3.
+
+B.16
+
+Gaussian Profile (gaupot)
+
+The simple Gaussian lens is defined such that the convergence follows the Gaussian profile
+
+
+r2
+(B.112)
+κ(r) = κ0 exp − 2 .
+2σ
+By setting bnorm = κ0 and r0 = σ, the lensing properties can be described as
+ 2
+x
+ϕdl (u) = 2 ln x − Ei −
+,
+2
+
+x2
+2
+αdl (u) =
+1 − e− 2 ,
+u
+where Ei(x) is the exponential integral.
+
+(B.113)
+(B.114)
+
+47
+
+B.17
+
+Multiple galaxies (gals)
+
+This lens model is mainly for modeling member galaxies in clusters. This model makes use
+of a list of galaxies with the positions, relative luminosities, ellipticities and position angles,
+and assumes that the lens parameters scales with the luminosity. Individual galaxies are
+modeled by the pseudo-Jaffe ellipsoid (see §B.7). The velocity dispersion and truncation
+radius for each galaxy is computed by
+σ
+=
+σ∗
+
+
+
+rtrun
+=
+rtrun, ∗
+
+L
+L∗
+
+
+1/4
+,
+L
+L∗
+
+(B.115)
+
+η
+.
+
+Note tat the mass-to-light ratio becomes constant if the parameter η = 1/2.
+
+(B.116)
+
+Appendix C
+Halo Overdensity
+The nonlinear overdensity ∆vir (z) is required to compute a “virial mass” for some profiles
+such as NFW. For a given cosmological model, it is usually calculated by using the so-called
+spherical collapse model. For ΩM + ΩDE = 1 and 0 < ΩM < 1, I adopt the following fitting
+formula (Nakamura & Suto 1997)
+
+
+∆vir (z) ≈ 18π 2 1 + 0.40929w(z)0.90524 ,
+(C.1)
+where w(z) ≡ 1/ΩM (z) − 1. For the universe with 0 < ΩM < 1 and ΩDE = 0, I use
+∆vir (z) = 4π 2
+
+[cosh η(z) − 1]3
+,
+[sinh η(z) − η(z)]2
+
+(C.2)
+
+where η(z) ≡ cosh−1 [2/ΩM (z) − 1]. For the other cases I assume ∆vir (z) = 18π 2 . Therefore,
+for some non-standard cosmological models (e.g., models with w0 ̸= −1) the nonlinear
+overdensity differs from what the spherical collapse model predicts. One way to get around
+this problem is to set flag hodensity=1 or =2 and use a fixed value of your choice for the
+nonlinear overdensity.
+
+48
+
+Appendix D
+Catalog of Extended Source Models
+For all models, the ellipticity is introduced by replacing r to v defined in equation (A.18).
+
+D.1
+
+Gaussian profile (gauss)
+
+The surface brightness profile Σ(r) of the Gaussian profile is simply given by
+
+
+r2
+Σ(r) = Σ0 exp − 2 .
+2σ
+The total flux is
+ftot = 2πσ 2 Σ0 .
+The FWHM of the profile is
+FWHM =
+
+D.2
+
+√
+8 ln 2σ ≈ 2.3548σ.
+
+(D.1)
+(D.2)
+(D.3)
+
+Sérsic profile (sersic)
+
+The Sérsic profile is one of the most popular profiles to study the galaxy morphology. It is
+defined as
+"
+ 1/n #
+r
+Σ(r) = Σ0 exp −bn
+.
+(D.4)
+re
+The radius re is the effective radius. The total flux is
+ftot = πre2 Σ0 bn−2n Γ(2n + 1).
+
+(D.5)
+
+For bn , I adopt the approximations given by equations (B.55) and (B.56).
+
+D.3
+
+Tophat profile (tophat)
+
+The tophat profile is in fact unrealistic for describing astronomical objects, but should useful
+for some theoretical investigations. It is given by
+(
+Σ0 (r < r0 ),
+Σ(r) =
+(D.6)
+0
+(r > r0 ).
+49
+
+50
+The total flux is computed as
+ftot = πr02 Σ0 .
+
+D.4
+
+(D.7)
+
+Moffat profile (moffat)
+
+The Moffat profile (Moffat 1969) is sometimes used to model the PSF. It is given by
+
+Σ(r) = Σ0 1 +
+
+ r 2 −β
+α
+
+.
+
+(D.8)
+
+The total flux is computed as
+ftot = πα2 Σ0 /(β − 1).
+
+(D.9)
+
+The FWHM of the profile is
+FWHM = 2α
+
+D.5
+
+p
+
+21/β − 1.
+
+(D.10)
+
+Jaffe profile (jaffe)
+
+This is the same model as the one used for lens mass model, and is given by
+"
+#
+Σ0
+1
+1
+p
+Σ(r) =
+−p
+.
+2
+2
+1/rcore − 1/rtrun
+rcore
++ r2
+rtrun
++ r2
+
+(D.11)
+
+The total flux is computed as
+ftot = 2πrcore rtrun Σ0 .
+
+D.6
+
+(D.12)
+
+Multiple sources (srcs)
+
+One can define a set of many Sérsic sources by this. The flux, location, and shape of each
+source galaxy are defined in the input file. fnorm controls overall normalization for all source
+galaxies, i.e., the peak surface brightness for each source is replaced with fnorm × Σ0 .
+
+References
+Andrade, K. E., Fuson, J., Gad-Nasr, S., Kong, D., Minor, Q., Roberts, M. G., and Kaplinghat, M., 2022, MNRAS, 510, 54
+Baltz, E. A., Marshall, P., & Oguri, M. 2009, JCAP, 1, 15
+Bartelmann, M. 1996, A&A, 313, 697
+Bernstein, G., & Fischer, P. 1999, AJ, 118, 14
+Cardone, V. F. 2004, A&A, 415, 839
+Chae, K.-H. 2003, MNRAS, 346, 746
+Ciotti, L., & Bertin, G. 1999, A&A, 352, 447
+Gao, L., Navarro, J. F., Cole, S., Frenk, C. S., White, S. D. M., Springel, V., Jenkins, A., &
+Neto, A. F. 2008, MNRAS, 387, 536
+Hernquist, L. 1990, ApJ, 356, 359
+Jaffe, W. 1983, MNRAS, 202, 995
+Jing, Y. P., & Suto, Y. 2000, ApJ, 529, L69
+Kassiola, A., & Kovner, I. 1993, ApJ, 417, 450
+Keeton, C. R. 2001a, preprint (astro-ph/0102340)
+Keeton, C. R. 2001b, preprint (astro-ph/0102341)
+Kochanek, C. S. 1991, ApJ, 373, 354
+Kormann, R., Schneider, P., & Bartelmann, M. 1994, A&A, 284, 285
+MacArthur, L. A., Courteau, S., & Holtzman, J. A. 2003, ApJ, 582, 689
+Merritt, D., Graham, A. W., Moore, B., Diemand, J., & Terzić, B. 2006, AJ, 132, 2685
+Moffat, A. F. J. 1969, A&A, 3, 455
+Nakamura, T. T., & Suto, Y. 1997, Prog. Theor. Phys., 97, 49
+Navarro, J. F., Frenk, C. S., & White, S. D. M. 1997, ApJ, 490, 493
+Oguri, M. 2010, PASJ, 62, 1017
+Oguri, M. 2021, PASP, 133, 074504
+Oguri, M., et al. 2008, AJ, 135, 512
+Press, W. H., Teukolsky, S. A., Vetterling, W. T., & Flannery, B. P. 1992, Numerical recipes
+in C., Cambridge: University Press
+Schramm, T. 1990, A&A, 231, 19
+Sérsic, J. L. 1968, Cordoba, Argentina: Observatorio Astronomico, 1968
+Tessore, N., & Metcalf, R. B. 2015, A&A, 580, A79
+
+51
+
+

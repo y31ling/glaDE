@@ -1,3 +1,91 @@
+V0.6.0-GREY - 双语详尽用户手册 + README 收尾
+
+- 新增两份完整用户手册（manual/），面向具备基础编程能力、非透镜方向的物理本科生，
+  中英内容严格对齐（各 12 章 / 104 个小节标题）：
+  - manual/GLADE_Manual_en.md（英文版，~1900 行）
+  - manual/GLADE_Manual_zh.md（中文版，~1750 行）
+  覆盖：支持的系统与 WSL2 细节（WSLg 任务终端窗口、localhost 转发、\\wsl$ 传文件、
+  CUDA 透传与手动安装 torch）；bootstrap 安装/卸载逐步说明；15 分钟快速上手教程；
+  WebUI 三个页签逐控件参考（FindImage 五个后端按钮与运行流程、Editor 资源管理器/
+  Monaco/模板面板全部条目枚举、Clave 画布交互与 15 模型选择器）；.dat 格式完整规范
+  （语法、27 个偏折体 + 5 个延展源轮廓参数表、全部配置键及默认值、共享变量、观测
+  表达式、多文件合并、校验错误目录）；DE / MCMC / 延展源拟合与 GPU 批量、
+  gpu_precision、amoeba 轨道的算法章节；runs/ 输出逐文件解读（三联图/角图/迹线图
+  读法）；命令行 runjob、import glade 函数参考、rhongomyniad 直用与互译器；
+  TOL_ROMBERG_JHK 专题警示章（条纹伪影机制与实测数值、何时该担心、如何重编译）；
+  按报错原文索引的故障排查 FAQ；术语表/版本史/引用要求/环境变量/辅助文件格式附录。
+- 手册制作流程：13 个并行调研 agent 深读全部子系统产出事实清单 → 撰写双语稿 →
+  8 个对抗式核查 agent 逐章对照代码证伪，修正 20 处（如迭代帧配色方向、卸载流程、
+  遗留键其实仍会补默认值、DE 越界惩罚对全残差线性而非超出量等）；中英一致性 0 差异。
+- 核查中确认并写入手册的代码事实（本次未改代码）：
+  - Clave 的 pow/pert 添加对话框标签与引擎实际用法相反——标着"参考红移"的字段实际
+    按透镜红移传入 set_lens（手册 §5.4.3 已醒目警告；UI 待修）；
+  - 延展源观测 FITS 必须为 32 位浮点（BITPIX -32），否则 glafic 直接中止；
+  - Rhongomyniad README / core/SPEC.md §6 等文档滞后于 V0.6.0（README 顶部横幅
+    已在本次一并更新），手册开头的适用范围说明声明以实际代码为准。
+- README：顶部横幅从 V0.5.0 更新为 V0.6.0，只保留最新版本的更新说明（移除
+  V0.5.0/V0.4.5/V0.4.4 旧段落，历史仍在 History 表与 changelog）；末尾新增
+  source/GREY.jpg；changelog 链接旁新增两份手册的链接；History 表新增
+  0.6.0-GREY 行。
+- update_en.txt：回填 V0.6.0 的浓缩英文条目（此前缺失，英文 changelog 停在
+  V0.5.3），并新增本条的英文版。
+- .gitignore：新增 V0.6.0-GREY 小节——确认现有规则不会吞掉 manual/*.md 与
+  source/GREY.jpg，并对 GREY.jpg 加防御性 ! 保留（防未来添加 *.jpg 规则误伤）；
+  另将 .claude/（本地会话配置）与 EMAIL_to_Oguri.txt（内部信件草稿，比照
+  V0.5.1 对内部笔记的处理）加入忽略。
+
+
+V0.6.0 - Clave 集成 + 透镜模型全覆盖 + 库化 + WebUI 主题/双语
+
+- 补全 Rhongomyniad：新增 crline（直临界线）、acnfw（有核 NFW 的 CSE 近似）、gals（外部星系表）
+  三个透镜模型——至此 glafic 全部 27 个透镜模型在 GPU 上悉数可用（多平面除外）。
+  - acnfw 移植了 glafic 的 201×88 CSE 系数表（app_cnfw.c，提取为 _tab_cache/acnfw_cse_v1.npz），
+    按 log10(b) 在相邻两行间线性插值——实现上把两行合成一次 88 项 CSE 求值，与 glafic 逐位同构；
+    批量模式下 b 可为张量（逐候选 gather 表行）。b 的合法范围与 glafic 一致为 [0, 100)（严格小于）。
+  - gals 为星表中每个星系求和伪 Jaffe（两个软化 SIE 之差），Faber-Jackson 标度
+    b_i = b_sie(L^0.25·sigma)、a_i = L^alpha·a。星表通道镜像 glafic：`galfile`
+    （默认 galfile.dat，工作目录）在首次使用 gals 透镜时懒加载；也可用
+    rhongomyniad.set_galfile()/readgals()/set_gals() 显式注入。星表数值按 glafic 的
+    单精度存储（float para_gals，glafic.h:1259）做同样的 float32 舍入以保证位级一致
+    ——不舍入会有 ~1e-7 的系统偏差（排查时顺带发现 glafic 自身换星表不换 sig/a 时
+    有静态缓存不刷新的隐患，单进程单星表的正常用法不受影响）。
+  - 三个模型均与 glafic 二进制逐点核验至机器精度（calcimage 八元组相对偏差 ~1e-14，
+    point_solve 像位/放大率一致），张量批处理路径与标量路径一致（~1e-13），
+    并通过 GLADE 批量 GPU DE 端到端冒烟（acnfw 可优化分量）。
+  - crline/acnfw 此前在 core/format/schema.py 连 ModelSpec 都没有（CPU 路径也会被拒），
+    现已注册并自动进入编辑器模板；gals 的参数布局修正为完整的 p1=sigma/p6=a/p7=alpha。
+- Clave 引力透镜可视化计算器并入仓库 clave/（Flask Blueprint 挂载 /clave），
+  WebUI 顶栏新增第三个选项卡 Clave 内嵌运行（iframe，首次点击才加载）。
+  glafic/torch 改为惰性导入，不拖慢 webui 启动；`python -m clave` 仍可独立运行（端口 6019）。
+  Clave 交互增强：
+  - 左边栏 box 单击即选中并高亮一圈，选中后在画布上无需按 Alt 即可直接拖动或旋转
+    （光源选中时画布上显示虚线选中环；旋转手柄距离加了上限，大透镜放大时不再跑出屏幕外）。
+  - 修正旋转方向相反的问题：旋转手柄现在落在透镜长轴上，拖动方向与形状转向一致
+    （旧实现手柄角度用 (sin,-cos) 放置、与 rotate(-pa) 的形状互为镜像，转起来是反的）。
+  - 场景中同时存在至少一个光源和一个透镜时，左边栏下方自动出现只读 Images 栏：
+    显示像的总数与每个像的位置 (x, y) 和亮度 μ，随计算实时刷新，多光源时标注所属光源。
+  - Editor 文件树右键新增「导入到 Clave」：支持 glafic .input 与 glade .dat，
+    转换后自动切换到 Clave 选项卡、填充左边栏并适配视野；.dat 中 {lo, hi} 参数
+    取代表值的规则与 glade→glafic 导出完全一致（复用同一 _midpoint：
+    质量类参数取几何平均，其余取算术平均）。新增后端 /api/files/import_clave。
+- WebUI：
+  - 右上角新增两个按钮：左一 中/英文切换（默认英文，覆盖全部界面词条含右键菜单与对话框），
+    左二 深色/浅色主题（默认深色，Monaco 编辑器主题联动），选择均记忆在浏览器 localStorage。
+  - Editor 文件树右键新增 复制/粘贴：支持文件与文件夹（递归），可粘贴到任意文件夹或根目录，
+    重名自动 _copy/_copy2 递增，禁止把文件夹粘贴进自身；新增后端 /api/files/copy。
+  - 删除 FindImage 左下角的 amoeba 说明文字。
+- 库化：任意脚本 `import glade` 即可使用（新增 glade/ facade 包，导入时自动引导 sys.path，
+  glafic / rhongomyniad / core 随之可导入）；导出 load_config / optimize / build_obs /
+  make_triptych / make_extend_figure / run_mcmc / verify_with_glafic / lint_text 等；
+  绘图 / MCMC / 引擎全部惰性加载（import glade 本身不拉起 matplotlib/torch/glafic）；
+  glade.engine("cpu"|"gpu") 返回底层引擎模块（与 glafic 同构的命令式 API）。
+  env.sh 与两个 bootstrap 的 PYTHONPATH 均已加 repo 根（bootstrap_linux 顺带补上
+  此前遗漏的 Rhongomyniad 路径）。
+- 验证：浏览器级自动化（Playwright headless Chromium）27 项全过——主题/语言切换与持久化、
+  右键复制粘贴（文件+文件夹+自动改名）、Clave 选项卡渲染、无 JS 报错；
+  core 测试 59+11+11+10 全绿（更新了 1 个断言 gals 不支持 GPU 的过时用例）。
+
+
 V0.5.3 - .dat 参数支持算术公式 + 观测像位置引用
 
 分量参数（及其 {lo, hi} 边界）现在可以写成引用观测像位置的算术表达式，加载时自动求值：

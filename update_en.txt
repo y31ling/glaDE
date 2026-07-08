@@ -1,3 +1,89 @@
+V0.6.0-GREY - comprehensive bilingual user manuals + README wrap-up
+
+- Two complete user manuals were added under manual/, written for a physics
+  undergraduate with basic programming skills (not a lensing specialist); the
+  English and Chinese versions are strictly fact-aligned (12 chapters / 104
+  headings each):
+  - manual/GLADE_Manual_en.md (English, ~1900 lines)
+  - manual/GLADE_Manual_zh.md (Chinese, ~1750 lines)
+  Coverage: supported systems & WSL2 specifics (WSLg terminal windows, localhost
+  forwarding, \\wsl$ file transfer, CUDA passthrough, the manual torch install);
+  bootstrap install/uninstall walkthrough; a 15-minute quick-start tutorial;
+  control-by-control reference for the three WebUI tabs (FindImage's five rails
+  and run flow, the Editor's Explorer/Monaco/template panel with every template
+  enumerated, Clave's canvas interactions and 15-model picker); the full .dat
+  specification (grammar, the 27 deflector + 5 extended-profile parameter tables,
+  every config key with its default, shared variables, observation expressions,
+  multi-file merge, the validation-error catalogue); algorithm chapters on
+  DE / MCMC / extended-source fitting, GPU batching, gpu_precision and the amoeba
+  rail; a file-by-file guide to runs/ outputs (how to read the triptych / corner /
+  trace figures); CLI runjob, the import glade function reference, direct
+  rhongomyniad use and the translator; a dedicated TOL_ROMBERG_JHK warning chapter
+  (stripe-artifact mechanism and measured numbers, when to worry, how to rebuild);
+  a troubleshooting FAQ indexed by the actual error strings; and glossary /
+  version-history / citation / env-var / file-format appendices.
+- Production pipeline: 13 parallel research agents read every subsystem into fact
+  sheets -> manuals written -> 8 adversarial fact-check agents tried to refute
+  each chapter against the code, fixing 20 findings (iteration-frame colormap
+  direction, the uninstall flow, the inert legacy keys still receiving defaults,
+  the over-1-sigma penalty being linear in the full residual, ...); the EN/ZH
+  parity check found 0 divergences.
+- Code facts confirmed during the check and documented in the manuals (no code
+  changed this round): Clave's pow/pert add-lens dialog labels are swapped
+  relative to what the engine does with the values — the field labelled
+  "Fiducial zs" is passed to set_lens as the lens redshift (flagged in manual
+  5.4.3; UI fix pending); extended-source observed FITS must be 32-bit float
+  (BITPIX -32); some in-repo docs (Rhongomyniad README, core/SPEC.md section 6)
+  lag behind V0.6.0 (the README banner was brought up to date in this release) —
+  the manuals' scope note says the code wins.
+- README: the top banner updated from V0.5.0 to V0.6.0, keeping only the latest
+  release's update notes (the old V0.5.0/V0.4.5/V0.4.4 paragraphs removed;
+  history remains in the History table and changelogs); source/GREY.jpg added at
+  the end; manual links added next to the changelog links; a 0.6.0-GREY row
+  added to the History table.
+- update_en.txt: back-filled a condensed English V0.6.0 entry (the English
+  changelog previously stopped at V0.5.3).
+- .gitignore: a new V0.6.0-GREY section — verified no existing rule swallows
+  manual/*.md or source/GREY.jpg, plus a defensive !source/GREY.jpg keep; also
+  ignores .claude/ (local session config) and EMAIL_to_Oguri.txt (internal
+  correspondence draft, mirroring the V0.5.1 dev-note policy).
+
+V0.6.0 - Clave integration + full lens-model coverage + library packaging + WebUI theme/i18n
+(condensed back-fill; full details in Update.txt, Chinese)
+
+- Rhongomyniad completed: crline (straight critical line), acnfw (CSE-approximated
+  cored NFW; glafic's 201x88 CSE table ships as _tab_cache/acnfw_cse_v1.npz;
+  b in [0, 100) strict; b may be a per-candidate tensor) and gals (external galaxy
+  catalogue: summed pseudo-Jaffe members with Faber-Jackson scaling, glafic-style
+  lazy galfile.dat loading plus set_galfile()/readgals()/set_gals(); catalogue
+  values round-tripped through float32 for bit-parity with glafic's float storage)
+  — all 27 glafic lens models now run on the GPU (multi-plane still excluded),
+  each verified against the glafic binary to machine precision (~1e-14 relative
+  on the calcimage 8-tuple). crline/acnfw also gained the previously missing
+  core/format/schema.py ModelSpec entries (they were rejected even on the CPU
+  path before) and editor templates; gals' parameter layout was fixed to
+  p1=sigma / p6=a / p7=alpha.
+- Clave merged into the repo as clave/ (Flask blueprint at /clave) and embedded
+  as the third WebUI tab (lazy iframe; glafic/torch imports deferred so webui
+  startup is unaffected; python -m clave still runs standalone on port 6019).
+  Interaction upgrades: click-to-select + drag/rotate without Alt, mirrored
+  rotation direction fixed, rotation-handle distance capped, a live read-only
+  Images panel, and an Editor right-click "Import to Clave" for .dat/.input
+  files (bounds collapse via the same _midpoint rule as the glafic export).
+  New endpoint /api/files/import_clave.
+- WebUI: top-right language toggle (English/中文, default English) and
+  dark/light theme toggle (default dark; Monaco follows), both persisted in
+  localStorage; Explorer right-click Copy/Paste for files AND folders with
+  _copy/_copy2 auto-renaming (pasting a folder into itself refused); the
+  FindImage amoeba footnote removed. New endpoint /api/files/copy.
+- Library packaging: `import glade` works from any script (new glade/ facade
+  package bootstraps sys.path so glafic / rhongomyniad / core become importable;
+  heavy modules load lazily; glade.engine("cpu"|"gpu") returns the underlying
+  imperative engine module). env.sh and both bootstrap scripts now put the repo
+  root (and the previously missing Rhongomyniad path) on PYTHONPATH.
+- Verified with 27 Playwright (headless Chromium) browser tests and green core
+  tests (one outdated "gals unsupported on GPU" assertion updated).
+
 V0.5.3 - arithmetic expressions + observed-image references in .dat parameters
 
 Component parameters (and their {lo, hi} bounds) may now be arithmetic expressions that reference the observed image positions, evaluated automatically at load time:

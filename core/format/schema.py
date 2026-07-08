@@ -141,6 +141,14 @@ _reg(ModelSpec(
     category="substructure", gpu=True, required_min=3,
     desc="Analytic (CSE-approximated) NFW.",
 ))
+_reg(ModelSpec(
+    "acnfw", "acnfw",
+    (_P("mass", is_mass=True, desc="virial mass [Msun]"), *_XY, *_E_PA,
+     _P("c", desc="concentration"),
+     _P("b", desc="core radius in units of rs (0 <= b < 100)")),
+    category="substructure", gpu=True, required_min=3,
+    desc="Cored NFW (CSE approximation).",
+))
 
 # ---- King -------------------------------------------------------------------
 _reg(ModelSpec(
@@ -236,13 +244,31 @@ _reg(ModelSpec(
     category="lens", gpu=True, required_min=3, uncertain=True,
     desc="m-th order multipole.",
 ))
+_reg(ModelSpec(
+    "crline", "crline",
+    (_P("zs_fid", desc="fiducial source redshift"), *_XY,
+     _P("_unused", desc="(unused)"),
+     _P("pa", desc="critical-line position angle [deg]"),
+     _P("epsilon", desc="gradient of 1-kappa-gamma along the line"),
+     _P("kappa", desc="convergence at the line")),
+    category="lens", gpu=True, required_min=3, uncertain=True,
+    desc="Straight critical line (linear expansion; layout p5=pa p6=eps p7=k).",
+))
 
-# ---- catalogue / line (rarely used here) -----------------------------------
+# ---- catalogue (file-based) -------------------------------------------------
+# glafic reads the catalogue named by the `galfile` primary parameter (default
+# galfile.dat, rows `x y L [e pa]`) lazily on first use; Rhongomyniad mirrors
+# this via rhongomyniad.set_galfile/readgals/set_gals.
 _reg(ModelSpec(
     "gals", "gals",
-    (_P("scale", desc="catalogue scaling"),),
-    category="lens", gpu=False, required_min=1, uncertain=True,
-    desc="External galaxy catalogue (file-based).",
+    (_P("sigma", is_mass=True,
+        desc="velocity-dispersion scale [km/s] (b_i from L^0.25 sigma)"), *_XY,
+     _P("_unused", desc="(unused)"),
+     _P("_unused2", desc="(unused)"),
+     _P("a", desc="truncation-radius scale [arcsec] (a_i = L^alpha a)"),
+     _P("alpha", desc="luminosity exponent of the truncation radius")),
+    category="lens", gpu=True, required_min=1, uncertain=True,
+    desc="External galaxy catalogue: sum of pseudo-Jaffe (file-based, see galfile).",
 ))
 
 # ---- extended-source profiles (glafic set_extend) --------------------------

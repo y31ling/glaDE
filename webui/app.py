@@ -28,7 +28,10 @@ from webui.files import FileStore  # noqa: E402
 from webui.jobs import JobManager  # noqa: E402
 from webui.templates_lib import template_tree  # noqa: E402
 
+from clave import bp as clave_bp  # noqa: E402
+
 app = Flask(__name__, static_folder=os.path.join(_THIS, "static"), static_url_path="/static")
+app.register_blueprint(clave_bp)  # Clave lens calculator at /clave (V0.6)
 
 INPUT_DIR = os.path.join(_ROOT, "InputFiles")
 store = FileStore(INPUT_DIR)
@@ -98,6 +101,15 @@ def files_rename():
         return jsonify({"error": str(exc)}), 400
 
 
+@app.route("/api/files/copy", methods=["POST"])
+def files_copy():
+    data = request.get_json(force=True)
+    try:
+        return jsonify({"ok": True, "path": store.copy(data["path"], data["dest"])})
+    except (OSError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @app.route("/api/files/delete", methods=["POST"])
 def files_delete():
     data = request.get_json(force=True)
@@ -130,6 +142,50 @@ def files_import():
             store.write(rel, out[kind])
             written.append(rel.replace(os.sep, "/"))
     return jsonify({"ok": True, "written": written})
+
+
+@app.route("/api/files/import_clave", methods=["POST"])
+def files_import_clave():
+    """Convert a glade ``.dat`` or a native glafic ``.input`` into a Clave
+    scene (``{lenses, sources}`` in Clave's JSON layout).
+
+    ``{lo, hi}`` parameters collapse to the same representative value the
+    glade -> glafic export uses (geometric mean for mass-like parameters,
+    arithmetic mean otherwise — ``core.translate.convert._midpoint``).
+    """
+    from core.format.config import apply_defaults, merge
+    from core.format.parser import parse_text
+    from core.translate import glafic_to_glade, looks_like_glafic_input
+    from core.translate.convert import _glade_to_model
+    data = request.get_json(force=True)
+    try:
+        text = store.read(data["path"])
+    except (OSError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    try:
+        if looks_like_glafic_input(text):
+            out = glafic_to_glade(text)
+            texts = [v for v in (out.get("model"), out.get("obs")) if v]
+        else:
+            texts = [text]
+        cfg, issues = merge([parse_text(t, path=data["path"]) for t in texts])
+        errors = [i.message for i in issues if i.is_error]
+        if errors:
+            return jsonify({"error": "; ".join(errors[:3])}), 400
+        apply_defaults(cfg)
+        model = _glade_to_model(cfg)
+    except Exception as exc:  # parse/translate failures -> clean 400
+        return jsonify({"error": str(exc)}), 400
+    if not model.lenses:
+        return jsonify({"error": "no lens components found in this file"}), 400
+    lenses = [{"type": ln.type, "z": ln.z,
+               "p1": ln.params[0], "x": ln.params[1], "y": ln.params[2],
+               "e": ln.params[3], "pa": ln.params[4],
+               "r1": ln.params[5], "r2": ln.params[6]}
+              for ln in model.lenses]
+    sources = [{"z": model.source_z if model.source_z is not None else 2.0,
+                "x": model.source_x or 0.0, "y": model.source_y or 0.0}]
+    return jsonify({"ok": True, "lenses": lenses, "sources": sources})
 
 
 @app.route("/api/files/export", methods=["POST"])

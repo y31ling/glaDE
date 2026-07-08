@@ -49,6 +49,11 @@ from .api import (
     set_finder,
     get_finder,
     supported_models,
+    set_galfile,
+    set_gals,
+    readgals,
+    num_gals,
+    clear_gals,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"

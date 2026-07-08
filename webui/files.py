@@ -75,6 +75,24 @@ class FileStore:
         os.rename(src, dst)
         return self._rel(dst)
 
+    def copy(self, src_rel: str, dst_rel: str) -> str:
+        src = self._abs(src_rel)
+        dst = self._abs(dst_rel)
+        if not os.path.exists(src):
+            raise ValueError(f"source not found: {src_rel}")
+        if src == self.root:
+            raise ValueError("cannot copy the root")
+        if os.path.exists(dst):
+            raise FileExistsError(f"already exists: {dst_rel}")
+        if os.path.isdir(src):
+            if dst == src or dst.startswith(src + os.sep):
+                raise ValueError("cannot paste a folder into itself")
+            shutil.copytree(src, dst)
+        else:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(src, dst)
+        return self._rel(dst)
+
     def delete(self, rel: str) -> None:
         p = self._abs(rel)
         if p == self.root:

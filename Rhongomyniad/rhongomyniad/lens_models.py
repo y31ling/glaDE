@@ -1002,6 +1002,176 @@ def kapgam_gaupot(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
 
 
 # ---------------------------------------------------------------------------
+# 10) crline — straight critical line, linear expansion (mass.c:534-566)
+#     p[1]=zs_fid  p[2..3]=center  p[5]=pa  p[6]=epsilon  p[7]=k
+#     (call site mass.c:339: kapgam_crline(..., p1, p7, p5, p6, ...))
+# ---------------------------------------------------------------------------
+def kapgam_crline(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
+                  p: tuple, smallcore: float = K.DEF_SMALLCORE,
+                  need_kg: bool = True, need_phi: bool = True):
+    # zs_fid (p[1]) must remain a scalar float (distance integral).
+    zs_fid = float(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    pa = _pf(p[5]); eps = _pf(p[6]); k = _pf(p[7])
+    fac = fac_pert(ctx, zs_fid)
+
+    si = _t_sin((-1.0) * pa * math.pi / 180.0)
+    co = _t_cos((-1.0) * pa * math.pi / 180.0)
+    g = 1.0 - k
+
+    dx = (tx - x0) * co - (ty - y0) * si
+    dy = (tx - x0) * si + (ty - y0) * co
+
+    # NOTE: glafic returns the crline deflection in the ROTATED frame with no
+    # back-rotation (mass.c:552-553); replicated verbatim for parity.
+    ax = fac * (dx * k + dx * g - 0.5 * eps * dx * dx)
+    ay = fac * (dy * k - dy * g)
+
+    if not need_kg:
+        return ax, ay, None, None, None, None
+
+    kap = fac * (k - 0.5 * eps * dx)
+    gam1 = fac * (g - 0.5 * eps * dx)
+    gam2 = torch.zeros_like(ax)
+    phi = None
+    if need_phi:
+        phi = fac * (0.5 * (dx * dx + dy * dy) * k
+                     + 0.5 * (dx * dx - dy * dy) * g
+                     - (1.0 / 6.0) * eps * dx * dx * dx)
+    return ax, ay, kap, gam1, gam2, phi
+
+
+# ---------------------------------------------------------------------------
+# 11) gals — external galaxy catalogue (mass.c:572-632): sum over catalogue
+#     galaxies of pseudo-Jaffe deflectors (difference of two softened SIEs),
+#     Faber-Jackson scaled:  b_i = b_sie(L_i^0.25 * sig, q_i),  a_i = L_i^alpha * a.
+#     p[1]=sig  p[6]=a  p[7]=alpha; the lens centre p[2..3] is IGNORED (as in
+#     glafic — every galaxy carries its own centre from the catalogue).
+#
+#     Catalogue handling mirrors glafic: the `galfile` primary parameter
+#     (init.c:148, default glafic.h:46 "galfile.dat") names a text file of
+#     `x y L [e pa]` rows read lazily by readgals (init.c:1254-1289) on the
+#     first use of a 'gals' lens (call.c:137).
+# ---------------------------------------------------------------------------
+_gals_file: str = "galfile.dat"                # glafic DEF_GALFILE
+_gals_catalog: list = []                       # rows of (x, y, L, e, pa)
+
+
+def set_galfile(path: str) -> None:
+    """Set the galaxy-catalogue filename (glafic's ``galfile`` primary param).
+    Clears any loaded catalogue so the new file is read on next use."""
+    global _gals_file, _gals_catalog
+    _gals_file = str(path)
+    _gals_catalog = []
+
+
+def _f32(v: float) -> float:
+    """Round-trip through IEEE single precision: glafic stores the catalogue
+    in `float para_gals[NMAX_GALS][NPAR_GAL]` (glafic.h:1259), so bit-parity
+    requires the same float32 rounding of every catalogue value."""
+    import struct
+    return struct.unpack("f", struct.pack("f", v))[0]
+
+
+def set_gals(catalog) -> None:
+    """Directly set the catalogue: an iterable of ``(x, y, L[, e, pa])`` rows."""
+    global _gals_catalog
+    rows = []
+    for row in catalog:
+        vals = [float(v) for v in row]
+        if len(vals) == 3:
+            vals += [0.0, 0.0]
+        if len(vals) != 5:
+            raise ValueError("gals rows must be (x, y, L[, e, pa])")
+        x, y, lum, e, t = vals
+        if (lum < 0.0) or (e < 0.0) or (e >= 1.0):
+            raise ValueError("input file format irrelevant (readgals)")
+        rows.append(tuple(_f32(v) for v in (x, y, lum, e, t)))
+    _gals_catalog = rows
+
+
+def readgals(filename=None) -> int:
+    """Read the galaxy catalogue file (init.c:1254-1289): whitespace-separated
+    ``x y L [e pa]`` rows, '#' comment lines allowed. Returns the count."""
+    path = _gals_file if filename is None else filename
+    raw = []
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            s = line.split()
+            if not s or s[0].startswith("#"):
+                continue
+            if len(s) >= 5:
+                raw.append(s[:5])              # sscanf parses 5, ignores the rest
+            elif len(s) == 3:
+                raw.append(s)
+            else:
+                raise ValueError("input file format irrelevant (readgals)")
+    set_gals(raw)
+    return len(_gals_catalog)
+
+
+def num_gals() -> int:
+    return len(_gals_catalog)
+
+
+def clear_gals() -> None:
+    global _gals_catalog
+    _gals_catalog = []
+
+
+def ensure_gals_loaded() -> None:
+    """Lazy-load hook mirroring glafic's call.c:137 (read on first use)."""
+    if not _gals_catalog:
+        readgals()
+
+
+def kapgam_gals(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
+                p: tuple, smallcore: float = K.DEF_SMALLCORE,
+                need_kg: bool = True, need_phi: bool = True):
+    if not _gals_catalog:
+        raise RuntimeError(
+            "gals: no galaxy catalogue loaded — call rhongomyniad.readgals(), "
+            "set_galfile(path) or set_gals(rows) first (glafic reads the "
+            f"`galfile` primary parameter, default '{_gals_file}', from the "
+            "working directory)")
+    sig = _pf(p[1]); a = _pf(p[6]); alpha = _pf(p[7])
+    if not _is_t(sig, a, alpha):
+        if sig < 0.0:
+            raise ValueError("gals: sigma must be >= 0")
+        if a < 0.0:
+            raise ValueError("gals: a must be >= 0")
+
+    ax = torch.zeros_like(tx)
+    ay = torch.zeros_like(tx)
+    kap = gam1 = gam2 = phi = None
+    if need_kg:
+        kap = torch.zeros_like(tx)
+        gam1 = torch.zeros_like(tx)
+        gam2 = torch.zeros_like(tx)
+        if need_phi:
+            phi = torch.zeros_like(tx)
+
+    for (gx, gy, lum, ge, gt) in _gals_catalog:
+        q = 1.0 - ge
+        bb = b_sie(ctx, (lum ** 0.25) * sig, q)
+        aa = (lum ** alpha) * a
+        si = math.sin((-1.0) * (gt - 90.0) * math.pi / 180.0)
+        co = math.cos((-1.0) * (gt - 90.0) * math.pi / 180.0)
+        dx = tx - gx
+        dy = ty - gy
+        r1 = _sie_body(dx, dy, bb, smallcore, q, si, co, need_kg, need_phi)
+        r2 = _sie_body(dx, dy, bb, aa, q, si, co, need_kg, need_phi)
+        ax = ax + (r1[0] - r2[0])
+        ay = ay + (r1[1] - r2[1])
+        if need_kg:
+            kap = kap + (r1[2] - r2[2])
+            gam1 = gam1 + (r1[3] - r2[3])
+            gam2 = gam2 + (r1[4] - r2[4])
+            if need_phi:
+                phi = phi + (r1[5] - r2[5])
+    return ax, ay, kap, gam1, gam2, phi
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 _MODEL_DISPATCH = {
@@ -1014,6 +1184,8 @@ _MODEL_DISPATCH = {
     "jaffe":   kapgam_jaffe,
     "sers":    kapgam_sers,
     "gaupot":  kapgam_gaupot,
+    "crline":  kapgam_crline,
+    "gals":    kapgam_gals,
 }
 
 

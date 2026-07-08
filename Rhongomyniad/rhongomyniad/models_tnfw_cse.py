@@ -29,6 +29,8 @@ become plain recomputation here.
 from __future__ import annotations
 
 import math
+import os
+
 import torch
 
 from . import constants as K
@@ -516,12 +518,21 @@ def _cse_tables_on(model: str, device: torch.device, dtype: torch.dtype):
     return _cse_table_cache[key]
 
 
+def _shape_tab(tab: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    """Broadcast-shape a CSE coefficient table against x.
+
+    1-D tables (fixed anfw/ahern coefficients, or an interpolated acnfw row
+    for a scalar b) become (N, 1, ..., 1); higher-dim tables (per-candidate
+    acnfw rows, already shaped (N, C, 1, ...)) pass through unchanged."""
+    return tab.view(-1, *([1] * x.ndim)) if tab.ndim == 1 else tab
+
+
 def _alpha_cse_sum(x: torch.Tensor, y: torch.Tensor, q,
                    s_tab: torch.Tensor, w_tab: torch.Tensor):
     """Weighted sum of alpha_cse_dl over the table (app_ell.c:344-357 with
     the loops of alpha_anfw_dl/alpha_ahern_dl, app_ell.c:230-248/290-308)."""
-    s = s_tab.view(-1, *([1] * x.ndim))
-    w = w_tab.view(-1, *([1] * x.ndim))
+    s = _shape_tab(s_tab, x)
+    w = _shape_tab(w_tab, x)
     psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
     f = (psi + s) * (psi + s) + (1.0 - q * q) * x * x
     fac = q / (s * psi * f)
@@ -533,8 +544,8 @@ def _alpha_cse_sum(x: torch.Tensor, y: torch.Tensor, q,
 def _ddphi_cse_sum(x: torch.Tensor, y: torch.Tensor, q,
                    s_tab: torch.Tensor, w_tab: torch.Tensor):
     """Weighted sum of ddphi_cse_dl over the table (app_ell.c:326-342)."""
-    s = s_tab.view(-1, *([1] * x.ndim))
-    w = w_tab.view(-1, *([1] * x.ndim))
+    s = _shape_tab(s_tab, x)
+    w = _shape_tab(w_tab, x)
     psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
     f = (psi + s) * (psi + s) + (1.0 - q * q) * x * x
     pi = 1.0 / psi
@@ -556,8 +567,8 @@ def _ddphi_cse_sum(x: torch.Tensor, y: torch.Tensor, q,
 def _phi_cse_sum(x: torch.Tensor, y: torch.Tensor, q,
                  s_tab: torch.Tensor, w_tab: torch.Tensor):
     """Weighted sum of phi_cse_dl over the table (app_ell.c:314-324)."""
-    s = s_tab.view(-1, *([1] * x.ndim))
-    w = w_tab.view(-1, *([1] * x.ndim))
+    s = _shape_tab(s_tab, x)
+    w = _shape_tab(w_tab, x)
     psi = torch.sqrt(q * q * (s * s + x * x) + y * y)
     aa = 0.5 * torch.log((psi + s) * (psi + s) + (1.0 - q * q) * x * x) \
         - torch.log((1.0 + q) * s)
@@ -565,16 +576,17 @@ def _phi_cse_sum(x: torch.Tensor, y: torch.Tensor, q,
 
 
 def _kapgam_cse_body(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
-                     x0, y0, e, pa, bb, tt, model: str,
+                     x0, y0, e, pa, bb, tt, tables,
                      need_kg: bool, need_phi: bool):
-    """Shared body of kapgam_anfw (mass.c:1146-1198) and kapgam_ahern
-    (mass.c:1677-1729).  NOTE: the CSE models use the (pa - 90) trig
-    convention (mass.c:1166-1167 / 1697-1698), unlike the Schramm density
-    models, because the CSE kernel takes q directly with the major axis
-    along the rotated y direction."""
+    """Shared body of kapgam_anfw (mass.c:1146-1198), kapgam_ahern
+    (mass.c:1677-1729) and kapgam_acnfw (mass.c:2945-3000).  ``tables`` is the
+    (s, w) coefficient pair — fixed for anfw/ahern, b-interpolated for acnfw.
+    NOTE: the CSE models use the (pa - 90) trig convention (mass.c:1166-1167 /
+    1697-1698), unlike the Schramm density models, because the CSE kernel
+    takes q directly with the major axis along the rotated y direction."""
     q = 1.0 - e
     si, co = pa_minus_90_trig(pa)
-    s_tab, w_tab = _cse_tables_on(model, tx.device, tx.dtype)
+    s_tab, w_tab = tables
 
     dx = (tx - x0) / tt
     dy = (ty - y0) / tt
@@ -620,7 +632,8 @@ def kapgam_anfw(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
     q = 1.0 - e
     bb, tt = _calc_bbtt_nfw(m, c, ctx, nfw_users=nfw_users)
     tt = tt / _t_sqrt(q)
-    return _kapgam_cse_body(ctx, tx, ty, x0, y0, e, pa, bb, tt, "nfw",
+    tables = _cse_tables_on("nfw", tx.device, tx.dtype)
+    return _kapgam_cse_body(ctx, tx, ty, x0, y0, e, pa, bb, tt, tables,
                             need_kg, need_phi)
 
 
@@ -641,7 +654,113 @@ def kapgam_ahern(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
     q = 1.0 - e
     bb = _b_func_hern(m, rb, ctx)
     tt = rb / _t_sqrt(q)
-    return _kapgam_cse_body(ctx, tx, ty, x0, y0, e, pa, bb, tt, "hern",
+    tables = _cse_tables_on("hern", tx.device, tx.dtype)
+    return _kapgam_cse_body(ctx, tx, ty, x0, y0, e, pa, bb, tt, tables,
+                            need_kg, need_phi)
+
+
+# ---------------------------------------------------------------------------
+# 5) acnfw -- CSE-approximated CORED NFW density (mass.c:2945-3000,
+#    app_cnfw.c).  p[1]=M  p[2..3]=center  p[4]=e  p[5]=pa  p[6]=c  p[7]=b
+#    (b = core radius in units of rs).
+#
+#    glafic tabulates 44 (s, w) CSE pairs on a 201-point log10(b) grid
+#    (app_cnfw.c:8-12, b in [1e-8, 1e2] step 0.05 dex) and linearly
+#    interpolates the CSE *sums* between the two bracketing rows
+#    (calc_jp_acnfw app_cnfw.c:305-327; alpha/ddphi/phi_acnfw_dl
+#    app_cnfw.c:229-303).  Interpolating the sums of rows j and j+1 with
+#    weights (1-p) and p is identical to one 88-term CSE evaluation over the
+#    concatenated coefficients — which is how we feed the shared kernel.
+#    The table ships in _tab_cache/acnfw_cse_v1.npz (extracted verbatim from
+#    app_cnfw.c's par_cse_cnfw).
+# ---------------------------------------------------------------------------
+_ACNFW_LB_MIN = -8.0     # CNFW_LB_MIN (app_cnfw.c:11)
+_ACNFW_DLB = 0.05        # CNFW_LB_DLB (app_cnfw.c:13)
+_ACNFW_NB = 201          # NUM_NB_CNFW (app_cnfw.c:10)
+_acnfw_raw = None        # (S, W) numpy arrays, each (201, 44)
+_acnfw_cache: dict = {}  # (device, dtype) -> (S, W) tensors
+
+
+def _acnfw_tables_on(device: torch.device, dtype: torch.dtype):
+    """The full (201, 44) acnfw CSE coefficient tables on device/dtype."""
+    global _acnfw_raw
+    key = (device, dtype)
+    if key not in _acnfw_cache:
+        if _acnfw_raw is None:
+            import numpy as np
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "_tab_cache", "acnfw_cse_v1.npz")
+            with np.load(path) as z:
+                _acnfw_raw = (z["s"].copy(), z["w"].copy())
+        s_np, w_np = _acnfw_raw
+        _acnfw_cache[key] = (torch.tensor(s_np, device=device, dtype=dtype),
+                            torch.tensor(w_np, device=device, dtype=dtype))
+    return _acnfw_cache[key]
+
+
+def _calc_jp_acnfw(b: float):
+    """Row index j and interpolation weight p for log10(b)
+    (app_cnfw.c:305-327, scalar port)."""
+    if b <= 10.0 ** _ACNFW_LB_MIN:
+        return 0, 0.0
+    lb = math.log10(b)
+    j = int((lb - _ACNFW_LB_MIN) / _ACNFW_DLB)
+    if j >= _ACNFW_NB - 1:
+        return _ACNFW_NB - 2, 1.0
+    return j, (lb - (_ACNFW_LB_MIN + j * _ACNFW_DLB)) / _ACNFW_DLB
+
+
+def _calc_jp_acnfw_tensor(b: torch.Tensor):
+    """Tensor version of calc_jp_acnfw: elementwise (j, p) with the same
+    b<=1e-8 and j>=NB-1 edge handling."""
+    lb = torch.log10(torch.clamp(b, min=10.0 ** _ACNFW_LB_MIN))
+    jf = (lb - _ACNFW_LB_MIN) / _ACNFW_DLB
+    j = jf.floor().long()
+    p = jf - j.to(b.dtype)
+    over = j >= (_ACNFW_NB - 1)
+    j = torch.where(over, torch.full_like(j, _ACNFW_NB - 2), j)
+    p = torch.where(over, torch.ones_like(p), p)
+    return j, p
+
+
+def kapgam_acnfw(ctx: LensContext, tx: torch.Tensor, ty: torch.Tensor,
+                 p: tuple, smallcore: float = K.DEF_SMALLCORE,
+                 need_kg: bool = True, need_phi: bool = True,
+                 nfw_users: int = K.DEF_NFW_USERS):
+    m = _pf(p[1]); x0 = _pf(p[2]); y0 = _pf(p[3])
+    e = _pf(p[4]); pa = _pf(p[5]); c = _pf(p[6]); b = _pf(p[7])
+    if not _is_t(m, e, c, b):
+        if m <= 0.0: raise ValueError("acnfw: m must be positive")
+        if not (0.0 <= e < 1.0): raise ValueError("acnfw: e in [0,1)")
+        if c <= 0.0: raise ValueError("acnfw: c must be positive")
+        # maximum b corresponds to CNFW_LB_MAX; glafic's checkmodelpar_max is
+        # strict (util.c:21-27), so b must be < 100 (mass.c:2955-2957)
+        if b < 0.0 or b >= 100.0: raise ValueError("acnfw: b in [0, 100)")
+
+    q = 1.0 - e
+    bb, tt = _calc_bbtt_nfw(m, c, ctx, nfw_users=nfw_users)
+    tt = tt / _t_sqrt(q)
+
+    s_full, w_full = _acnfw_tables_on(tx.device, tx.dtype)
+    if torch.is_tensor(b):
+        # batched b, shaped to broadcast against tx (e.g. (C,1,1) vs (C,ny,nx)):
+        # gather the two bracketing rows per candidate.
+        j, pw = _calc_jp_acnfw_tensor(b)
+        j_flat = j.reshape(-1)
+        pw_flat = pw.reshape(-1, 1)
+        s_eff = torch.cat([s_full[j_flat], s_full[j_flat + 1]], dim=1)       # (C, 88)
+        w_eff = torch.cat([(1.0 - pw_flat) * w_full[j_flat],
+                           pw_flat * w_full[j_flat + 1]], dim=1)             # (C, 88)
+        n_c = s_eff.shape[0]
+        tail = [1] * (tx.ndim - 1)
+        tables = (s_eff.permute(1, 0).reshape(-1, n_c, *tail),
+                  w_eff.permute(1, 0).reshape(-1, n_c, *tail))
+    else:
+        j, pw = _calc_jp_acnfw(float(b))
+        tables = (torch.cat([s_full[j], s_full[j + 1]]),
+                  torch.cat([(1.0 - pw) * w_full[j], pw * w_full[j + 1]]))
+
+    return _kapgam_cse_body(ctx, tx, ty, x0, y0, e, pa, bb, tt, tables,
                             need_kg, need_phi)
 
 
@@ -653,4 +772,5 @@ KERNELS: dict = {
     "tnfwpot": kapgam_tnfwpot,
     "anfw":    kapgam_anfw,
     "ahern":   kapgam_ahern,
+    "acnfw":   kapgam_acnfw,
 }

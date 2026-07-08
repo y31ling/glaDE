@@ -23,6 +23,24 @@ from datetime import datetime
 from typing import Iterator, Optional
 
 
+def _pid_alive(pid) -> bool:
+    """True if *pid* is a live process. Used to detect a worker that crashed /
+    was killed / OOM'd before writing a terminal status (POSIX; the WSL/macOS
+    targets are POSIX). Note: pid reuse can briefly yield a false positive, which
+    only delays the SSE stream's terminal detection — never a wrong result."""
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True            # exists but owned by another user (not expected here)
+    except OSError:
+        return False
+    return True
+
+
 @dataclass
 class Job:
     id: str
@@ -134,16 +152,29 @@ class JobManager:
         if job is None:
             return {"state": "unknown"}
         sp = os.path.join(job.job_dir, "status.json")
+        st = {"state": "starting"}
         if os.path.exists(sp):
             try:
                 with open(sp, encoding="utf-8") as fh:
-                    return json.load(fh)
+                    st = json.load(fh)
             except (OSError, ValueError):
-                pass
-        return {"state": "starting"}
+                # a torn read mid-write: fall back without the worker_pid so the
+                # liveness check below is skipped (next poll re-reads cleanly).
+                st = {"state": "starting"}
+        # A worker that crashed / was killed / ran out of memory before writing a
+        # terminal state would otherwise look 'running' forever (the SSE stream
+        # then hangs to its idle timeout). If its pid is gone, mark it terminal.
+        if st.get("state") in ("starting", "running"):
+            wpid = st.get("worker_pid")
+            if wpid is not None and not _pid_alive(wpid):
+                st = {**st, "state": "interrupted",
+                      "error": "the run process exited before finishing "
+                               "(crash, kill, or out-of-memory); see the "
+                               "terminal window / job.log for details"}
+        return st
 
     def _is_finished(self, job: Job) -> bool:
-        return self.status(job.id).get("state") in ("done", "error")
+        return self.status(job.id).get("state") in ("done", "error", "interrupted")
 
     def tail(self, job_id: str, idle_timeout: float = 1800.0) -> Iterator[str]:
         """Yield log lines as they are written, ending when the job finishes."""

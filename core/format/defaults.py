@@ -79,7 +79,11 @@ DEFAULTS: dict[str, object] = {
     "MCMC_THIN": 2,
     "MCMC_PERTURBATION": 0.01,
     "MCMC_PROGRESS": True,
-    "MCMC_WORKERS": -1,
+    # 1 (single process) by default, matching DE's worker default: a fork pool
+    # left at -1 in a detached/backgrounded terminal can orphan its workers and
+    # spin at full CPU after the parent is killed mid-run. Set -1 explicitly in a
+    # foreground terminal to use all cores.
+    "MCMC_WORKERS": 1,
 }
 
 

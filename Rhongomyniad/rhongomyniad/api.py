@@ -32,7 +32,9 @@ from .extend import (EGrid, ExtendData, SECONDARY_DEFAULTS, c2calc_each_impl,
                      grid_nxy, read_point_obs_file)
 from .image_finder import GridSpec, findimg as _findimg_uniform, sum_lensmodel
 from .image_finder_adaptive import findimg_adaptive as _findimg_adaptive
-from .lens_models import LensContext, supported_models as _supported_models
+from .lens_models import (LensContext, supported_models as _supported_models,
+                          ensure_gals_loaded as _ensure_gals_loaded,
+                          set_galfile, set_gals, readgals, num_gals, clear_gals)
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +214,8 @@ def set_lens(i: int, model: str,
             f"available: {sorted(_supported_models())}")
     if i < 1 or i > K.NMAX_LEN:
         raise ValueError(f"lens id {i} out of range")
+    if model == "gals":
+        _ensure_gals_loaded()  # lazy readgals on first use (glafic call.c:137)
     _ensure_lens_slots(i)
     _STATE.lenses[i - 1] = (model, (p1, p2, p3, p4, p5, p6, p7, p8))
     if i > _STATE.num_len:

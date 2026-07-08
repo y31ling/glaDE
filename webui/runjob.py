@@ -76,8 +76,13 @@ def main(argv=None) -> int:
 
     os.makedirs(args.out, exist_ok=True)
     status_path = os.path.join(args.out, "status.json")
+    # Stamp the worker's OWN pid (not the terminal emulator's, which is what
+    # JobManager records) so the WebUI can tell a crashed/killed/OOM'd run apart
+    # from a slow one: a worker that dies before writing a terminal state leaves
+    # status at 'running', and JobManager.status() flips it to 'interrupted' once
+    # this pid is gone (see webui.jobs._pid_alive).
     status = {"state": "starting", "backend": args.backend, "mode": args.mode,
-              "files": args.files}
+              "files": args.files, "worker_pid": os.getpid()}
 
     def write_status(**extra):
         status.update(extra)
@@ -705,14 +710,50 @@ def _stage_native_input(input_path: str, job_dir: str) -> tuple:
 
 
 def _exec_glafic_stream(bin_path: str, input_path: str, run_dir: str) -> int:
-    """Run glafic on *input_path* in *run_dir*, streaming output to stdout."""
+    """Run glafic on *input_path* in *run_dir*, streaming output to stdout.
+
+    A wall-clock timeout bounds the run: glafic's amoeba (downhill simplex) can
+    stall indefinitely on a pathological model, which would otherwise block the
+    worker forever with the job stuck at 'running' and no reaper. The output is
+    pumped on a daemon thread so `proc.wait(timeout=...)` can fire even when glafic
+    goes silent; on expiry the process is killed and a non-zero rc (124, the
+    `timeout(1)` convention) is returned. The limit comes from
+    GLAFIC_AMOEBA_TIMEOUT (seconds; default 3600; 0 = no limit)."""
     import subprocess
+    import threading
+
+    raw = os.environ.get("GLAFIC_AMOEBA_TIMEOUT", "3600")
+    try:
+        timeout = float(raw)
+    except ValueError:
+        print(f"  [warn] ignoring malformed GLAFIC_AMOEBA_TIMEOUT={raw!r}; "
+              f"using 3600s", flush=True)
+        timeout = 3600.0
+
     proc = subprocess.Popen([bin_path, os.path.basename(input_path)], cwd=run_dir,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, bufsize=1)
-    for line in proc.stdout:                       # streamed -> tee'd to job.log
-        print(line.rstrip("\n"), flush=True)
-    proc.wait()
+
+    def _pump():
+        for line in proc.stdout:                   # streamed -> tee'd to job.log
+            print(line.rstrip("\n"), flush=True)
+
+    pump = threading.Thread(target=_pump, daemon=True)
+    pump.start()
+    try:
+        proc.wait(timeout=timeout if timeout > 0 else None)
+    except subprocess.TimeoutExpired:
+        print(f"\n[timeout] glafic amoeba exceeded {timeout:.0f}s without "
+              f"finishing; terminating it. Raise GLAFIC_AMOEBA_TIMEOUT (0 = no "
+              f"limit) if the model legitimately needs longer.", flush=True)
+        proc.kill()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        pump.join(timeout=5)
+        return 124
+    pump.join(timeout=5)
     return proc.returncode
 
 
