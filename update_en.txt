@@ -28,14 +28,23 @@ V0.6.0-GREY - comprehensive bilingual user manuals + README wrap-up
   direction, the uninstall flow, the inert legacy keys still receiving defaults,
   the over-1-sigma penalty being linear in the full residual, ...); the EN/ZH
   parity check found 0 divergences.
-- Code facts confirmed during the check and documented in the manuals (no code
-  changed this round): Clave's pow/pert add-lens dialog labels are swapped
-  relative to what the engine does with the values — the field labelled
-  "Fiducial zs" is passed to set_lens as the lens redshift (flagged in manual
-  5.4.3; UI fix pending); extended-source observed FITS must be 32-bit float
+- Code facts confirmed during the check and documented in the manuals: Clave's
+  pow/pert/gaupot add-lens dialog labels were swapped relative to what the
+  engine does with the values — the field labelled "Fiducial zs" was passed to
+  set_lens as the lens redshift, and gaupot even fed its "Dispersion" field
+  into the zs_fid slot and "Central k0" into the sigma slot (fixed in this
+  release, see below); extended-source observed FITS must be 32-bit float
   (BITPIX -32); some in-repo docs (Rhongomyniad README, core/SPEC.md section 6)
   lag behind V0.6.0 (the README banner was brought up to date in this release) —
   the manuals' scope note says the code wins.
+- Clave fix: the pow/pert/gaupot dialog fields now follow the engine convention
+  — the first z field is the lens redshift (default 0.5) and p1 is the fiducial
+  source redshift zs_fid (default 1; keep it above the lens z); gaupot's r1/r2
+  corrected to Gaussian width sigma (arcsec, default 0.5) / central kappa0
+  (default 0.1). Consistent with manual 6.4, Import to Clave and the glafic
+  export path; all three models smoke-tested against glafic with the corrected
+  defaults (each solves a physical 4-image configuration); manual 5.4.3
+  rewritten accordingly.
 - README: the top banner updated from V0.5.0 to V0.6.0, keeping only the latest
   release's update notes (the old V0.5.0/V0.4.5/V0.4.4 paragraphs removed;
   history remains in the History table and changelogs); source/GREY.jpg added at

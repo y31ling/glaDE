@@ -625,13 +625,12 @@ with the GPU name in the tooltip; `CPU` = Rhongomyniad present but no CUDA devic
 - Every dialog has an **Editor Mode** (`切换文本编辑器`): type the whole object as
   one line, `type z p1 x y e pa r1 r2`. Pasting a whitespace-separated line into the
   first field also distributes the values across the inputs.
-- ⚠️ Label quirk for `pow` and `pert`: the engine always treats the dialog's first
-  "z" field as the **lens redshift** and the p1 field as the fiducial source
-  redshift `zs_fid` (the same convention as §6.4) — but these two dialogs label
-  the fields the other way around ("Fiducial zs" on the first field, "Lens-plane z"
-  on p1). Fill in values by the engine convention, not the labels. (`gaupot`'s p1
-  field is its velocity dispersion.) Also: a redshift entered as `0` silently
-  reverts to the default (lens 0.5, source 2), and non-numeric entries become 0.
+- The `zs_fid` family (`pow`, `pert`, `gaupot`) follows the same convention as
+  §6.4: the first "z" field is the **lens redshift** (default 0.5) and the
+  `参考源红移 zs` / `Fiducial zs` field is the fiducial source redshift `zs_fid`
+  (default 1 — keep it above the lens redshift). Also: a redshift entered as `0`
+  silently reverts to the default (lens 0.5, source 2), and non-numeric entries
+  become 0.
 - Cosmology is fixed at (Ω_m, Ω_Λ, w, h) = (0.3, 0.7, −1, 0.7) and is not editable;
   redshifts are per-object.
 
