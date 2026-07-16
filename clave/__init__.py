@@ -198,15 +198,18 @@ def _fov_params(lenses, sources):
             re_est = max(p1 / 200.0 * 1.5, 0.5)
             all_x += [x + re_est, x - re_est]
             all_y += [y + re_est, y - re_est]
-        elif lt == "nfw" and r1 > 0:
-            re_est = max(p1 ** 0.5 * 0.5, 0.5)
+        elif lt in ("nfw", "anfw", "gnfw", "tnfw", "ein"):
+            # r1 is the CONCENTRATION (dimensionless), not a radius: estimate
+            # the extent from the mass via a point-equivalent Einstein radius
+            # (theta_E ~ sqrt(M / 2e11 Msun) arcsec at galaxy-scale redshifts).
+            re_est = max((max(p1, 0.0) / 2e11) ** 0.5, 0.5)
             all_x += [x + re_est, x - re_est]
             all_y += [y + re_est, y - re_est]
         elif lt == "king" and r1 > 0 and r2 > 0:
             rt = r1 * (10 ** min(float(r2), 3.0))
             all_x += [x + rt, x - rt]
             all_y += [y + rt, y - rt]
-        elif lt in ("pow", "jaffe", "sers", "hernquist", "gnfw", "tnfw"):
+        elif lt in ("pow", "jaffe", "sers", "hernquist", "hern", "ahern"):
             re_est = max(r1 * 3, 0.5)
             all_x += [x + re_est, x - re_est]
             all_y += [y + re_est, y - re_est]
@@ -214,7 +217,11 @@ def _fov_params(lenses, sources):
             all_x += [x + r1 * 4, x - r1 * 4]
             all_y += [y + r1 * 4, y - r1 * 4]
 
-    margin  = max(0.4, max(abs(v) for v in all_x + all_y) * 2.0)
+    # Hard cap: glafic's init() enforces nx_ext=(xmax-xmin)/pix_ext <= 20000
+    # and calls terminator() (process exit!) beyond it. With pix_ext=0.01 that
+    # means margin <= 100; cap at 60 so a huge-mass lens (e.g. the 1e13 Msun
+    # NFW default, whose crude re_est blows up) can never kill the server.
+    margin  = max(0.4, min(max(abs(v) for v in all_x + all_y) * 2.0, 60.0))
     pix_poi = max(0.02, min(0.15, margin / 6.0))
     return margin, pix_poi
 
@@ -368,46 +375,156 @@ def api_gpu_status():
     })
 
 
+def _gnum(v) -> str:
+    """Compact numeric literal for a glade ``.dat`` (1e+13, 0.3, 21.488...)."""
+    return f"{float(v):.10g}"
+
+
+def _render_glade_dat(lenses, sources, results):
+    """Render the Clave scene as a legal glade ``.dat`` document.
+
+    Returns ``(content, warnings)``. All parameters are locked to the scene
+    values; observations (when Clave has computed images for the first source)
+    are exported with placeholder error columns the user must edit.
+    """
+    from datetime import datetime
+
+    from core.format.schema import MODELS
+
+    warnings: list[str] = []
+    if not lenses:
+        raise ValueError("nothing to export: the scene has no lenses")
+
+    margin, pix_poi = _fov_params(lenses, sources)
+    src = sources[0] if sources else None
+    src_z = _safe_float(src.get("z"), 2.0) if src else 2.0
+    src_x = _safe_float(src.get("x"), 0.0) if src else 0.0
+    src_y = _safe_float(src.get("y"), 0.0) if src else 0.0
+    if not sources:
+        warnings.append("scene has no source; exported source_z=2, source at (0,0)")
+
+    L = [
+        "# ============================================================",
+        f"#  GLADE .dat exported from Clave  ({datetime.now():%Y-%m-%d %H:%M})",
+        "#  All parameters are locked to the Clave scene values.",
+        "#  To optimize a parameter, replace its value with {lo, hi}.",
+        "#  pa convention (glafic): measured East of North, i.e. counter-",
+        "#  clockwise from the +y axis; pa=0 puts the major axis along +y.",
+        "#  位置角约定: 从 +y 轴(北)逆时针起算; pa=0 时长轴沿 +y。",
+        "# ============================================================",
+        "",
+        "# --- grid (cosmology defaults: omega=0.3 lambda=0.7 hubble=0.7) ---",
+        f"xmin, ymin = {_gnum(-margin)}, {_gnum(-margin)}",
+        f"xmax, ymax = {_gnum(margin)}, {_gnum(margin)}",
+        "pix_ext = 0.01",
+        f"pix_poi = {_gnum(pix_poi)}",
+        "maxlev = 5",
+        "",
+        "# --- source ---",
+        f"source_z = {_gnum(src_z)}",
+        f"source_x = {_gnum(src_x)}    # e.g. {{{_gnum(src_x - 0.05)}, {_gnum(src_x + 0.05)}}} to optimize",
+        f"source_y = {_gnum(src_y)}",
+    ]
+    for k, extra in enumerate(sources[1:], start=2):
+        warnings.append(f"GLADE point mode fits a single source; source {k} "
+                        "was written as a comment")
+        L.append(f"# source {k} (not exported): z={_gnum(_safe_float(extra.get('z'), 2.0))}, "
+                 f"x={_gnum(_safe_float(extra.get('x')))}, y={_gnum(_safe_float(extra.get('y')))}")
+    L.append("")
+
+    L.append("# --- lenses (params in glafic set_lens order; values locked) ---")
+    idx = 0
+    clave_order = ("p1", "x", "y", "e", "pa", "r1", "r2")
+    for lens in lenses:
+        ltype = str(lens.get("type", "sie"))
+        z = _safe_float(lens.get("z"), 0.5)
+        vals = [_safe_float(lens.get(k), 0.0) for k in clave_order]
+        spec = MODELS.get(ltype)
+        if spec is None:
+            warnings.append(f"lens type '{ltype}' is unknown to GLADE and was "
+                            "written as a comment")
+            L.append(f"# UNSUPPORTED: '{ltype}': ({', '.join(_gnum(v) for v in [z] + vals)})")
+            continue
+        idx += 1
+        params = vals[:len(spec.params)]
+        tup = ", ".join([str(idx), f"'{spec.key}'", _gnum(z)] + [_gnum(v) for v in params])
+        L.append(f"'{spec.key}{idx}': ({tup})")
+        descs = "; ".join(f"{p.name}: {p.desc}" for p in spec.params if p.desc)
+        if descs:
+            L.append(f"#   {descs}")
+    if idx == 0:
+        raise ValueError("nothing to export: no lens type is supported by GLADE")
+    L.append("")
+
+    imgs = []
+    for res in results or []:
+        if int(res.get("source_idx", 0)) == 0:
+            imgs = list(res.get("images", []))
+            break
+    if not imgs:
+        # a legal point-mode .dat needs the obs arrays -- solve the exported
+        # source (the first scene source, or the default written above) now
+        try:
+            computed = compute_images(lenses, [{"z": src_z, "x": src_x, "y": src_y}])
+            if computed:
+                imgs = list(computed[0].get("images", []))
+        except Exception as exc:
+            warnings.append(f"could not compute images for the obs block: {exc}")
+    if not imgs:
+        warnings.append("no images -> no obs block; GLADE will refuse to load "
+                        "this file until an obs block is added")
+    if imgs:
+        pos = ", ".join(f"[{_gnum(_safe_float(im.get('x')) * 1000.0)},"
+                        f"{_gnum(_safe_float(im.get('y')) * 1000.0)}]" for im in imgs)
+        mus = [_safe_float(im.get("mu")) for im in imgs]
+        L += [
+            "# --- observations (from the Clave computed images) ---",
+            "# NOTE: the error columns are PLACEHOLDERS -- edit them to your",
+            "#       measurement uncertainties before fitting.",
+            f"obs_positions_mas_list = [{pos}]",
+            f"obs_magnifications_list = [{', '.join(_gnum(m) for m in mus)}]",
+            f"obs_mag_errors_list = [{', '.join(_gnum(max(abs(m) * 0.1, 0.05)) for m in mus)}]",
+            f"obs_pos_sigma_mas_list = [{', '.join('1' for _ in mus)}]",
+            "center_offset_x = 0",
+            "center_offset_y = 0",
+            "obs_x_flip = False      # Clave scene is already in the glafic math frame",
+            "",
+        ]
+    else:
+        L += ["# (no computed images -- add an obs_positions_mas_list block to fit)", ""]
+    return "\n".join(L) + "\n", warnings
+
+
+def _validate_glade_dat(content: str) -> list[str]:
+    """Run GLADE's full ``load_config`` pipeline on ``content``; return errors."""
+    try:
+        from core.format.api import load_config
+        with tempfile.NamedTemporaryFile("w", suffix=".dat", delete=False,
+                                         encoding="utf-8") as fh:
+            fh.write(content)
+            path = fh.name
+        try:
+            _cfg, issues = load_config([path])
+        finally:
+            os.unlink(path)
+        return [i.message for i in issues if i.is_error]
+    except Exception as exc:                       # pragma: no cover - safety net
+        return [f"validation crashed: {exc}"]
+
+
 @bp.route("/api/export", methods=["POST"])
 def api_export():
+    """Export the Clave scene as a legal glade ``.dat`` document."""
     data    = request.get_json(force=True) or {}
     lenses  = data.get("lenses",  [])
     sources = data.get("sources", [])
     results = data.get("results", [])
-
-    lines = ["## Clave Gravitational Lens Calculator Export\n", "\n"]
-    for lens in lenses:
-        t  = lens.get("type", "sie")
-        z  = _safe_float(lens.get("z"),  0.5)
-        p1 = _safe_float(lens.get("p1"), 0.0)
-        x  = _safe_float(lens.get("x"),  0.0)
-        y  = _safe_float(lens.get("y"),  0.0)
-        e  = _safe_float(lens.get("e"),  0.0)
-        pa = _safe_float(lens.get("pa"), 0.0)
-        r1 = _safe_float(lens.get("r1"), 0.0)
-        r2 = _safe_float(lens.get("r2"), 0.0)
-        lines.append(
-            f"lens {t}  {z:.4f}  {p1:.6e}  {x:.6e}  {y:.6e}"
-            f"  {e:.4f}  {pa:.4f}  {r1:.6e}  {r2:.6e}\n"
-        )
-    for src in sources:
-        z = _safe_float(src.get("z"), 2.0)
-        x = _safe_float(src.get("x"), 0.0)
-        y = _safe_float(src.get("y"), 0.0)
-        lines.append(f"point  {z:.4f}  {x:.6e}  {y:.6e}\n")
-
-    if results:
-        lines.append("\n## Lensed image positions:\n")
-        lines.append("## source  x(arcsec)  y(arcsec)  mu  time_delay\n")
-        for res in results:
-            si = res.get("source_idx", 0)
-            for img in res.get("images", []):
-                lines.append(
-                    f"## img {si+1}  {img['x']:.6e}  {img['y']:.6e}"
-                    f"  {img['mu']:.4f}  {img['td']:.4f}\n"
-                )
-
-    return jsonify({"ok": True, "content": "".join(lines)})
+    try:
+        content, warnings = _render_glade_dat(lenses, sources, results)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+    return jsonify({"ok": True, "content": content,
+                    "warnings": warnings, "errors": _validate_glade_dat(content)})
 
 
 @bp.route("/api/status")

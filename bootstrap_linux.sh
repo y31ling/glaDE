@@ -47,6 +47,29 @@ CFITSIO_VERSION="4.6.2"
 FFTW_VERSION="3.3.10"
 GSL_VERSION="2.8"
 
+# GLADE's pinned deps (numpy 2.x, scipy 1.17) require a modern CPython.
+MIN_PY_MINOR=10   # hard floor: 3.10 ; 3.11+ recommended
+
+check_python_version() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    err "未找到 python3。请先安装 Python (>= 3.${MIN_PY_MINOR})。"
+    exit 1
+  fi
+  local ver major minor
+  ver="$(python3 -c 'import sys; print("%d.%d"%sys.version_info[:2])')"
+  major="${ver%%.*}"; minor="${ver##*.}"
+  if [[ "${major}" -ne 3 || "${minor}" -lt "${MIN_PY_MINOR}" ]]; then
+    err "检测到 Python ${ver}，但 GLADE 需要 Python >= 3.${MIN_PY_MINOR}"
+    err "（numpy 2.x / scipy 1.17 等依赖不支持更旧版本）。请升级 Python 后重试。"
+    exit 1
+  fi
+  if [[ "${minor}" -lt 11 ]]; then
+    warn "Python ${ver} 可用，但推荐 3.11+（部分依赖的最新版本需要 3.11）。"
+  else
+    info "Python ${ver} ✓"
+  fi
+}
+
 install_system_packages() {
   local missing=0
   local packages=(
@@ -290,6 +313,89 @@ setup_python_env() {
   fi
 }
 
+# ── Optional GPU backend (PyTorch, drives Rhongomyniad) ───
+# Rhongomyniad itself is pure Python (already on PYTHONPATH via env.sh); it only
+# needs PyTorch to run. Torch is heavy and CUDA-specific, so it is OPTIONAL: a
+# CPU-only GLADE install works without it (the WebUI GPU toggle just shows N/A).
+setup_gpu_optional() {
+  echo
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  Optional: GPU acceleration (PyTorch / Rhongomyniad)"
+  echo    "  可选：GPU 加速（PyTorch，驱动 Rhongomyniad）"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  [1] Skip / 跳过 (default — CPU-only, fully functional)"
+  echo    "  [2] NVIDIA GPU (CUDA build of PyTorch)"
+  echo    "  [3] CPU-only PyTorch (enables the GPU code path on CPU)"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  read -rp "  Choose [1/2/3] (default: 1): " _gpu
+  local args=()
+  case "${_gpu}" in
+    2) args=(torch) ;;
+    3) args=(torch --index-url https://download.pytorch.org/whl/cpu) ;;
+    *) info "跳过 GPU 依赖安装（CPU 模式）。"; return 0 ;;
+  esac
+  info "安装 PyTorch（可能较大，请耐心等待）..."
+  # Non-fatal: a torch failure must not abort an otherwise-good CPU install.
+  if [[ "${USE_VENV}" -eq 1 ]]; then
+    # shellcheck disable=SC1091
+    [[ -f "${VENV_DIR}/bin/activate" ]] && source "${VENV_DIR}/bin/activate"
+    if pip install "${args[@]}"; then
+      info "PyTorch 安装完成。"
+    else
+      warn "PyTorch 安装失败——GLADE 仍可在 CPU 模式下运行。可稍后手动安装。"
+    fi
+  else
+    local bsp_flag=""
+    if pip3 install --help 2>&1 | grep -q -- "--break-system-packages"; then
+      bsp_flag="--break-system-packages"
+    fi
+    # shellcheck disable=SC2086
+    if pip3 install ${bsp_flag} "${args[@]}"; then
+      info "PyTorch 安装完成。"
+    else
+      warn "PyTorch 安装失败——GLADE 仍可在 CPU 模式下运行。可稍后手动安装。"
+    fi
+  fi
+}
+
+# ── Initialize the WebUI feature flag (always, regardless of code state) ──
+# Re-stamps the flag's localStorage namespace in webui/static/app.js to a fresh
+# per-install value. Because the browser's previously stored flag lives under
+# the OLD namespace, this guarantees the flag is re-initialized on every fresh
+# install, independent of what the current code or a prior browser state held.
+initialize_prank_flag() {
+  local appjs="${SCRIPT_DIR}/webui/static/app.js"
+  if [[ ! -f "${appjs}" ]]; then
+    warn "webui/static/app.js 未找到，跳过 flag 初始化。"
+    return 0
+  fi
+  local py_bin="python3"
+  [[ "${USE_VENV}" -eq 1 && -x "${VENV_DIR}/bin/python3" ]] && py_bin="${VENV_DIR}/bin/python3"
+  local stamp result
+  stamp="$(date +%Y%m%d%H%M%S)-$$-${RANDOM}"
+  result="$(GLADE_AF_STAMP="${stamp}" "${py_bin}" - "${appjs}" <<'PY'
+import os, re, sys
+path = sys.argv[1]
+stamp = os.environ["GLADE_AF_STAMP"]
+with open(path, encoding="utf-8") as fh:
+    text = fh.read()
+new, n = re.subn(r'"glade_af_seen(?:_[0-9A-Za-z\-]+)?"',
+                 '"glade_af_seen_%s"' % stamp, text, count=1)
+if n:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(new)
+    print("OK")
+else:
+    print("MISS")
+PY
+)"
+  if [[ "${result}" == OK* ]]; then
+    info "WebUI 功能 flag 已初始化 (namespace: glade_af_seen_${stamp})。"
+  else
+    warn "未在 app.js 中找到 flag，跳过初始化。"
+  fi
+}
+
 # ── Register glafic Python module path via .pth file ──────
 # This allows `import glafic` to work from ANY Python invocation
 # without needing to source env.sh first.
@@ -402,7 +508,7 @@ except ImportError as e:
     sys.exit(1)
 PY
 
-  info "验证 LD_LIBRARY_PATH（通过 env.sh）..."
+  info "验证 GLADE 与引擎（通过 env.sh）..."
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/env.sh"
   python3 - <<'PY'
@@ -412,8 +518,21 @@ try:
     print("  [OK] glafic import via env.sh succeeded")
     print("       GLAFIC_HOME:", os.environ.get("GLAFIC_HOME"))
 except ImportError as e:
-    print("  [FAIL]", e)
+    print("  [FAIL] glafic:", e)
     sys.exit(1)
+try:
+    import glade  # the GLADE library facade (bootstraps core/rhongomyniad paths)
+    print("  [OK] import glade ->", getattr(glade, "__version__", "?"))
+except Exception as e:  # noqa: BLE001
+    print("  [FAIL] glade:", e)
+    sys.exit(1)
+# GPU is optional: report availability without failing the install.
+try:
+    import torch
+    print("  [OK] PyTorch", torch.__version__,
+          "| CUDA:", torch.cuda.is_available())
+except Exception:  # noqa: BLE001
+    print("  [ .. ] PyTorch not installed -> GPU features disabled (CPU-only OK)")
 PY
   info "全部验证通过。"
 }
@@ -422,6 +541,7 @@ do_install() {
   info "开始为 Linux 自动搭建 GLADE 环境..."
   choose_install_mode
   install_system_packages
+  check_python_version
 
   mkdir -p "${DEPS_SRC_DIR}" "${DEPS_PREFIX}/lib" "${DEPS_PREFIX}/include"
   build_cfitsio
@@ -430,9 +550,11 @@ do_install() {
   build_glafic
   setup_python_env
   install_glafic_to_python   # register glafic in site-packages (.pth)
+  setup_gpu_optional         # optional PyTorch (GPU / Rhongomyniad)
   write_env_script
   write_run_script
   write_webui_script
+  initialize_prank_flag      # (re)initialize the WebUI feature flag
   verify_installation
 
   info "全部完成。"
@@ -755,4 +877,9 @@ main() {
   choose_action
 }
 
-main "$@"
+# Run the installer only when executed directly. When this file is *sourced*
+# (e.g. by update.sh, to reuse write_glafic_makefile / build_glafic /
+# setup_gpu_optional / initialize_prank_flag), nothing runs automatically.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

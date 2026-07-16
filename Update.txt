@@ -1,3 +1,39 @@
+V0.6.1 - 一键更新器 update.sh + Clave 合法 .dat 导出与画布对齐
+
+- 新增一键更新脚本 update.sh：从 GitHub 拉取最新代码并原地刷新既有安装，无需重装。
+  - 「从 GitHub 更新」：git fetch 后快进当前分支（对真实本地改动做安全 auto-stash；
+    冲突时回滚到干净新版、把改动完整保留在 git stash 里并明确提示，绝不在带冲突标记的
+    树上继续构建）；仅当 glafic 的 C 源码（*.c/*.h/Makefile/bootstrap）变化时才重建引擎，
+    否则跳过；按需升级 Python 依赖（requirements.txt 变了才 --upgrade）；仅在生成器
+    bootstrap 变动时重写 env.sh / run_*.sh；结束时可选加装/更新 GPU（PyTorch）并重新验证。
+  - 「仅添加/更新 GPU」：只装 PyTorch，把 CPU 版就地升级为 GPU 版，不动代码、不重建。
+  - 复用 bootstrap 的构建函数（source 而非重跑），更新时构建 glade 的方式与全新安装完全一致
+    （含拉到新 glafic 源文件时重新生成 Makefile）；两个安装脚本改为「被 source 时不自动执行、
+    仅当直接运行才安装」（BASH_SOURCE 守卫），以便被 update.sh 复用。
+- bootstrap（Linux / macOS）增强：
+  - 新增 Python 版本校验：硬性要求 >= 3.10（numpy 2.x / scipy 1.17 等依赖不支持更旧版本），
+    低于 3.11 给出推荐升级提示。
+  - 新增可选 GPU 后端安装：交互式选择安装 PyTorch（Linux 提供 CUDA 版 / CPU 版 / 跳过，
+    macOS 提供 CPU+MPS / 跳过），安装失败不阻断整体安装（CPU 模式照常可用）。
+  - 安装末尾自检新增 import glade（库门面）与 PyTorch/CUDA（macOS 为 MPS）可用性报告
+    （torch 缺失只提示、不判失败）。
+- Clave：导出改为合法的 glade .dat（取代旧的自由文本格式）。
+  - 按 glafic set_lens 顺序写出锁定参数的透镜、栅格与源，并从 Clave 已算出的像自动生成
+    观测块（obs_positions_mas_list 等；误差列为占位符，需用户按实测填写）；GLADE 不认识的
+    透镜类型降级为注释并给出警告。
+  - 导出前用 GLADE 完整的 load_config 流程校验，错误/警告随结果返回；在 WebUI 环境下直接存进
+    工作区 InputFiles/（带时间戳文件名 clave_YYYYMMDD_HHMMSS.dat），独立运行时回退为浏览器下载。
+  - 画布渲染对齐 glafic 的位置角约定（pa 从北逆时针起算，质量分布长轴在世界角 pa+90）：
+    透镜形状、旋转手柄、十字线现在一致落在长轴上（此前少了 90 度偏置，画出的椭圆朝向与引擎不符）。
+  - FOV 估计修正：NFW 族（nfw/anfw/gnfw/tnfw/ein）的 r1 是无量纲聚集度而非半径，改按质量估算
+    等效爱因斯坦半径；并对视场 margin 加 60 角秒硬上限——避免大质量透镜（如默认 1e13 M⊙ 的 NFW）
+    把视场撑到 glafic init() 的 nx_ext>20000 上限而触发进程退出、拖垮服务。
+  - i18n 补全（文档标题、拖动排序、类型搜索、GPU 提示与错误、锁定状态、导出各类提示等），
+    并跟随 WebUI 的中英切换：接收父页 postMessage、监听同源 glade_lang 变化、URL 的 ?lang= 初始化，
+    Clave 内部切换也写回 glade_lang。
+- WebUI：点击语言按钮时把语言经 postMessage 同步给 Clave iframe（并以 ?lang= 传入首次加载）。
+
+
 V0.6.0-GREY - 双语详尽用户手册 + README 收尾
 
 - 新增两份完整用户手册（manual/），面向具备基础编程能力、非透镜方向的物理本科生，
@@ -41,7 +77,7 @@ V0.6.0-GREY - 双语详尽用户手册 + README 收尾
   V0.5.1 对内部笔记的处理）加入忽略。
 
 
-V0.6.0 - Clave 集成 + 透镜模型全覆盖 + 库化 + WebUI 主题/双语
+V0.6.0-Beta (Pre-release) - Clave 集成 + 透镜模型全覆盖 + 库化 + WebUI 主题/双语
 
 - 补全 Rhongomyniad：新增 crline（直临界线）、acnfw（有核 NFW 的 CSE 近似）、gals（外部星系表）
   三个透镜模型——至此 glafic 全部 27 个透镜模型在 GPU 上悉数可用（多平面除外）。
@@ -136,7 +172,7 @@ V0.5.1
   - 保留：source/ 下的图像/动画素材（为未来 WebUI 准备）、main.py/runner.py/injector.py/runtime_env.py（bootstrap 与 README 引用的 legacy CLI 入口）、tools 下有文档的工具（TOOLS_OVERVIEW.md 所列）、legacy/ 冻结档案。
   - 另：Rhongomyniad/_tab_cache/（自动构建的查表缓存）与一次性测试产物已在 V0.5.0 入 ignore。
 
-V0.5.0 - Rhongomyniad 正式版大更新（整合未发布的 V0.4.6 / V0.4.7 / V0.4.8）
+V0.5.0-Rhongomyniad - 正式版大更新（整合未发布的 V0.4.6 / V0.4.7 / V0.4.8）
 
 Rhongomyniad（PyTorch/CUDA GPU 引擎）自 V0.3.0 测试版以来首次占据正式版本名。
 本版把 GPU 后端从"点质量批量 + 模型子集"升级为与 CPU 全行为对齐、任意可优化
@@ -287,7 +323,7 @@ V0.4.1
 - glafic 常数为了确保速度而回退：TOL_ROMBERG_JHK 1.0e-8 -> 1.0e-5。
 
 
-V0.4.0 - ReUnit 重统一大更新
+V0.4.0-ReUnit - 重统一大更新
 
 - 重构核心：将原先分散、重复于 legacy/ 中的差分进化（DE）优化与作图代码抽取为统一、与后端无关的 core/ 模块（legacy/ 保留为历史归档，新代码不再依赖它）。
   - core/optimize：单一 DE 优化器，同一套代码即可驱动 glafic（CPU）或 Rhongomyniad（GPU）；主透镜与子结构（point-mass / NFW / King / p-jaffe 等）可任意组合、混合优化。
@@ -315,6 +351,7 @@ V0.3.0 - Rhongomyniad 测试版
 V0.2.2
 
 - 新增这个日志。
+- 从现在开始每一个重大更新v-.x.-版本(x+1)都会有专属代号
 - 新增可将当前参数设置一键转换到 glafic 输入文件的功能。
 - 重做观测数据填写窗口，使其与 lens 文件保持一致且可以直接导入。
 - 侧边栏现在可以通过拖拽改变大小。

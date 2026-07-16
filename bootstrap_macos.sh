@@ -173,6 +173,30 @@ build_glafic() {
   cd "${SCRIPT_DIR}"
 }
 
+# ── 2.5 Python version guard ─────────────────────────────────────────────────
+# GLADE's pinned deps (numpy 2.x, scipy 1.17) require a modern CPython.
+MIN_PY_MINOR=10   # hard floor: 3.10 ; 3.11+ recommended
+
+check_python_version() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    err "未找到 python3。请安装 Python (>= 3.${MIN_PY_MINOR})，例如：brew install python"
+    exit 1
+  fi
+  local ver major minor
+  ver="$(python3 -c 'import sys; print("%d.%d"%sys.version_info[:2])')"
+  major="${ver%%.*}"; minor="${ver##*.}"
+  if [[ "${major}" -ne 3 || "${minor}" -lt "${MIN_PY_MINOR}" ]]; then
+    err "检测到 Python ${ver}，但 GLADE 需要 Python >= 3.${MIN_PY_MINOR}"
+    err "（numpy 2.x / scipy 1.17 等依赖不支持更旧版本）。可执行：brew install python"
+    exit 1
+  fi
+  if [[ "${minor}" -lt 11 ]]; then
+    warn "Python ${ver} 可用，但推荐 3.11+（部分依赖的最新版本需要 3.11）。"
+  else
+    info "Python ${ver} ✓"
+  fi
+}
+
 # ── 3. Python env ────────────────────────────────────────────────────────────
 setup_python_env() {
   if [[ "${USE_VENV}" -eq 1 ]]; then
@@ -207,6 +231,79 @@ install_glafic_to_python() {
   info "注册 glafic 模块路径到 site-packages..."
   echo "${glafic_py_dir}" > "${site_pkgs}/${pth_name}"
   info "  ${glafic_py_dir} -> ${site_pkgs}/${pth_name}"
+}
+
+# ── 3.5 Optional GPU backend (PyTorch, drives Rhongomyniad) ──────────────────
+# Rhongomyniad is pure Python (already on PYTHONPATH via env.sh); it only needs
+# PyTorch to run. On macOS the torch wheel covers CPU (and MPS on Apple Silicon);
+# NVIDIA CUDA is not available. Optional: a CPU-only GLADE works without it.
+setup_gpu_optional() {
+  echo
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  Optional: PyTorch (enables the Rhongomyniad GPU code path)"
+  echo    "  可选：PyTorch（启用 Rhongomyniad GPU 代码路径；macOS 为 CPU/MPS）"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  echo    "  [1] Skip / 跳过 (default — CPU-only, fully functional)"
+  echo    "  [2] Install PyTorch / 安装 PyTorch (CPU + Apple MPS)"
+  echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
+  read -rp "  Choose [1/2] (default: 1): " _gpu
+  if [[ "${_gpu}" != "2" ]]; then
+    info "跳过 PyTorch 安装（CPU 模式）。"
+    return 0
+  fi
+  info "安装 PyTorch（可能较大，请耐心等待）..."
+  # Non-fatal: a torch failure must not abort an otherwise-good CPU install.
+  if [[ "${USE_VENV}" -eq 1 ]]; then
+    # shellcheck disable=SC1091
+    [[ -f "${VENV_DIR}/bin/activate" ]] && source "${VENV_DIR}/bin/activate"
+    pip install torch && info "PyTorch 安装完成。" \
+      || warn "PyTorch 安装失败——GLADE 仍可在 CPU 模式下运行。"
+  else
+    local bsp_flag=""
+    if pip3 install --help 2>&1 | grep -q -- "--break-system-packages"; then
+      bsp_flag="--break-system-packages"
+    fi
+    # shellcheck disable=SC2086
+    pip3 install ${bsp_flag} torch && info "PyTorch 安装完成。" \
+      || warn "PyTorch 安装失败——GLADE 仍可在 CPU 模式下运行。"
+  fi
+}
+
+# ── 3.6 Initialize the WebUI feature flag (always, regardless of code state) ─
+# Re-stamps the flag's localStorage namespace in webui/static/app.js to a fresh
+# per-install value, so the flag is re-initialized on every fresh install
+# independent of prior code or browser state.
+initialize_prank_flag() {
+  local appjs="${SCRIPT_DIR}/webui/static/app.js"
+  if [[ ! -f "${appjs}" ]]; then
+    warn "webui/static/app.js 未找到，跳过 flag 初始化。"
+    return 0
+  fi
+  local py_bin="python3"
+  [[ "${USE_VENV}" -eq 1 && -x "${VENV_DIR}/bin/python3" ]] && py_bin="${VENV_DIR}/bin/python3"
+  local stamp result
+  stamp="$(date +%Y%m%d%H%M%S)-$$-${RANDOM}"
+  result="$(GLADE_AF_STAMP="${stamp}" "${py_bin}" - "${appjs}" <<'PY'
+import os, re, sys
+path = sys.argv[1]
+stamp = os.environ["GLADE_AF_STAMP"]
+with open(path, encoding="utf-8") as fh:
+    text = fh.read()
+new, n = re.subn(r'"glade_af_seen(?:_[0-9A-Za-z\-]+)?"',
+                 '"glade_af_seen_%s"' % stamp, text, count=1)
+if n:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(new)
+    print("OK")
+else:
+    print("MISS")
+PY
+)"
+  if [[ "${result}" == OK* ]]; then
+    info "WebUI 功能 flag 已初始化 (namespace: glade_af_seen_${stamp})。"
+  else
+    warn "未在 app.js 中找到 flag，跳过初始化。"
+  fi
 }
 
 # ── 4. launchers (env.sh / run_glade.sh / run_webui.sh) ──────────────────────
@@ -292,10 +389,25 @@ try:
 except Exception as e:  # noqa: BLE001
     print("  [FAIL]", e); sys.exit(1)
 PY
-  info "验证多进程 start method（macOS 应为 spawn）..."
-  "${python_bin}" - <<'PY'
+  info "验证 GLADE 库与多进程 start method（macOS 应为 spawn）..."
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/env.sh"
+  python3 - <<'PY'
+import sys
+try:
+    import glade
+    print("  [OK] import glade ->", getattr(glade, "__version__", "?"))
+except Exception as e:  # noqa: BLE001
+    print("  [FAIL] glade:", e); sys.exit(1)
 from core.parallel import preferred_start_method
 print("  preferred_start_method() =", preferred_start_method())
+try:
+    import torch
+    print("  [OK] PyTorch", torch.__version__,
+          "| MPS:", getattr(getattr(torch, "backends", None), "mps", None)
+          and torch.backends.mps.is_available())
+except Exception:  # noqa: BLE001
+    print("  [ .. ] PyTorch not installed -> GPU features disabled (CPU-only OK)")
 PY
   info "全部验证通过。"
 }
@@ -305,13 +417,16 @@ do_install() {
   info "开始为 macOS 自动搭建 GLADE 环境..."
   choose_install_mode
   check_toolchain
+  check_python_version
   install_brew_packages
   build_glafic
   setup_python_env
   install_glafic_to_python
+  setup_gpu_optional         # optional PyTorch (GPU / Rhongomyniad)
   write_env_script
   write_run_script
   write_webui_script
+  initialize_prank_flag      # (re)initialize the WebUI feature flag
   verify_installation
 
   echo
@@ -333,4 +448,9 @@ do_install() {
   echo "          多进程数量沿用 DE_WORKERS / MCMC_WORKERS（-1 = 全核）。"
 }
 
-do_install "$@"
+# Run the installer only when executed directly. When this file is *sourced*
+# (e.g. by update.sh, to reuse build_glafic / setup_gpu_optional /
+# initialize_prank_flag), nothing runs automatically.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  do_install "$@"
+fi

@@ -235,8 +235,8 @@ body{background:#fff;color:var(--tx);font-family:'Segoe UI',system-ui,sans-serif
 <script>
 /* ===== I18N ===== */
 const I={
-zh:{sub:'引力透镜模拟计算器',addSrc:'添加光源',addLens:'添加透镜',exp:'导出数据',calc:'计算像位置',dlgSrc:'添加光源',dlgLens:'添加透镜',editSrc:'编辑光源',editLens:'编辑透镜',srcType:'光源类型',lensType:'透镜类型',edTog:'切换文本编辑器',ok:'确认添加',upd:'更新',cancel:'取消',rt:'实时模式',st:'稳定模式',rdy:'就绪',comp:'计算中...',done:'完成',err:'错误',srcHint:'格式: type  z  x(arcsec)  y(arcsec)',lensHint:'格式: type  z  p1  x  y  e  pa  r1  r2',srcSec:'光源 Sources',lensSec:'透镜 Lenses',srcItem:'光源',lock:'锁定',unlock:'解锁',gpuOn:'GPU计算',gpuOff:'CPU计算',imgSec:'像 Images',noImg:'(无像)',imported:'已导入'},
-en:{sub:'Gravitational Lens Calculator',addSrc:'ADD SOURCE',addLens:'ADD LENS',exp:'Export Data',calc:'Calculate',dlgSrc:'Add Source',dlgLens:'Add Lens',editSrc:'Edit Source',editLens:'Edit Lens',srcType:'Source Type',lensType:'Lens Type',edTog:'Editor Mode',ok:'Enter',upd:'Update',cancel:'Cancel',rt:'Realtime Mode',st:'Stable Mode',rdy:'Ready',comp:'Computing...',done:'Done',err:'Error',srcHint:'Format: type  z  x(arcsec)  y(arcsec)',lensHint:'Format: type  z  p1  x  y  e  pa  r1  r2',srcSec:'Sources',lensSec:'Lenses',srcItem:'Source',lock:'Lock',unlock:'Unlock',gpuOn:'GPU Mode',gpuOff:'CPU Mode',imgSec:'Images',noImg:'(no images)',imported:'Imported'}
+zh:{sub:'引力透镜模拟计算器',addSrc:'添加光源',addLens:'添加透镜',exp:'导出到 GLADE',calc:'计算像位置',dlgSrc:'添加光源',dlgLens:'添加透镜',editSrc:'编辑光源',editLens:'编辑透镜',srcType:'光源类型',lensType:'透镜类型',edTog:'切换文本编辑器',ok:'确认添加',upd:'更新',cancel:'取消',rt:'实时模式',st:'稳定模式',rdy:'就绪',comp:'计算中...',done:'完成',err:'错误',srcHint:'格式: type  z  x(arcsec)  y(arcsec)',lensHint:'格式: type  z  p1  x  y  e  pa  r1  r2',srcSec:'光源 Sources',lensSec:'透镜 Lenses',srcItem:'光源',lock:'锁定',unlock:'解锁',gpuOn:'GPU计算',gpuOff:'CPU计算',imgSec:'像 Images',noImg:'(无像)',imported:'已导入',docTitle:'Clave — 引力透镜计算器',dragSort:'拖动排序',typeSearch:'搜索类型...',noRes:'无结果',gpuTgl:'切换计算后端',gpuSup:'支持模型',gpuErr:'GPU错误',lockOn:'已锁定',lockOff:'已解锁',expSaved:'已导出到 GLADE:',expDone:'已导出',expFail:'导出失败',expInvalid:'导出文件校验未通过'},
+en:{sub:'Gravitational Lens Calculator',addSrc:'ADD SOURCE',addLens:'ADD LENS',exp:'Export to GLADE',calc:'Calculate',dlgSrc:'Add Source',dlgLens:'Add Lens',editSrc:'Edit Source',editLens:'Edit Lens',srcType:'Source Type',lensType:'Lens Type',edTog:'Editor Mode',ok:'Enter',upd:'Update',cancel:'Cancel',rt:'Realtime Mode',st:'Stable Mode',rdy:'Ready',comp:'Computing...',done:'Done',err:'Error',srcHint:'Format: type  z  x(arcsec)  y(arcsec)',lensHint:'Format: type  z  p1  x  y  e  pa  r1  r2',srcSec:'Sources',lensSec:'Lenses',srcItem:'Source',lock:'Lock',unlock:'Unlock',gpuOn:'GPU Mode',gpuOff:'CPU Mode',imgSec:'Images',noImg:'(no images)',imported:'Imported',docTitle:'Clave — Gravitational Lens Calculator',dragSort:'Drag to reorder',typeSearch:'Search types...',noRes:'No results',gpuTgl:'Switch compute backend',gpuSup:'Supported models',gpuErr:'GPU error',lockOn:'Locked',lockOff:'Unlocked',expSaved:'Exported to GLADE:',expDone:'Exported',expFail:'Export failed',expInvalid:'Exported file failed validation'}
 };
 
 /* ===== LENS SCHEMAS ===== */
@@ -261,7 +261,14 @@ const GN={c:{zh:'常用',en:'Common'},e:{zh:'延展',en:'Extended'},p:{zh:'扰�
 const SP=[{k:'z',zh:'红移 z',en:'Redshift z',u:'',d:2},{k:'x',zh:'位置 x',en:'x (arcsec)',u:'"',d:0.05},{k:'y',zh:'位置 y',en:'y (arcsec)',u:'"',d:0.05}];
 
 /* ===== STATE ===== */
-const S={lenses:[],sources:[],images:[],view:{ox:0,oy:0,ppa:150},drag:null,altDown:false,mode:'realtime',lang:'zh',computing:false,hideImages:false,lastCt:0,nid:1,ci:0,selected:null,backend:'cpu'};
+// language: URL ?lang= (webui iframe passes it) > shared glade_lang > zh
+const _lang0=(()=>{try{
+  const u=new URLSearchParams(location.search).get('lang');
+  if(u==='zh'||u==='en')return u;
+  const s=localStorage.getItem('glade_lang');
+  if(s==='zh'||s==='en')return s;
+}catch(e){}return 'zh';})();
+const S={lenses:[],sources:[],images:[],view:{ox:0,oy:0,ppa:150},drag:null,altDown:false,mode:'realtime',lang:_lang0,computing:false,hideImages:false,lastCt:0,nid:1,ci:0,selected:null,backend:'cpu',gpuStat:null};
 let _editMode=null; // null | {kind:'lens'|'src', id:Number}
 
 /* ===== ROTATION HANDLE ===== */
@@ -279,10 +286,10 @@ function getRotHP(id){
   // clamp so the handle stays reachable even when the shape dwarfs the
   // viewport (an uncapped ir+28 can land thousands of px off screen)
   const dist=Math.max(42,Math.min(ir+28,160));
-  // handle sits ON the major axis (same screen angle as the drawn shape /
-  // crosshair, -pa in canvas coords) so dragging it rotates the lens the
-  // same way the shape turns — the old (sin,-cos) placement spun opposite.
-  const par=-(l.pa||0)*Math.PI/180;
+  // handle sits ON the major axis. glafic measures pa East of North (CCW
+  // from +y), so the major axis lies at world angle pa+90 from +x, i.e.
+  // canvas angle -(pa+90); same angle as the drawn shape / crosshair.
+  const par=-((l.pa||0)+90)*Math.PI/180;
   return{x:lx+dist*Math.cos(par),y:ly+dist*Math.sin(par),lx,ly};
 }
 
@@ -413,13 +420,16 @@ function vizLens(l){
     case'sers':{return{k:'diff',r:r1*2.5,core:0,e,pa,cut:false};}
     case'hern':case'ahern':{return{k:'diff',r:r1*4,core:0,e,pa,cut:false};}
     case'pow':{return{k:'diff',r:r1*1.5,core:0,e,pa,cut:false};}
-    case'pert':case'gaupot':{return{k:'pert',r:.3};}
+    case'pert':case'gaupot':{return{k:'pert',r:.3,pa};}
     default:{return{k:'diff',r:Math.max(.05,r1*2),core:0,e,pa,cut:false};}
   }
 }
 
 function drawLensShape(cx,cy,vz,col){
-  const q=Math.max(.05,1-(vz.e||0)),pa=vz.pa||0,pr=pa*Math.PI/180;
+  // glafic pa is East of North (CCW from +y): the mass-distribution major
+  // axis sits at world angle pa+90 from +x. rotate(-(pa+90)) + scale(1,q)
+  // puts the drawn ellipse's long axis exactly there.
+  const q=Math.max(.05,1-(vz.e||0)),pa=vz.pa||0,pr=(pa+90)*Math.PI/180;
   if(vz.k==='king'){
     const rcp=a2px(vz.rc),rtp=a2px(vz.rt);if(rtp<1)return;
     const g=ctx.createRadialGradient(cx,cy,rcp,cx,cy,rtp);
@@ -476,7 +486,7 @@ function drawLensShape(cx,cy,vz,col){
   } else {
     ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(cx,cy,Math.max(15,a2px(vz.r||.2)),0,Math.PI*2);ctx.strokeStyle=rgba(col,.5);ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);
   }
-  const cl=8,p2=-(pa)*Math.PI/180;
+  const cl=8,p2=-(pa+90)*Math.PI/180;   // first arm = major axis (world pa+90)
   ctx.strokeStyle=rgba(col,.85);ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(cx+cl*Math.cos(p2),cy+cl*Math.sin(p2));ctx.lineTo(cx-cl*Math.cos(p2),cy-cl*Math.sin(p2));ctx.stroke();
   ctx.beginPath();ctx.moveTo(cx+cl*Math.cos(p2+Math.PI/2),cy+cl*Math.sin(p2+Math.PI/2));ctx.lineTo(cx-cl*Math.cos(p2+Math.PI/2),cy-cl*Math.sin(p2+Math.PI/2));ctx.stroke();
@@ -532,7 +542,7 @@ async function doComp(){
       const msg=d.error||'';
       setStatus('err','Err: '+msg.slice(0,60));
       // GPU不支持该透镜类型时自动提示
-      if(S.backend==='gpu')showToast('GPU错误: '+msg.slice(0,80));
+      if(S.backend==='gpu')toast(t('gpuErr')+': '+msg.slice(0,80),3000);
     }
   }catch(e){setStatus('err','Network err');}
   S.computing=false;updImgSec();render();
@@ -614,11 +624,11 @@ cv.addEventListener('mousemove',e=>{
     return;
   }
 
-  // Rotation (inverse of getRotHP: screen angle -> pa = -atan2)
+  // Rotation (inverse of getRotHP: canvas angle = -(pa+90) -> pa = -atan2 - 90)
   if(S.drag.tp==='rot'){
     const l=S.lenses.find(l=>l.id===S.drag.id);
     if(l){
-      l.pa=((-Math.atan2(cy-S.drag.ly,cx-S.drag.lx)*180/Math.PI)+360)%360;
+      l.pa=((-Math.atan2(cy-S.drag.ly,cx-S.drag.lx)*180/Math.PI-90)+360)%360;
       updSb('lens',l.id);render();
       if(S.mode==='realtime'){const nw=Date.now();if(nw-S.lastCt>=100){S.lastCt=nw;schedComp(true);}}
     }
@@ -685,7 +695,7 @@ function buildDD(q){
       ltdd.appendChild(o);any=true;
     }
   }
-  if(!any)ltdd.innerHTML='<div style="padding:8px 12px;color:#94a3b8;font-size:12px">No results</div>';
+  if(!any)ltdd.innerHTML='<div style="padding:8px 12px;color:#94a3b8;font-size:12px">'+t('noRes')+'</div>';
 }
 function selLT(k){
   _lt=k;const s=LS[k];
@@ -857,7 +867,7 @@ function sbItemHTML(k,obj){
   const lk=obj.locked?'&#128274;':'&#128275;';
   if(k==='lens'){
     const c=LC[obj.ci%LC.length],s=LS[obj.type];
-    return '<span class="sb-dh" title="拖动排序">≡</span>'
+    return '<span class="sb-dh" title="'+t('dragSort')+'">≡</span>'
       +'<div class="sb-dot" style="background:'+hex(c)+'"></div>'
       +'<div class="sb-body2"><div class="sb-ti"><span>'+(s?s.nm:obj.type)+'</span><span class="sb-badge" style="background:'+hex(c)+'20;color:'+hex(c)+'">z='+fn(obj.z)+'</span></div>'
       +'<div class="sb-par" id="sp-l-'+obj.id+'"><span class="sb-xy">x='+fn(obj.x)+'" y='+fn(obj.y)+'"</span>'+(obj.p1?' p1='+fn(obj.p1):'')+'</div></div>'
@@ -866,7 +876,7 @@ function sbItemHTML(k,obj){
       +'<button class="sb-ab sb-del" onclick="delObj(\'lens\','+obj.id+')">&#x2715;</button>'
       +'</div>';
   } else {
-    return '<span class="sb-dh" title="拖动排序">≡</span>'
+    return '<span class="sb-dh" title="'+t('dragSort')+'">≡</span>'
       +'<div class="sb-dot" style="background:'+hex(SC)+'"></div>'
       +'<div class="sb-body2"><div class="sb-ti"><span>'+t('srcItem')+' #'+obj.id+'</span><span class="sb-badge" style="background:#3b82f620;color:#3b82f6">z='+fn(obj.z)+'</span></div>'
       +'<div class="sb-par" id="sp-s-'+obj.id+'"><span class="sb-xy">x='+fn(obj.x)+'" y='+fn(obj.y)+'"</span></div></div>'
@@ -981,7 +991,7 @@ function toggleLock(k,id){
     const lb=el.querySelector('.sb-lock');
     if(lb)lb.innerHTML=obj.locked?'&#128274;':'&#128275;';
   }
-  toast(S.lang==='zh'?(obj.locked?'已锁定':'已解锁'):(obj.locked?'Locked':'Unlocked'));
+  toast(t(obj.locked?'lockOn':'lockOff'));
 }
 
 /* ===== DRAG-TO-REORDER (sidebar lists) ===== */
@@ -1025,7 +1035,23 @@ function setupListDrop(listId,k){
 }
 
 /* ===== TOOLBAR ===== */
-document.getElementById('btn-lang').addEventListener('click',()=>{S.lang=S.lang==='zh'?'en':'zh';applyLang();});
+document.getElementById('btn-lang').addEventListener('click',()=>{
+  S.lang=S.lang==='zh'?'en':'zh';
+  try{localStorage.setItem('glade_lang',S.lang);}catch(e){}
+  applyLang();
+});
+// follow the WebUI language: postMessage from the parent tab, or a
+// glade_lang change made in another same-origin window
+window.addEventListener('message',e=>{
+  if(e.data&&e.data.type==='clave-lang'&&(e.data.lang==='zh'||e.data.lang==='en')){
+    if(S.lang!==e.data.lang){S.lang=e.data.lang;applyLang();}
+  }
+});
+window.addEventListener('storage',e=>{
+  if(e.key==='glade_lang'&&(e.newValue==='zh'||e.newValue==='en')&&S.lang!==e.newValue){
+    S.lang=e.newValue;applyLang();
+  }
+});
 document.getElementById('btn-mode').addEventListener('click',()=>{
   S.mode=S.mode==='realtime'?'stable':'realtime';
   const b=document.getElementById('btn-mode');b.textContent=t(S.mode==='realtime'?'rt':'st');b.classList.toggle('active',S.mode==='stable');
@@ -1037,15 +1063,41 @@ document.getElementById('export-btn').addEventListener('click',async()=>{
   try{
     const r=await fetch('/clave/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lenses:S.lenses,sources:S.sources,results:S.images})});
     const d=await r.json();
-    if(d.ok){const b=new Blob([d.content],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='clave_export.txt';a.click();toast(S.lang==='zh'?'已导出':'Exported');}
-  }catch(e){toast('Export failed');}
+    if(!d.ok){toast(t('expFail')+(d.error?': '+d.error.slice(0,80):''),3000);return;}
+    const ts=new Date(),pad=n=>String(n).padStart(2,'0');
+    const fname='clave_'+ts.getFullYear()+pad(ts.getMonth()+1)+pad(ts.getDate())+'_'+pad(ts.getHours())+pad(ts.getMinutes())+pad(ts.getSeconds())+'.dat';
+    // save into the GLADE workspace (InputFiles/) when the webui file API is
+    // reachable; fall back to a plain download in standalone mode
+    let saved='';
+    try{
+      const sr=await fetch('/api/files/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:fname,content:d.content})});
+      const sd=await sr.json();
+      if(sd.ok)saved=sd.path;
+    }catch(_){/* standalone: no webui file API */}
+    if(!saved){
+      const b=new Blob([d.content],{type:'text/plain'});const a=document.createElement('a');
+      a.href=URL.createObjectURL(b);a.download=fname;a.click();
+    }
+    if(d.errors&&d.errors.length)toast(t('expInvalid')+': '+d.errors[0].slice(0,80),4000);
+    else if(d.warnings&&d.warnings.length)toast((saved?t('expSaved')+' '+saved+' — ':'')+d.warnings[0].slice(0,80),4000);
+    else toast(saved?t('expSaved')+' '+saved:t('expDone')+' '+fname);
+  }catch(e){toast(t('expFail'));}
 });
 
 /* ===== UTILS ===== */
 const t=k=>I[S.lang][k]||k;
 function setStatus(st,tx){const d=document.getElementById('sdot'),t2=document.getElementById('stxt');d.className='';if(st)d.classList.add(st);t2.textContent=tx||'';}
 function toast(msg,dur=2000){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),dur);}
+function applyGpuTooltip(){
+  const d=S.gpuStat,wrap=document.getElementById('gpu-toggle-wrap');
+  wrap.title=t('gpuTgl');
+  if(d&&d.rhong_ok&&d.gpu_avail)
+    wrap.title=`GPU: ${d.gpu_name||'CUDA'}\n${t('gpuSup')}: ${(d.models||[]).join(', ')}`;
+}
 function applyLang(){
+  document.documentElement.lang=S.lang==='zh'?'zh-CN':'en';
+  document.title=t('docTitle');
+  document.getElementById('btn-lang').textContent=S.lang==='zh'?'中文':'EN';
   document.getElementById('tb-sub').textContent=t('sub');
   document.getElementById('lbl-add-src').textContent=t('addSrc');
   document.getElementById('lbl-add-lens').textContent=t('addLens');
@@ -1059,6 +1111,7 @@ function applyLang(){
   }
   document.getElementById('lbl-src-type').textContent=t('srcType');
   document.getElementById('lbl-lens-type').textContent=t('lensType');
+  document.getElementById('lens-type-inp').placeholder=t('typeSearch');
   document.getElementById('src-ed-tog').textContent=t('edTog');
   document.getElementById('lens-ed-tog').textContent=t('edTog');
   document.getElementById('src-cancel').textContent=t('cancel');
@@ -1068,6 +1121,23 @@ function applyLang(){
   document.getElementById('lens-ed-hint').textContent=t('lensHint');
   document.getElementById('lbl-src-sec').textContent=t('srcSec');
   document.getElementById('lbl-lens-sec').textContent=t('lensSec');
+  // status line: re-translate when it currently shows a known phrase
+  const stEl=document.getElementById('stxt');
+  for(const key of['rdy','comp','done']){
+    if(stEl.textContent===I.zh[key]||stEl.textContent===I.en[key]||
+       stEl.textContent===I.zh[key]+' (GPU)'||stEl.textContent===I.en[key]+' (GPU)'){
+      stEl.textContent=t(key)+(stEl.textContent.endsWith(' (GPU)')?' (GPU)':'');break;
+    }
+  }
+  applyGpuTooltip();
+  // rebuild sidebar rows (source titles, drag-handle tooltips)
+  for(const l of S.lenses)rebuildSbItem('lens',l.id);
+  for(const s of S.sources)rebuildSbItem('src',s.id);
+  // refresh the lens-type display text unless the dialog is open with edits
+  if(!document.getElementById('dlg-lens').classList.contains('open')){
+    const sch=LS[_lt];
+    if(sch)document.getElementById('lens-type-inp').value=sch.nm+' — '+(S.lang==='zh'?sch.fz:sch.fe);
+  }
   updImgSec();
 }
 
@@ -1134,13 +1204,13 @@ window.addEventListener('resize',()=>{cv.width=cv.offsetWidth;cv.height=cv.offse
   gpuChk.addEventListener('change',applyGpuToggle);
 
   fetch('/clave/api/gpu_status').then(r=>r.json()).then(d=>{
+    S.gpuStat=d;
     if(d.rhong_ok&&d.gpu_avail){
       gpuBadge.textContent='CUDA';
       gpuBadge.classList.remove('unavail');
       gpuBadge.classList.add('cuda');
       gpuBadge.title=d.gpu_name||'GPU available';
-      document.getElementById('gpu-toggle-wrap').title=
-        `GPU: ${d.gpu_name||'CUDA'}\n支持模型: ${(d.models||[]).join(', ')}`;
+      applyGpuTooltip();
     } else if(d.rhong_ok){
       gpuBadge.textContent='CPU';
       gpuBadge.classList.remove('unavail');

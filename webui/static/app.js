@@ -3,6 +3,56 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
+// -------------------------------------------------------------------------
+(function () {
+  const SEEN_KEY = "glade_af_seen";           // flag: starts false (absent)
+  let flag = localStorage.getItem(SEEN_KEY) === "1";
+  const now = new Date();
+  if (flag || now.getMonth() !== 3 || now.getDate() !== 1) return;
+
+  const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let addr = "1";
+  for (let i = 0; i < 33; i++) addr += B58[Math.floor(Math.random() * B58.length)];
+
+  const ov = document.createElement("div");
+  ov.style.cssText =
+    "position:fixed;inset:0;z-index:2147483647;background:#ff0000;color:#000;" +
+    "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
+    "text-align:center;padding:6vw;gap:3vh;font-family:'Segoe UI',system-ui,sans-serif;" +
+    "font-weight:800;cursor:none;user-select:none";
+  ov.innerHTML =
+    '<div style="font-size:clamp(24px,7vw,84px);line-height:1.1">Your PC has been hacked</div>' +
+    '<div style="font-size:clamp(16px,3vw,32px);font-weight:700;max-width:26ch">' +
+    "Transfer 1 BTC to the below address to unlock." +
+    '</div><div style="font-size:clamp(13px,2.4vw,26px);font-family:Consolas,monospace;' +
+    'word-break:break-all;background:#000;color:#ff0000;padding:.5em .8em;border-radius:6px">' +
+    addr + "</div>" +
+    '<div style="font-size:clamp(10px,1.4vw,14px);font-weight:400;opacity:.55;margin-top:2vh">' +
+    "press any key to continue</div>";
+
+  const show = () => {
+    document.body.appendChild(ov);
+    try {                                     // best-effort real fullscreen
+      const r = document.documentElement.requestFullscreen();
+      if (r && r.catch) r.catch(() => {});
+    } catch (e) { /* no gesture: the overlay already fills the window */ }
+  };
+
+  const dismiss = () => {
+    window.removeEventListener("keydown", dismiss, true);
+    ov.remove();
+    if (document.fullscreenElement && document.exitFullscreen)
+      document.exitFullscreen().catch(() => {});
+    localStorage.setItem(SEEN_KEY, "1");      // flag -> true: never again
+    flag = true;
+  };
+
+  window.addEventListener("keydown", dismiss, true);
+  if (document.body) show();
+  else window.addEventListener("DOMContentLoaded", show);
+})();
+// -------------------------------------------------------------------------
+
 // ===================== i18n =====================
 const I18N = {
   en: {
@@ -250,8 +300,13 @@ const Clave = {
   loaded: false,
   ensure() {
     if (this.loaded) return;
-    $("#clave-frame").src = "/clave/";
+    $("#clave-frame").src = "/clave/?lang=" + LANG;
     this.loaded = true;
+  },
+  syncLang() {
+    const frame = $("#clave-frame");
+    if (this.loaded && frame && frame.contentWindow)
+      frame.contentWindow.postMessage({ type: "clave-lang", lang: LANG }, "*");
   },
 };
 
@@ -755,6 +810,7 @@ $("#btn-lang").onclick = () => {
   LANG = LANG === "en" ? "zh" : "en";
   localStorage.setItem("glade_lang", LANG);
   applyLang();
+  Clave.syncLang();
 };
 $("#btn-theme").onclick = () => {
   applyTheme(currentTheme() === "dark" ? "light" : "dark");

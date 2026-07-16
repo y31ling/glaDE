@@ -1,3 +1,56 @@
+V0.6.1 - one-shot updater update.sh + Clave legal .dat export & canvas alignment
+
+- New updater script update.sh: pull the latest code from GitHub and refresh an
+  existing install in place, no reinstall needed.
+  - "Update from GitHub": fetch, then fast-forward the current branch (safe
+    auto-stash of genuine local edits; on conflict it rolls back to a clean new
+    version, keeps the edits safely in git stash and says so, and never builds on
+    a tree with conflict markers); rebuild the glafic C engine ONLY when its
+    sources (*.c/*.h/Makefile/bootstrap) changed; upgrade Python deps only when
+    requirements.txt changed; regenerate env.sh / run_*.sh only when their
+    generator (bootstrap) changed; then optionally add/update GPU (PyTorch) and
+    re-verify.
+  - "Add / update GPU": install PyTorch only, turning a CPU-only install into a
+    GPU one in place -- no code change, no rebuild.
+  - It reuses the bootstrap build functions (sourced, never re-run), so an update
+    builds glade exactly the way a fresh install does (including a regenerated
+    Makefile when new glafic sources are pulled); both bootstraps now guard with
+    BASH_SOURCE so sourcing loads their functions without auto-running the install.
+- bootstrap (Linux / macOS) enhancements:
+  - Python version guard: hard floor 3.10 (numpy 2.x / scipy 1.17 do not support
+    older), with a recommend-3.11+ notice below 3.11.
+  - Optional GPU backend install: interactively install PyTorch (Linux: CUDA /
+    CPU-only / skip; macOS: CPU+MPS / skip); a torch failure is non-fatal (the
+    CPU-only install stays fully functional).
+  - The post-install self-check now also does `import glade` (the library facade)
+    and reports PyTorch/CUDA (MPS on macOS) availability without failing when torch
+    is absent.
+- Clave: export now produces a legal glade .dat (replacing the old freeform text).
+  - Writes the lenses (params locked, in glafic set_lens order), grid and source,
+    and auto-generates the observation block from Clave's computed images
+    (obs_positions_mas_list etc.; the error columns are placeholders to edit);
+    lens types GLADE does not know are downgraded to comments with a warning.
+  - The exported .dat is validated through GLADE's full load_config pipeline and
+    errors/warnings are returned; under the WebUI it is saved straight into the
+    workspace InputFiles/ (timestamped name clave_YYYYMMDD_HHMMSS.dat), falling
+    back to a browser download in standalone mode.
+  - Canvas rendering now matches glafic's pa convention (measured East of North,
+    i.e. the mass major axis at world angle pa+90): the lens shape, rotation
+    handle and crosshair all sit on the major axis (the previous 90-degree offset
+    drew the ellipse at the wrong orientation vs the engine).
+  - FOV estimate fix: the NFW family (nfw/anfw/gnfw/tnfw/ein) r1 is a dimensionless
+    concentration, not a radius -- estimate the extent from the mass instead; and a
+    hard 60-arcsec cap on the field margin so a huge-mass lens (e.g. the default
+    1e13 Msun NFW) can no longer blow the field past glafic init()'s nx_ext>20000
+    limit and trigger a process exit that takes the server down.
+  - i18n completed (document title, drag-to-reorder, type search, GPU tooltip and
+    errors, lock state, the export messages, ...) and now follows the WebUI
+    language toggle: parent postMessage, same-origin glade_lang changes, and a
+    ?lang= URL init; toggling inside Clave also writes glade_lang back.
+- WebUI: clicking the language button syncs the language to the Clave iframe via
+  postMessage (and passes ?lang= on its first load).
+
+
 V0.6.0-GREY - comprehensive bilingual user manuals + README wrap-up
 
 - Two complete user manuals were added under manual/, written for a physics
