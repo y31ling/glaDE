@@ -91,7 +91,9 @@ def run_mcmc(problem: OptProblem, obs: ObsData, loss_cfg,
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, vectorize=True)
     else:
         eng = backend if backend in ("cpu", "glafic", "gpu") else "cpu"
-        log_prob = LogProbability(problem, obs, loss_cfg, eng)
+        log_prob = LogProbability(
+            problem, obs, loss_cfg, eng,
+            auto_check=bool(problem.cfg.algorithm.get("auto_check", True)))
         if eng != "gpu" and cfg.workers != 1:
             import multiprocessing as mp
 

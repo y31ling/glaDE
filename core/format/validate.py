@@ -312,4 +312,20 @@ def validate(cfg: GladeConfig, backend: Optional[str] = None) -> list[Issue]:
             f"gpu_precision = {gp!r}: expected 64 (fp64), 48 (mixed: fp32 "
             f"fields + fp64 Newton refine) or 32 (fp32)"))
 
+    opt = cfg.algorithm.get("OPTIMIZER")
+    if opt is not None:
+        from ..optimize.runner import normalize_algorithm
+        try:
+            canon = normalize_algorithm(opt)
+        except ValueError:
+            issues.append(Issue(
+                ERROR, "bad_optimizer",
+                f"OPTIMIZER = {opt!r}: expected 'DE', 'BIPOP-CMA-ES' or 'jSO'"))
+        else:
+            if canon != "DE" and is_extend_mode(cfg):
+                issues.append(Issue(
+                    ERROR, "bad_optimizer",
+                    f"OPTIMIZER = {opt!r} is point-source only; "
+                    f"extended-source (FITS) runs use DE"))
+
     return issues

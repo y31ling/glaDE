@@ -60,14 +60,26 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   display: flex; flex-direction: column; gap: 8px;
 }
 .rail-title { font-size: 11px; text-transform: uppercase; color: var(--fg-dim); margin-bottom: 4px; }
-.backend-opt {
-  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
-  padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 2px;
+
+/* pipeline settings icon button */
+.pipeline-settings-btn {
+  align-self: center; width: 64px; height: 64px; padding: 10px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; margin-bottom: 6px;
 }
-.backend-opt.active { border-color: var(--accent2); background: var(--active-tint); }
-.backend-opt:hover:not(.active) { background: var(--bg4); }
-.bo-name { font-weight: 600; font-size: 15px; }
-.bo-sub { font-size: 11px; color: var(--fg-dim); }
+.pipeline-settings-btn img { width: 100%; height: 100%; object-fit: contain; }
+.pipeline-settings-btn:hover { background: var(--bg4); }
+.pipeline-settings-btn.active { border-color: var(--accent2); background: var(--active-tint); }
+
+/* live pipeline display (rail) */
+.pipeline-display {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center;
+}
+.pl-node { display: flex; flex-direction: column; align-items: center; }
+.pl-main { font-weight: 700; font-size: 17px; color: var(--fg); }
+.pl-sub { font-size: 11px; color: var(--fg-dim); }
+.pl-backend .pl-main { color: var(--gold); font-size: 19px; }
+.pl-bar { color: var(--fg-dim); font-size: 14px; line-height: 1.1; }
 
 #findimage-main { flex: 1; min-width: 0; padding: 12px; }
 .fi-cols { display: flex; gap: 12px; height: 100%; }
@@ -115,6 +127,67 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .result-fig figcaption { font-size: 12px; color: var(--fg-dim); margin-bottom: 4px; }
 .result-area img { max-width: 100%; border: 1px solid var(--border); border-radius: 6px; }
 .hidden { display: none !important; }
+
+/* terminal wrapper (swapped out for the settings panel) */
+.fi-terminal-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---------- FindImage pipeline settings panel ---------- */
+.settings-panel {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden;
+}
+.settings-head {
+  padding: 14px 20px; font-size: 20px; font-weight: 700; color: var(--fg);
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+}
+.settings-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; }
+.setting-section { margin-bottom: 26px; }
+.setting-label {
+  font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--fg-dim); margin-bottom: 12px;
+}
+.setting-cards { display: flex; flex-wrap: wrap; gap: 14px; }
+.setting-card {
+  flex: 1 1 180px; min-width: 160px; text-align: left;
+  background: var(--bg3); border: 2px solid var(--border); border-radius: 10px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 6px;
+  transition: border-color .12s, background .12s;
+}
+.setting-card:hover { background: var(--bg4); }
+.setting-card.active { border-color: var(--accent2); background: var(--active-tint); }
+.sc-label { font-size: 20px; font-weight: 700; color: var(--fg); }
+.sc-hint { font-size: 13px; color: var(--fg-dim); line-height: 1.4; }
+.settings-foot {
+  display: flex; justify-content: flex-end; padding: 14px 20px;
+  background: var(--bg3); border-top: 1px solid var(--border);
+}
+.settings-foot .run-btn { padding: 10px 34px; }
+
+/* ---------- Unit-setting dialog ---------- */
+.unit-toprow { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.unit-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-dim); }
+.unit-field select, .unit-field input {
+  padding: 7px 8px; background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-width: 160px;
+}
+.unit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.unit-table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--fg-dim); padding: 4px 8px; border-bottom: 1px solid var(--border);
+}
+.unit-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.unit-table .ut-label { color: var(--fg); font-weight: 500; }
+.ut-select {
+  padding: 6px 8px; background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-width: 140px;
+}
+.unit-table-fixed td { border-bottom: 1px dashed var(--border); }
+.unit-table-fixed .ut-label { color: var(--fg-dim); font-weight: 400; }
+.ut-fixedval { color: var(--fg-dim); font-family: monospace; opacity: .8; }
+.unit-fixed-note { margin: 14px 0 6px; font-size: 12px; color: var(--fg-dim); font-weight: 600; }
+.unit-custom-note { margin-top: 14px; font-size: 12px; color: var(--fg-dim); font-style: italic; }
+.modal-actions.unit-actions { justify-content: space-between; }
 
 /* ===================== Clave (embedded iframe) ===================== */
 #page-clave iframe { flex: 1; width: 100%; height: 100%; border: none; background: #fff; }

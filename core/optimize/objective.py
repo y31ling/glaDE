@@ -60,10 +60,16 @@ def point_source_loss(images, obs: ObsData, loss_cfg: LossConfig) -> float:
 
 class Objective:
     def __init__(self, problem: OptProblem, obs: ObsData, loss_cfg: LossConfig,
-                 backend: Union[str, Backend]):
+                 backend: Union[str, Backend], auto_check: bool = False):
         self.problem = problem
         self.obs = obs
         self.loss_cfg = loss_cfg
+        # auto_check: in-loop micro-image protection (plan §5b). When True and
+        # a compact perturber sits within its trigger radius of a matched
+        # image, that image's magnification is replaced by the local cluster
+        # Sigma|mu| via a second zoomed engine cycle. False (or no trigger)
+        # keeps the historical code path bit-identical.
+        self.auto_check = bool(auto_check)
         if isinstance(backend, str):
             self.backend_name: str | None = backend
             self._backend: Backend | None = None
@@ -83,12 +89,31 @@ class Objective:
             self._backend = make_backend(self.backend_name)
         return self._backend
 
+    def _checked_loss(self, images, scene) -> float:
+        """The auto_check loss: triggered images get their cluster Sigma|mu|
+        from a second zoomed cycle of the SAME engine module (after the main
+        cycle's quit; init/quit never nest). Only reachable when the backend
+        is an EngineBackend-style object exposing its module as ``_m``."""
+        from ..micro_audit import (checked_point_source_loss,
+                                   find_compact_perturbers,
+                                   make_binding_solver)
+        if not find_compact_perturbers(scene):
+            return point_source_loss(images, self.obs, self.loss_cfg)
+        solver = make_binding_solver(self.backend()._m)
+        return checked_point_source_loss(images, self.obs, self.loss_cfg,
+                                         scene, solver)
+
     def evaluate_one(self, candidate) -> float:
         scene = self.problem.make_scene(np.asarray(candidate, dtype=float))
         try:
             images = self.backend().compute_images(scene)
         except Exception:
             return INVALID_LOSS
+        if self.auto_check and getattr(self.backend(), "_m", None) is not None:
+            try:
+                return self._checked_loss(images, scene)
+            except Exception:  # noqa: BLE001 — fail safe to the plain loss
+                pass
         return point_source_loss(images, self.obs, self.loss_cfg)
 
     def __call__(self, candidate) -> float:

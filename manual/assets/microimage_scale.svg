@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+  <title id="title">Angular scales behind the micro-image blind spot</title>
+  <desc id="desc">A nested comparison of one HST pixel, the terminal glafic point-source cell, and the recovered micro-image cluster, plus the maxlev refinement ladder.</desc>
+  <defs>
+    <style>
+      .bg{fill:#0f172a}.panel{fill:#172033;stroke:#334155;stroke-width:2}.t{fill:#e5e7eb;font-family:'Noto Sans CJK SC','Noto Sans CJK TC',Arial,'Noto Sans',sans-serif}.muted{fill:#9ca3af;font-family:'Noto Sans CJK SC','Noto Sans CJK TC',Arial,'Noto Sans',sans-serif}.cyan{stroke:#22d3ee}.amber{stroke:#fbbf24}.rose{stroke:#fb7185}.green{stroke:#4ade80}.line{stroke-width:3;fill:none}.thin{stroke-width:1.5;fill:none}.box{fill:none;stroke-width:3}.arrow{fill:#94a3b8}.code{fill:#c4b5fd;font-family:'DejaVu Sans Mono',monospace}
+    </style>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" class="arrow"/></marker>
+  </defs>
+  <rect width="1100" height="620" class="bg"/>
+  <text x="40" y="48" class="t" font-size="28" font-weight="700">Why a few-mas cluster disappears / 为何几 mas 的微像簇会消失</text>
+
+  <rect x="35" y="75" width="500" height="500" rx="18" class="panel"/>
+  <text x="60" y="112" class="t" font-size="20" font-weight="700">Linear scale / 线性比例</text>
+  <!-- 7 px per mas -->
+  <rect x="145" y="155" width="274.4" height="274.4" class="box cyan"/>
+  <text x="145" y="454" class="t" font-size="18">one HST pixel / 一个 HST 像素</text>
+  <text x="145" y="480" class="t" font-size="24" font-weight="700">39.2 mas</text>
+
+  <rect x="238.5" y="248.5" width="87.5" height="87.5" class="box amber"/>
+  <line x1="326" y1="292" x2="455" y2="292" class="amber thin"/>
+  <text x="345" y="278" class="t" font-size="16">terminal finder cell</text>
+  <text x="345" y="303" class="t" font-size="20" font-weight="700">12.5 mas</text>
+
+  <circle cx="282" cy="292" r="12" fill="none" class="rose line"/>
+  <circle cx="289" cy="286" r="3.8" fill="#60a5fa"/>
+  <circle cx="283" cy="292" r="3.2" fill="#fb7185"/>
+  <circle cx="276" cy="296" r="3.8" fill="#60a5fa"/>
+  <circle cx="279" cy="287" r="2.2" fill="#fb7185"/>
+  <line x1="270" y1="342" x2="270" y2="370" class="rose thin" marker-end="url(#arrow)"/>
+  <text x="165" y="394" class="t" font-size="17">recovered cluster span / 恢复出的微像簇跨度</text>
+  <text x="250" y="420" class="t" font-size="22" font-weight="700">3.4 mas</text>
+  <text x="62" y="534" class="muted" font-size="16">The telescope blends the cluster; the model must sum its flux.</text>
+  <text x="62" y="558" class="muted" font-size="16">望远镜把整簇混成一点；模型必须把各根流量相加。</text>
+
+  <rect x="560" y="75" width="505" height="500" rx="18" class="panel"/>
+  <text x="585" y="112" class="t" font-size="20" font-weight="700">What maxlev=5 actually means</text>
+  <text x="585" y="138" class="t" font-size="18">maxlev=5 的真实含义</text>
+  <text x="585" y="180" class="code" font-size="19">dp(lev) = pix_poi / 2^lev</text>
+  <text x="585" y="207" class="code" font-size="19">lev = 0, 1, ..., maxlev - 1</text>
+
+  <g class="t" font-size="17" text-anchor="middle">
+    <rect x="590" y="245" width="82" height="58" rx="8" fill="#24334d" stroke="#22d3ee"/><text x="631" y="279">200 mas</text>
+    <line x1="672" y1="274" x2="700" y2="274" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="706" y="245" width="82" height="58" rx="8" fill="#24334d" stroke="#38bdf8"/><text x="747" y="279">100 mas</text>
+    <line x1="788" y1="274" x2="816" y2="274" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="822" y="245" width="72" height="58" rx="8" fill="#24334d" stroke="#60a5fa"/><text x="858" y="279">50 mas</text>
+    <line x1="894" y1="274" x2="922" y2="274" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="928" y="245" width="72" height="58" rx="8" fill="#24334d" stroke="#818cf8"/><text x="964" y="279">25 mas</text>
+  </g>
+  <line x1="964" y1="303" x2="964" y2="337" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="900" y="343" width="128" height="66" rx="10" fill="#3b2f19" stroke="#fbbf24" stroke-width="3"/>
+  <text x="964" y="371" class="t" text-anchor="middle" font-size="18">lev = 4</text>
+  <text x="964" y="397" class="t" text-anchor="middle" font-size="22" font-weight="700">12.5 mas</text>
+  <text x="585" y="360" class="muted" font-size="16">5 levels include the base level.</text>
+  <text x="585" y="384" class="muted" font-size="16">5 层已经包含最外面的基础层。</text>
+  <text x="585" y="430" class="t" font-size="18">Therefore / 所以：</text>
+  <text x="585" y="463" class="code" font-size="19">0.2 arcsec × 2^(1-5)</text>
+  <text x="585" y="495" class="code" font-size="23" font-weight="700">= 0.0125 arcsec = 12.5 mas</text>
+  <text x="585" y="539" class="muted" font-size="15">The plan's 6.25 mas used one extra halving.</text>
+  <text x="585" y="561" class="muted" font-size="15">计划书的 6.25 mas 多除了一次 2。</text>
+</svg>

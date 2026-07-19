@@ -1,0 +1,17 @@
+1.Introduction
+What is glade?
+what glade can do?
+Environment
+最佳实现： WSL with NVIDIA GPU
+完全支持: Linux system with NVIDIA GPU
+兼容: Linux without NVIDIA GPU, MACOS
+2. Installation
+...
+3.How to Use
+1. WebUI
+
+3 个组成：FindImg, Editor, Clave
+
+
+2. Direct Call
+3. Python import

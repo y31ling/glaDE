@@ -31,16 +31,10 @@
   <main id="page-findimage" class="page active">
     <aside id="findimage-rail">
       <div class="rail-title" data-i18n="fi.backend">Backend</div>
-      <button class="backend-opt active" data-backend="cpu">
-        <span class="bo-name">CPU</span><span class="bo-sub">glafic</span></button>
-      <button class="backend-opt" data-backend="gpu">
-        <span class="bo-name">GPU</span><span class="bo-sub">Rhongomyniad</span></button>
-      <button class="backend-opt" data-backend="glafic">
-        <span class="bo-name">Glafic</span><span class="bo-sub">amoeba</span></button>
-      <button class="backend-opt" data-backend="mcmc">
-        <span class="bo-name">MCMC</span><span class="bo-sub" data-i18n="fi.mcmc_sub">emcee only</span></button>
-      <button class="backend-opt" data-backend="mcmc-gpu">
-        <span class="bo-name">MCMC-GPU</span><span class="bo-sub" data-i18n="fi.mcmcgpu_sub">emcee · batched CUDA</span></button>
+      <button id="fi-settings-btn" class="pipeline-settings-btn" data-i18n-title="fi.settings_title" title="Pipeline settings">
+        <img src="/static/icons/FindImageSetting.png" alt="Pipeline settings" />
+      </button>
+      <div id="fi-pipeline" class="pipeline-display"></div>
     </aside>
 
     <section id="findimage-main">
@@ -57,12 +51,15 @@
             <div class="selected-summary" id="fi-summary">No files selected</div>
             <button id="fi-run" class="run-btn" disabled data-i18n="fi.run">▶ Run</button>
           </div>
-          <div class="panel-head term-head">
-            <span id="term-title" data-i18n="fi.term_title">Terminal output</span>
-            <span id="term-state" class="term-state"></span>
+          <div id="fi-terminal-wrap" class="fi-terminal-wrap">
+            <div class="panel-head term-head">
+              <span id="term-title" data-i18n="fi.term_title">Terminal output</span>
+              <span id="term-state" class="term-state"></span>
+            </div>
+            <pre id="terminal" class="terminal"></pre>
+            <div id="result-area" class="result-area hidden"></div>
           </div>
-          <pre id="terminal" class="terminal"></pre>
-          <div id="result-area" class="result-area hidden"></div>
+          <div id="fi-settings-panel" class="settings-panel hidden"></div>
         </div>
       </div>
     </section>
@@ -75,6 +72,8 @@
         <img src="/assets/icon/Explorer.png" alt="Explorer" /></button>
       <button class="icon-btn" data-panel="template" data-i18n-title="ed.template" title="Template">
         <img src="/assets/icon/Template.png" alt="Template" /></button>
+      <button id="icon-unit" class="icon-btn" data-i18n-title="ed.unitsetting" title="Unit settings">
+        <img src="/static/icons/UnitSetting.png" alt="Unit settings" /></button>
     </div>
 
     <div id="side-panel">

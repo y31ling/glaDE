@@ -58,7 +58,7 @@ def _reg(spec: ModelSpec) -> None:
 # ---- point mass / sub-structure primitives ---------------------------------
 _reg(ModelSpec(
     "point", "point",
-    (_P("mass", is_mass=True, desc="point mass [Msun]"), *_XY),
+    (_P("mass", is_mass=True, desc="point mass [h^-1 Msun]"), *_XY),
     category="substructure", gpu=True, required_min=3,
     desc="Point mass.",
 ))
@@ -83,7 +83,7 @@ _reg(ModelSpec(
 # ---- Sersic -----------------------------------------------------------------
 _reg(ModelSpec(
     "sers", "sers",
-    (_P("mass", is_mass=True, desc="total mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="total mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("re", desc="effective radius [arcsec]"),
      _P("n", desc="Sersic index (0.06..20)")),
     category="lens", gpu=True, required_min=3,
@@ -98,7 +98,7 @@ _reg(ModelSpec(
 # ---- NFW family -------------------------------------------------------------
 _reg(ModelSpec(
     "nfw", "nfw",
-    (_P("mass", is_mass=True, desc="virial mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="virial mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration")),
     category="substructure", gpu=True, required_min=3,
     desc="NFW (density form).",
@@ -110,7 +110,7 @@ _reg(ModelSpec(
 ))
 _reg(ModelSpec(
     "gnfw", "gnfw",
-    (_P("mass", is_mass=True, desc="virial mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="virial mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("alpha", desc="inner slope (NFW=1)")),
     category="substructure", gpu=True, required_min=3,
@@ -123,7 +123,7 @@ _reg(ModelSpec(
 ))
 _reg(ModelSpec(
     "tnfw", "tnfw",
-    (_P("mass", is_mass=True, desc="halo mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="halo mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("t", desc="truncation parameter")),
     category="substructure", gpu=True, required_min=3,
@@ -136,14 +136,14 @@ _reg(ModelSpec(
 ))
 _reg(ModelSpec(
     "anfw", "anfw",
-    (_P("mass", is_mass=True, desc="mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration")),
     category="substructure", gpu=True, required_min=3,
     desc="Analytic (CSE-approximated) NFW.",
 ))
 _reg(ModelSpec(
     "acnfw", "acnfw",
-    (_P("mass", is_mass=True, desc="virial mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="virial mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("b", desc="core radius in units of rs (0 <= b < 100)")),
     category="substructure", gpu=True, required_min=3,
@@ -153,7 +153,7 @@ _reg(ModelSpec(
 # ---- King -------------------------------------------------------------------
 _reg(ModelSpec(
     "king", "king",
-    (_P("mass", is_mass=True, desc="mass within tidal radius [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="mass within tidal radius [h^-1 Msun]"), *_XY, *_E_PA,
      _P("rc", desc="core radius [arcsec]"),
      _P("c", desc="log10(rt/rc), >= 0")),
     category="substructure", gpu=True, required_min=3,
@@ -163,7 +163,7 @@ _reg(ModelSpec(
 # ---- Hernquist --------------------------------------------------------------
 _reg(ModelSpec(
     "hern", "hern",
-    (_P("mass", is_mass=True, desc="total mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="total mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("rb", desc="scale radius [arcsec]")),
     category="lens", gpu=True, required_min=3,
     desc="Hernquist (density form).",
@@ -180,7 +180,7 @@ _reg(ModelSpec(
 # ---- Einasto ----------------------------------------------------------------
 _reg(ModelSpec(
     "ein", "ein",
-    (_P("mass", is_mass=True, desc="mass [Msun]"), *_XY, *_E_PA,
+    (_P("mass", is_mass=True, desc="mass [h^-1 Msun]"), *_XY, *_E_PA,
      _P("c", desc="concentration"),
      _P("alpha", desc="Einasto index")),
     category="lens", gpu=True, required_min=3, desc="Einasto (density form).",
@@ -401,8 +401,16 @@ SECONDARY_KEYS = (
 WEIGHT_KEYS = ("W_POS", "W_FLUX", "W_TD", "W_EXT", "W_PRIOR")
 
 ALGORITHM_KEYS = (
+    # point-source optimizer selection: 'DE' (default) | 'BIPOP-CMA-ES' | 'jSO'
+    "OPTIMIZER",
     "DE_MAXITER", "DE_POPSIZE", "DE_ATOL", "DE_TOL", "DE_SEED", "DE_POLISH",
     "DE_WORKERS", "EARLY_STOPPING", "EARLY_STOP_PATIENCE",
+    # BIPOP-CMA-ES (core/optimize/cmaes.py)
+    "CMAES_MAXEVALS", "CMAES_SEED", "CMAES_SIGMA0", "CMAES_POPSIZE",
+    "CMAES_RESTARTS", "CMAES_TOLFUN", "CMAES_TOLX", "CMAES_WORKERS",
+    # jSO (core/optimize/jso.py)
+    "JSO_MAXEVALS", "JSO_SEED", "JSO_NP_INIT", "JSO_NP_MIN", "JSO_H",
+    "JSO_ARC_RATE", "JSO_PBEST_MAX", "JSO_WORKERS",
     # GPU compute precision for the batched GPU paths: 64 = fp64, 48 = mixed
     # (fp32 fields/triangle test + fp64 Newton refine), 32 = fp32.
     "gpu_precision",
@@ -410,6 +418,9 @@ ALGORITHM_KEYS = (
     # abs_mag: compare (and plot) magnifications by absolute value
     # (parity-insensitive); False = signed comparison.
     "abs_mag",
+    # auto_check: micro-image audit + in-loop triggered Sigma|mu| (hidden key;
+    # True by default, False restores the pre-V0.7 behaviour bit-identically).
+    "auto_check",
     "CONSTRAINT_SIGMA",
     "PENALTY_COEFFICIENT", "Draw_Graph", "draw_interval", "PRINT_INTERVAL",
     "COMPARE_GRAPH", "SHOW_2SIGMA", "OUTPUT_PREFIX", "glafic_verified",

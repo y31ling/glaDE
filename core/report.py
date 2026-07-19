@@ -251,3 +251,117 @@ def make_triptych(opt_result: OptResult,
         show_2sigma=show_2sigma,
         abs_mag=abs_mag,
     )
+
+
+# --------------------------------------------------------------------------- #
+# glade_output_<runfolder>.dat: the result as a complete, re-runnable .dat
+# --------------------------------------------------------------------------- #
+
+def write_glade_output(opt_result: OptResult, output_dir: str,
+                       filename: Optional[str] = None) -> str:
+    """Write the best-fit model back out as a COMPLETE glade input file.
+
+    Every ``{lo, hi}`` (and shared-variable) parameter is pinned at its fitted
+    value; everything else (cosmology, grid, observations, algorithm settings)
+    is carried over verbatim, so the file can be dropped straight back into
+    GLADE (e.g. for a Calcimage pass or as the seed of a refined search). The
+    file is named ``glade_output_<runfolder>.dat`` after the run directory.
+
+    Returns the written path. Works for both point and extend results.
+    """
+    from .format.values import Bounds, Fixed, SharedBounds
+    from .translate.convert import _num
+
+    problem = opt_result.problem
+    cfg = problem.cfg
+    x = np.asarray(opt_result.x, dtype=float)
+    ov = {d.target: d.to_value(x[i]) for i, d in enumerate(problem.dims)}
+
+    run_name = os.path.basename(os.path.normpath(os.path.abspath(output_dir)))
+    if filename is None:
+        filename = f"glade_output_{run_name}.dat"
+
+    def render_scalar(name: str, val) -> Optional[str]:
+        if isinstance(val, SharedBounds):
+            fitted = ov.get(("var", val.name))
+            if fitted is None:
+                return None
+            return f"{name} = {_num(fitted)}"
+        if isinstance(val, Bounds):
+            for target in (("source", name), ("cosmo", name)):
+                if target in ov:
+                    return f"{name} = {_num(ov[target])}"
+            if ("var", name) in ov:
+                return f"{name} = {_num(ov[('var', name)])}"
+            return None                     # unused optimizable scalar
+        if isinstance(val, Fixed):
+            return f"{name} = {_num(val.value)}"
+        if isinstance(val, bool):
+            return f"{name} = {val}"
+        if isinstance(val, (int, float)):
+            return f"{name} = {_num(val)}"
+        if isinstance(val, str):
+            return f"{name} = {val!r}"
+        if isinstance(val, list):
+            return f"{name} = {val!r}"
+        return None
+
+    lines = [
+        f"# GLADE result: {run_name}",
+        f"# algorithm={getattr(opt_result, 'algorithm', 'DE')}"
+        f"  backend={opt_result.backend}  loss={opt_result.loss:.10g}",
+        "# Every optimizable parameter is FIXED at its best-fit value; feed",
+        "# this file back to GLADE (Calcimage / verification / re-search).",
+        "",
+    ]
+    section_titles = (
+        ("cosmology", "cosmology"), ("grid", "grid window"),
+        ("redshifts", "redshifts"), ("source", "source"),
+        ("obs", "observations"), ("algorithm", "algorithm parameters"),
+        ("other", "other"),
+    )
+    for sec, title in section_titles:
+        entries = []
+        for name, val in getattr(cfg, sec).items():
+            if name == "UnitSetting":
+                continue     # values below are already in engine units
+            line = render_scalar(name, val)
+            if line is not None:
+                entries.append(line)
+        if entries:
+            lines.append(f"# --- {title} ---")
+            lines.extend(entries)
+            lines.append("")
+
+    def param_value(comp, j, p):
+        if isinstance(p, SharedBounds):
+            scales = getattr(comp, "unit_scales", None)
+            sc = scales[j] if scales is not None else 1.0
+            return ov[("var", p.name)] * sc
+        if isinstance(p, Bounds):
+            return ov[("comp_param", comp.index, j)]
+        if isinstance(p, Fixed):
+            return p.value
+        return 0.0
+
+    lines.append("# --- components (all parameters fixed at best fit) ---")
+    for comp in cfg.components:
+        if isinstance(comp.z, SharedBounds):
+            z = ov[("var", comp.z.name)]
+        elif isinstance(comp.z, Bounds):
+            z = ov.get(("comp_z", comp.index), float("nan"))
+        else:
+            z = comp.z.value if isinstance(comp.z, Fixed) else float(comp.z)
+        params = [param_value(comp, j, p) for j, p in enumerate(comp.params)]
+        suffix = {"lens": "l", "substructure": "s"}.get(
+            getattr(comp, "category_override", None) or "", "")
+        idx = f"{comp.index}{suffix}"
+        nums = ", ".join(_num(v) for v in params)
+        lines.append(f"'{comp.name}': ({idx}, '{comp.type}', {_num(z)}, {nums})")
+    lines.append("")
+
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, filename)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    return path

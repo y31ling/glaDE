@@ -10,21 +10,26 @@ substructure searches, Differential Evolution, and MCMC. It wraps a modified
 and the `Rhongomyniad/` GPU lens engine behind a browser UI and
 command-line tools.
 
-> **V0.6.0 current release — Clave integration + full GPU model coverage +
-> library packaging + WebUI theme/i18n**: the Clave interactive lens calculator
-> joins the WebUI as the third tab (`/clave`, also standalone via
-> `python -m clave`); Rhongomyniad now implements **all 27 glafic lens models**
-> on the GPU — the last three (`crline`, `acnfw`, `gals`) added and verified
-> against the glafic binary to machine precision (multi-plane stays CPU-only);
-> `import glade` turns GLADE into a library (path bootstrap + lazy heavy
-> imports; `glade.engine("cpu"|"gpu")` exposes the imperative glafic-style
-> API); the WebUI gains a dark/light theme (default dark), an English/中文
-> toggle (default English) and Explorer right-click Copy/Paste for files and
-> folders.
+> **V0.7.0-Rave current release — micro-image blind-spot auto-check +
+> BIPOP-CMA-ES/jSO optimizers + unit system**: `auto_check` (default on) adds a
+> verify-layer micro-image audit (`micro_audit`: per-matched-image local
+> fine-grid `findimg`, Σ|μ|, physical-loss and fake-solution flags) plus a
+> trigger-based Σ|μ| check inside the optimization loop itself (CPU via glafic
+> rescale cycles, GPU via batched local-seed Newton) — `auto_check=False`
+> reproduces prior-version behaviour bit-for-bit. Two new point-source
+> optimizers, **BIPOP-CMA-ES** and **jSO**, join Differential Evolution on both
+> CPU (glafic multiprocess) and GPU (Rhongomyniad batched) paths via `.dat`
+> `OPTIMIZER`/`CMAES_*`/`JSO_*` keys or `glade.optimize(algorithm=...)`. Every
+> run now writes `glade_output_<run>.dat`, a ready-to-reuse GLADE input file
+> with optimizable parameters fixed at the best fit. The WebUI FindImage panel
+> gains a Backend settings icon (Backend × purpose × algorithm, memorised) in
+> place of the five backend buttons, the Editor's Algorithm-parameters
+> templates split into CPU-glafic and GPU-rhongomyniad groups, and a new
+> unit-profile system (`InputFiles/<name>.units.json`, `.dat` key
+> `UnitSetting`) adds real mass/position unit conversions (h⁻¹M⊙↔M⊙,
+> mas↔arcsec) and fixes a doc bug (glafic mass is really `h^-1 Msun`, not
+> `Msun`).
 >
-> The **V0.6.0-GREY** documentation release adds two comprehensive,
-> adversarially fact-checked user manuals:
-> [English](manual/GLADE_Manual_en.md) / [中文](manual/GLADE_Manual_zh.md).
 > See [Update.txt](Update.txt) for full changelogs.
 
 Full changelogs: [Chinese](Update.txt) / [English](update_en.txt).
@@ -288,6 +293,7 @@ also require built glafic bindings and, for GPU, a working PyTorch/CUDA setup.
 
 | version | comments |
 |:---|:---|
+| 0.7.0-Rave | **Micro-image blind-spot auto-check + BIPOP-CMA-ES/jSO optimizers + unit system**: a verify-layer `micro_audit` (local fine-grid `findimg`, Σ\|μ\|, physical-loss, fake-solution flags) plus an in-loop trigger-based Σ\|μ\| check catch missed/fake images by default (`auto_check=False` restores bit-identical prior behaviour); BIPOP-CMA-ES and jSO join Differential Evolution as selectable point-source optimizers on CPU and GPU; every run writes a ready-to-reuse `glade_output_<run>.dat`; WebUI FindImage gets a Backend settings icon and the Editor a UnitSetting dialog backed by a real mass/position unit-conversion system (also fixes a long-standing doc bug: glafic mass is `h^-1 Msun`, not `Msun`). |
 | 0.6.0-GREY | **Bilingual user manuals**: two comprehensive manuals — [manual/GLADE_Manual_en.md](manual/GLADE_Manual_en.md) (English) and [manual/GLADE_Manual_zh.md](manual/GLADE_Manual_zh.md) (中文) — covering installation (incl. WSL2), the three WebUI tabs, the full `.dat` reference (27-model parameter tables, every key + default), DE/MCMC/extended-source fitting, run outputs, CLI & `import glade`, a dedicated `TOL_ROMBERG_JHK` accuracy chapter, troubleshooting and appendices; written for physics undergraduates and adversarially fact-checked against the code (20 corrections applied). README gains the GREY release image; `update_en.txt` back-filled with the missing V0.6.0 entry. |
 | 0.6.0 | **Clave integration + full lens-model coverage + library packaging + WebUI theme/i18n**: Rhongomyniad gained the last three glafic lens models (`crline`, `acnfw`, `gals`) — all 27 now run on GPU, verified against the glafic binary to machine precision; the Clave interactive lens calculator was merged into the repo as the third WebUI tab (`/clave` blueprint); `import glade` works as a library facade with lazy heavy imports; the WebUI gained dark/light themes (default dark), an English/中文 toggle (default English), Explorer right-click Copy/Paste for files and folders, and dropped the FindImage rail note. |
 | 0.5.1 | Repository cleanup: internal dev notes (glafic upstream-issue drafts, the GPU-MCMC exploration report), exploration-phase dev scripts and the deprecated pre-V0.4 `web/` UI were untracked and gitignored (files stay local); `source/` assets are kept for the future WebUI. |

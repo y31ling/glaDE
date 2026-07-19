@@ -22,10 +22,15 @@ class LogProbability:
     """Picklable per-sample log-prob (for CPU/glafic or per-candidate GPU)."""
 
     def __init__(self, problem: OptProblem, obs: ObsData, loss_cfg: LossConfig,
-                 backend: Union[str, Backend] = "cpu"):
+                 backend: Union[str, Backend] = "cpu",
+                 auto_check: bool = False):
         self.problem = problem
         self.obs = obs
         self.loss_cfg = loss_cfg
+        # auto_check mirrors core.optimize.objective.Objective: triggered
+        # matched images are re-scored with their micro-cluster Sigma|mu| so
+        # the posterior can't settle on a fake demagnified single root.
+        self.auto_check = bool(auto_check)
         b = problem.bounds
         self.lo = np.array([x[0] for x in b], dtype=float)
         self.hi = np.array([x[1] for x in b], dtype=float)
@@ -58,7 +63,20 @@ class LogProbability:
             return -np.inf
         # point_source_loss applies the same missing_img_penalty as the DE
         # objective, so the posterior stays consistent with the optimization.
-        loss = point_source_loss(images, self.obs, self.loss_cfg)
+        loss = None
+        if self.auto_check and getattr(self.backend(), "_m", None) is not None:
+            try:
+                from ..micro_audit import (checked_point_source_loss,
+                                           find_compact_perturbers,
+                                           make_binding_solver)
+                if find_compact_perturbers(scene):
+                    solver = make_binding_solver(self.backend()._m)
+                    loss = checked_point_source_loss(
+                        images, self.obs, self.loss_cfg, scene, solver)
+            except Exception:  # noqa: BLE001 — fail safe to the plain loss
+                loss = None
+        if loss is None:
+            loss = point_source_loss(images, self.obs, self.loss_cfg)
         if loss >= INVALID_LOSS or not np.isfinite(loss):
             return -np.inf
         return -0.5 * loss

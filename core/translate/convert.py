@@ -336,8 +336,14 @@ def _glade_to_model(cfg: GladeConfig) -> GlaficModel:
     matches: list = []
     var_primary: dict = {}                            # var name -> (lens_id, param_no)
 
-    def _classify(pv, ci, opt, opt_index):
-        """Flag an optimizable value: free dim + range, a tied match, or nothing."""
+    def _classify(pv, ci, opt, opt_index, scale=1.0):
+        """Flag an optimizable value: free dim + range, a tied match, or nothing.
+
+        ``scale`` is the shared-variable unit factor of this slot (non-default
+        UnitSetting): the exported glafic range is in engine units. NB: a
+        shared variable referenced from slots with DIFFERENT unit factors
+        cannot be expressed by glafic's equal-value matching — the tie is then
+        only approximate (glade-side runs handle it exactly)."""
         param_no = opt_index + 1                       # glafic param numbering (z=1)
         if isinstance(pv, SharedBounds):
             if pv.name in var_primary:                 # tie to the first occurrence
@@ -346,7 +352,8 @@ def _glade_to_model(cfg: GladeConfig) -> GlaficModel:
             else:                                      # first occurrence is the free dim
                 var_primary[pv.name] = (ci, param_no)
                 opt[opt_index] = 1
-                ranges.append(("lens", ci, param_no, pv.lo, pv.hi))
+                ranges.append(("lens", ci, param_no,
+                               pv.lo * scale, pv.hi * scale))
         elif isinstance(pv, Bounds):
             opt[opt_index] = 1
             ranges.append(("lens", ci, param_no, pv.lo, pv.hi))
@@ -358,12 +365,15 @@ def _glade_to_model(cfg: GladeConfig) -> GlaficModel:
         opt = [0] * 8                                 # [z, p1..p7]
         _classify(comp.z, ci, opt, 0)
         z = comp.z.value if isinstance(comp.z, Fixed) else _midpoint(comp.z, False)
+        scales = getattr(comp, "unit_scales", None)
         params: list[float] = []
         for j, pv in enumerate(comp.params):
             is_mass = bool(spec and j < len(spec.params) and spec.params[j].is_mass)
-            params.append(_midpoint(pv, is_mass))
+            sc = (scales[j] if scales is not None
+                  and isinstance(pv, SharedBounds) else 1.0)
+            params.append(_midpoint(pv, is_mass) * sc)
             if j < 7:
-                _classify(pv, ci, opt, j + 1)
+                _classify(pv, ci, opt, j + 1, sc)
         params = (params + [0.0] * 7)[:7]
         lenses.append(GlaficLens(type=gtype, z=z, params=params, opt=opt))
 

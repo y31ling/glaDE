@@ -1,3 +1,64 @@
+V0.7.0-Rave - micro-image blind-spot auto_check + BIPOP-CMA-ES/jSO optimizers + glade_output auto-export + unit system
+
+- Major fix: micro-image blind-spot auto_check (on by default).
+  - A new verify-layer micro-image audit, core/micro_audit.py (micro_audit): for
+    every matched image it reruns a local fine-grid findimg, sums Sigma|mu| and
+    physical_loss, and flags fake_solution (a real source missed by a too-coarse
+    grid and wrongly accepted as a valid solution).
+  - A new trigger-based Sigma|mu| check inside the optimization loop itself: CPU
+    goes through periodic glafic rescale cycles, GPU through batched local-seed
+    Newton (kept batched, not serialized per candidate).
+  - With auto_check=False, behaviour is bit-identical to the prior release --
+    no existing .dat's fit result changes.
+  - Conviction / zero-false-positive anchor tests T1-T4 all pass: the nfw-pm
+    pairing (Sigma|mu|=41.2) is now correctly convicted (previously accepted as
+    valid), and the nfw-nfw pairing shows zero false positives (a valid solution
+    stays accepted).
+- Two new optimizers: BIPOP-CMA-ES and jSO (both faithful from-scratch
+  implementations, not third-party wrappers) -- jSO follows the CEC2017 paper
+  and reference code, BIPOP follows Hansen (2009) / pycma's restart bookkeeping
+  (core/optimize/cmaes.py, core/optimize/jso.py, sharing the population
+  evaluator in core/optimize/evaluator.py). Point-source path only; both a CPU
+  rail (glafic multiprocess) and a GPU rail (Rhongomyniad batched) are
+  selectable. New .dat key OPTIMIZER (DE / BIPOP-CMA-ES / jSO) plus per-algorithm
+  CMAES_* / JSO_* hyperparameter keys; the Python API mirrors this as
+  glade.optimize(algorithm=...).
+- New glade_output_<run-dir-name>.dat: every run now auto-writes a complete,
+  ready-to-reuse glade input file with every {lo, hi} optimizable parameter of
+  this run replaced by its best-fit fixed value, so it can be dropped straight
+  back into GLADE or archived.
+- WebUI FindImage: the five backend buttons are replaced by a single Backend
+  settings icon; its panel picks Backend x purpose (Calcimage = representative
+  values, find images without optimizing / Optimize / MCMC-only) x algorithm,
+  with the active pipeline shown persistently. The panel now sits where the
+  terminal used to be, and the selection is remembered automatically.
+- Editor: the Algorithm parameters template tree is now grouped by backend --
+  CPU-glafic (DE / DE-extend / BIPOP-CMA-ES / jSO) and GPU-rhongomyniad (DE /
+  BIPOP-CMA-ES / jSO) -- plus a new UnitSetting button opening a unit
+  configuration dialog.
+- Unit system (core/format/units.py):
+  - Fixed a long-standing doc/comment bug: glafic's mass parameters are really
+    in h^-1 Msun, not Msun as the comments previously claimed.
+  - New UnitSetting unit profiles: InputFiles/<name>.units.json, referenced from
+    a .dat via the UnitSetting key; supports real numeric conversion (not just
+    display text) for mass (h^-1 Msun / Msun), observed image position (mas /
+    arcsec), component position scale (arcsec / mas), and source position
+    (arcsec / mas). With no profile given it falls back to DEFAULT_UNITS,
+    matching prior-release behaviour exactly.
+  - User-defined shared variables ({lo, hi} shared variables) stay dimensionless
+    and inherit the unit of whichever field they are inserted into.
+- New tests: core/tests/test_micro_audit.py, test_optimizers.py, test_units.py.
+- Version: glade/__init__.py, Rhongomyniad/rhongomyniad/__init__.py and
+  core/__init__.py all bumped __version__ to 0.7.0 (core/__init__.py had been
+  stuck at V0.4.5 since it stopped following releases; now back in sync).
+- README: top banner updated from V0.6.0 to V0.7.0-Rave, keeping only the
+  newest release's summary (history stays in the History table and the
+  changelogs); History table gains a 0.7.0-Rave row.
+- .gitignore: new V0.7.0 section adding a `!webui/static/icons/*.png` exception
+  (the new WebUI backend-settings icons) so the blanket *.png rule does not
+  swallow them, following the existing source/icon/*.png precedent.
+
+
 V0.6.1 - one-shot updater update.sh + Clave legal .dat export & canvas alignment
 
 - New updater script update.sh: pull the latest code from GitHub and refresh an

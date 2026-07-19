@@ -2,13 +2,22 @@
 """Worker that a FindImage run executes inside its own terminal.
 
 Modes (``--mode``):
-  findimage  Differential Evolution only (the default).
+  findimage  Point-source optimization (the default). ``--optimizer`` picks the
+             algorithm: DE (default) / BIPOP-CMA-ES / jSO. Also runs MCMC after
+             it when MCMC_ENABLED is set (legacy ``de+mcmc``).
   de+mcmc    DE, then emcee MCMC seeded around the DE best (legacy-like).
   mcmc       emcee MCMC only (no DE); prior = the {lower,upper} bounds; walkers
              start uniformly across the box; no DE-truth overlay.
+  calcimage  Find images at the representative parameter values WITHOUT optimizing
+             ({lo,hi} collapse to their search-space midpoints — geometric mean for
+             mass-like dims, arithmetic mean otherwise). Point-source only; CPU uses
+             glafic, GPU uses Rhongomyniad. MCMC_ENABLED is ignored here.
   amoeba     glafic's own simplex optimizer (`optimize`) on a glafic input.
              glade ``.dat`` selections are first converted to temp glafic files;
              native glafic ``.input`` selections are run directly. NOT DE.
+
+``--optimizer`` (DE / BIPOP-CMA-ES / jSO; default = the OPTIMIZER .dat key or DE)
+selects the point-source optimization algorithm for the findimage / de+mcmc modes.
 
 All output goes to stdout (tee'd to the job log the WebUI tails over SSE).
 """
@@ -70,7 +79,11 @@ def main(argv=None) -> int:
     ap.add_argument("--files", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--mode", default="findimage",
-                    choices=["findimage", "de+mcmc", "mcmc", "amoeba"])
+                    choices=["findimage", "de+mcmc", "mcmc", "calcimage", "amoeba"])
+    # point-source optimizer (findimage / de+mcmc): DE (default) | BIPOP-CMA-ES |
+    # jSO. None -> the OPTIMIZER .dat key -> 'DE'. Aliases are accepted (case-
+    # insensitive) via core.optimize.runner.normalize_algorithm.
+    ap.add_argument("--optimizer", default=None)
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
 
@@ -82,7 +95,8 @@ def main(argv=None) -> int:
     # status at 'running', and JobManager.status() flips it to 'interrupted' once
     # this pid is gone (see webui.jobs._pid_alive).
     status = {"state": "starting", "backend": args.backend, "mode": args.mode,
-              "files": args.files, "worker_pid": os.getpid()}
+              "optimizer": args.optimizer, "files": args.files,
+              "worker_pid": os.getpid()}
 
     def write_status(**extra):
         status.update(extra)
@@ -91,7 +105,10 @@ def main(argv=None) -> int:
 
     write_status()
 
-    _hr(f"GLADE run  ·  mode={args.mode}  ·  backend={args.backend}  ·  "
+    opt_disp = (f"  ·  optimizer={args.optimizer}"
+                if args.optimizer and args.mode in ("findimage", "de+mcmc")
+                else "")
+    _hr(f"GLADE run  ·  mode={args.mode}  ·  backend={args.backend}{opt_disp}  ·  "
         f"{len(args.files)} file(s)")
     for f in args.files:
         print(f"  · {f}", flush=True)
@@ -136,8 +153,15 @@ def main(argv=None) -> int:
                          errors=["gpu backend unavailable (torch import failed)"])
             return 2
 
-    # ---- extended-source (FITS) path: DE/MCMC over the c2calc loss ----------
     from core.format.validate import is_extend_mode
+
+    # ---- Calcimage: find images at representative values, no optimization ----
+    # (handled before the extend dispatch so it can reject extend configs with a
+    # clear message; ndim==0 / fully-locked configs are the primary use case.)
+    if args.mode == "calcimage":
+        return _run_calcimage(args, cfg, write_status)
+
+    # ---- extended-source (FITS) path: DE/MCMC over the c2calc loss ----------
     if is_extend_mode(cfg):
         return _run_extend(args, cfg, write_status)
 
@@ -155,15 +179,20 @@ def main(argv=None) -> int:
     best_x = None
     de_result = None
 
-    # ---- Differential Evolution (findimage / de+mcmc) ----
+    # ---- point-source optimization (findimage / de+mcmc) ----
     if args.mode in ("findimage", "de+mcmc"):
         de_result = _run_de(args, cfg, obs, problem, loss_cfg)
         best_x = de_result.x
-        _write_triptych(args, de_result, obs, f"GLADE DE result  loss={de_result.loss:.1f}",
-                        os.path.join(args.out, "result.png"))
         write_status(loss=de_result.loss, iterations=de_result.de.nit,
-                     triptych="result.png",
+                     algorithm=de_result.algorithm,
                      fitted={k: float(v) for k, v in de_result.fitted.items()})
+        # pin the glade_output deliverable (pure Python) before the glafic figure
+        # / verification, which can abort the C binding on pathological models.
+        _write_glade_output(args, de_result)
+        _write_triptych(args, de_result, obs,
+                        f"GLADE {de_result.algorithm} result  loss={de_result.loss:.1f}",
+                        os.path.join(args.out, "result.png"))
+        write_status(triptych="result.png")
         _verify(args, cfg, obs, loss_cfg, de_result.scene, de_result.loss, write_status)
 
     # ---- MCMC (de+mcmc / mcmc) ----
@@ -331,6 +360,16 @@ def _run_extend(args, cfg, write_status):
         write_status(state="error", errors=["no optimizable parameters"])
         return 2
 
+    # extended-source runs are DE-only; surface a non-DE OPTIMIZER selection
+    # (CLI --optimizer or the .dat key) clearly instead of silently ignoring it.
+    try:
+        if _resolved_algorithm(args, cfg) != "DE":
+            print("  note: BIPOP-CMA-ES / jSO are point-source only; the "
+                  "extended-source path uses Differential Evolution — "
+                  "continuing with DE.", flush=True)
+    except ValueError:
+        pass
+
     write_status(state="running")
     best_x = None
 
@@ -341,6 +380,7 @@ def _run_extend(args, cfg, write_status):
         _extend_figure_and_verify(
             args, cfg, result, write_status,
             suptitle=f"GLADE extended-source result  loss={result.loss:.1f}")
+        _write_glade_output(args, result)
         _cleanup_spec(result.extend_spec)
 
     # ---- MCMC (de+mcmc / mcmc) ----
@@ -512,13 +552,29 @@ def _extend_mcmc(args, cfg, base_dir, problem, best_x, write_status):
                 extend_components=comp, mode="extend")
             _extend_figure_and_verify(args, cfg, result, write_status,
                                       suptitle="GLADE extended-source MCMC median")
+            _write_glade_output(args, result)
     finally:
         _cleanup_spec(spec)
 
 
+_ALGO_LABEL = {"DE": "Differential Evolution", "BIPOP-CMA-ES": "BIPOP-CMA-ES",
+               "JSO": "jSO"}
+
+
+def _resolved_algorithm(args, cfg) -> str:
+    """The concrete point-source optimizer this run will use (CLI --optimizer
+    wins, else the OPTIMIZER .dat key, else DE)."""
+    from core.optimize.runner import normalize_algorithm
+    return normalize_algorithm(
+        args.optimizer if args.optimizer is not None
+        else cfg.algorithm.get("OPTIMIZER", "DE"))
+
+
 def _run_de(args, cfg, obs, problem, loss_cfg):
     from core.optimize import optimize
-    _hr(f"Differential Evolution (backend={args.backend})")
+    algo = _resolved_algorithm(args, cfg)
+    _hr(f"Optimize · {_ALGO_LABEL.get(algo, algo)} "
+        f"(backend={args.backend})")
     if args.backend == "gpu":
         ok, reason = _gpu_batchable(cfg)
         print("  GPU-batched objective active (whole DE population per CUDA "
@@ -543,13 +599,14 @@ def _run_de(args, cfg, obs, problem, loss_cfg):
                 print(f"  [warn] frame {it} failed: {exc}", flush=True)
 
     result = optimize(cfg, backend=args.backend, on_iteration=on_iter,
-                      record_population=False)
-    _hr("DE result")
+                      record_population=False, algorithm=args.optimizer)
+    _hr(f"{result.algorithm} result")
     print(f"  best loss  : {result.loss:.4f}   iterations: {result.de.nit}", flush=True)
     for k, v in result.fitted.items():
         print(f"    {k:18s} = {float(v):.6g}", flush=True)
     with open(os.path.join(args.out, "best_params.txt"), "w", encoding="utf-8") as fh:
-        fh.write(f"# GLADE DE result  backend={args.backend}  loss={result.loss:.8f}\n")
+        fh.write(f"# GLADE {result.algorithm} result  backend={args.backend}  "
+                 f"loss={result.loss:.8f}\n")
         for k, v in result.fitted.items():
             fh.write(f"{k} = {float(v):.10g}\n")
     return result
@@ -588,10 +645,16 @@ def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):
 
     # for MCMC-only, also render a triptych of the posterior-median model
     if not seeded:
+        from core.optimize.runner import OptResult
         median = np.array([res.summary[d.label]["p50"] for d in problem.dims])
-        _write_triptych_from_candidate(args, problem, obs, median,
-                                       "MCMC posterior-median model",
-                                       os.path.join(args.out, "result.png"))
+        med_result = OptResult(
+            x=median, loss=float("nan"), fitted=problem.decode(median),
+            scene=problem.make_scene(median), problem=problem, de=None,
+            backend=args.backend, mode="point", algorithm="MCMC")
+        # glade_output first (survives a glafic figure/verify C abort), then figure
+        _write_glade_output(args, med_result)
+        _write_triptych(args, med_result, obs, "MCMC posterior-median model",
+                        os.path.join(args.out, "result.png"))
         write_status(triptych="result.png")
         _verify(args, cfg, obs, loss_cfg, problem.make_scene(median), None, write_status)
 
@@ -612,7 +675,9 @@ def _verify(args, cfg, obs, loss_cfg, scene, opt_loss, write_status):
         return
     _hr("Independent verification (glafic binary)")
     from core.verify import verify_with_glafic
-    rep = verify_with_glafic(scene, obs, args.out, loss_cfg=loss_cfg, opt_loss=opt_loss)
+    auto_check = bool(cfg.algorithm.get("auto_check", True))
+    rep = verify_with_glafic(scene, obs, args.out, loss_cfg=loss_cfg,
+                             opt_loss=opt_loss, auto_check=auto_check)
     if rep.get("ok"):
         print(f"  glafic: {rep.get('glafic_bin', '?')}", flush=True)
         print(f"  glafic images: {rep.get('glafic_n_images')}", flush=True)
@@ -626,6 +691,24 @@ def _verify(args, cfg, obs, loss_cfg, scene, opt_loss, write_status):
                   flush=True)
     for w in rep.get("warnings", []):
         print(f"  [warn] {w}", flush=True)
+
+    # micro-image audit summary (auto_check): per-image cluster counts, the
+    # physical loss recomputed with the cluster Sigma|mu|, and a loud warning
+    # when a single-root magnification hides an unresolved micro-image cluster.
+    audit = rep.get("micro_audit")
+    if audit:
+        print("\n  -- micro-image audit --", flush=True)
+        for i, e in enumerate(audit.get("per_image", []), start=1):
+            print(f"  img {i}: n_micro={e.get('n_micro')} "
+                  f"sum|mu|={float(e.get('sum_abs_mu', 0.0)):.4g} "
+                  f"(single-root {float(e.get('mu_single', 0.0)):.4g})", flush=True)
+        pl = audit.get("physical_loss")
+        if pl is not None:
+            print(f"  physical loss (cluster Sigma|mu|): {float(pl):.4f}", flush=True)
+        if audit.get("fake_solution"):
+            print("  [WARN] FAKE SOLUTION: a single-root magnification hides an "
+                  "unresolved micro-image cluster — this fit is NOT physical "
+                  "(see the micro-audit warnings above).", flush=True)
 
     # scipy-exact ground truth (engine-independent; glafic@1e-5 Sersic is only
     # Romberg-tolerance accurate, so this is the authoritative check)
@@ -661,13 +744,94 @@ def _write_triptych(args, result, obs, suptitle, out):
         print(f"  [warn] triptych failed: {exc}", flush=True)
 
 
-def _write_triptych_from_candidate(args, problem, obs, candidate, suptitle, out):
-    from core.optimize.runner import OptResult
-    res = OptResult(x=candidate, loss=float("nan"),
-                    fitted=problem.decode(candidate),
-                    scene=problem.make_scene(candidate), problem=problem,
-                    de=None, backend=args.backend)
-    _write_triptych(args, res, obs, suptitle, out)
+def _write_glade_output(args, result) -> None:
+    """Write ``glade_output_<runfolder>.dat`` — a COMPLETE glade input with every
+    optimizable parameter pinned at its best-fit value, ready to drop back into
+    GLADE. Never fatal: a failure only prints a ``[warn]``."""
+    try:
+        from core.report import write_glade_output
+        path = write_glade_output(result, args.out)
+        print(f"  wrote {os.path.basename(path)}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [warn] glade_output export failed: {exc}", flush=True)
+
+
+def _run_calcimage(args, cfg, write_status) -> int:
+    """Find images at the representative (midpoint) parameter values, no fit.
+
+    Reuses the standard post-run machinery: triptych, glafic verification (incl.
+    the micro-image audit) and the glade_output export. Robust for ndim==0
+    (fully-locked) configs. MCMC_ENABLED is ignored here.
+    """
+    from core.format.validate import is_extend_mode
+    from core.optimize import build_obs, make_backend
+    from core.optimize.loss import LossConfig
+    from core.optimize.runner import calcimage
+
+    if is_extend_mode(cfg):
+        print("[blocked] calcimage is point-source only; extended-source configs "
+              "use Optimize (Differential Evolution) on the CPU/GPU rails.",
+              flush=True)
+        write_status(state="error",
+                     errors=["calcimage does not support extended-source configs"])
+        return 2
+    if cfg.algorithm.get("MCMC_ENABLED", False):
+        print("  note: MCMC_ENABLED is set but is IGNORED in calcimage mode "
+              "(calcimage computes images once; it does not sample).", flush=True)
+
+    _hr(f"Calcimage · images at representative values (backend={args.backend})")
+    write_status(state="running")
+    try:
+        result = calcimage(cfg, backend=args.backend)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[blocked] calcimage failed: {exc}", flush=True)
+        write_status(state="error", errors=[f"calcimage failed: {exc}"])
+        return 2
+
+    obs = build_obs(cfg)
+    loss_cfg = LossConfig.from_cfg(cfg)
+    print(f"\n  {result.problem.ndim} optimizable dim(s) collapsed to their "
+          f"representative midpoints:", flush=True)
+    for k, v in result.fitted.items():
+        print(f"    {k:18s} = {float(v):.6g}", flush=True)
+
+    try:
+        images = make_backend(args.backend).compute_images(result.scene) or []
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [warn] could not re-list images for the table: {exc}", flush=True)
+        images = []
+    _hr("Calcimage result")
+    print(f"  found {len(images)} image(s):", flush=True)
+    if images:
+        print(f"  {'#':>3}  {'x [arcsec]':>13}  {'y [arcsec]':>13}  {'mu':>13}",
+              flush=True)
+        for i, im in enumerate(images, start=1):
+            print(f"  {i:>3}  {float(im[0]):>13.6f}  {float(im[1]):>13.6f}  "
+                  f"{float(im[2]):>13.6f}", flush=True)
+    print(f"  informative point-source loss: {result.loss:.6g}", flush=True)
+
+    with open(os.path.join(args.out, "best_params.txt"), "w", encoding="utf-8") as fh:
+        fh.write(f"# GLADE calcimage  backend={args.backend}  "
+                 f"loss={result.loss:.8f}\n")
+        for k, v in result.fitted.items():
+            fh.write(f"{k} = {float(v):.10g}\n")
+
+    write_status(loss=float(result.loss), iterations=0,
+                 fitted={k: float(v) for k, v in result.fitted.items()})
+    # write the primary deliverable (glade_output, pure Python) BEFORE the
+    # figure / glafic verification: a pathological model can abort the glafic
+    # C binding (a buffer overflow it cannot be caught in Python), so pin the
+    # result to disk first.
+    _write_glade_output(args, result)
+    _write_triptych(args, result, obs, f"GLADE calcimage  loss={result.loss:.1f}",
+                    os.path.join(args.out, "result.png"))
+    write_status(triptych="result.png")
+    _verify(args, cfg, obs, loss_cfg, result.scene, result.loss, write_status)
+
+    _hr("DONE")
+    write_status(state="done")
+    print("RUN_COMPLETE", flush=True)
+    return 0
 
 
 # --------------------------------------------------------------------------- #
@@ -814,6 +978,98 @@ def _amoeba_figure(args, cfg, run_dir, prefix, images, chi2, write_status):
     write_status(triptych="result.png")
 
 
+def _extract_optresult_model_lines(opt_path: str) -> list:
+    """The final amoeba model block (``lens`` / ``point`` / ``extend`` / ``psf``
+    command lines) from a glafic ``<prefix>_optresult.dat``.
+
+    ``dump_opt`` appends one block per amoeba restart, each preceded by an
+    ``omega = ...`` header (see glafic2/opt_lens.c ``dump_opt`` / ``dump_model``);
+    the final best fit is the block after the LAST such header.
+    """
+    if not os.path.isfile(opt_path):
+        return []
+    try:
+        with open(opt_path, encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+    start = 0
+    for i, ln in enumerate(lines):
+        if ln.lstrip().startswith("omega ="):
+            start = i + 1
+    kinds = ("lens ", "point ", "extend ", "psf ")
+    return [ln.strip() for ln in lines[start:] if ln.strip().startswith(kinds)]
+
+
+def _splice_glafic_model(template: str, model_lines: list) -> str:
+    """Replace the template's ``lens`` / ``point`` / ``extend`` / ``psf`` command
+    lines with the amoeba-optimized ones (matched by command word, in order)."""
+    by_kind: dict = {}
+    for ln in model_lines:
+        by_kind.setdefault(ln.split()[0], []).append(ln)
+    used = {k: 0 for k in by_kind}
+    out = []
+    for line in template.splitlines():
+        toks = line.split("#")[0].split()
+        kind = toks[0] if toks else ""
+        if kind in by_kind and used[kind] < len(by_kind[kind]):
+            out.append(by_kind[kind][used[kind]])
+            used[kind] += 1
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _amoeba_glade_output(args, run_dir: str, prefix: str, template_path: str) -> None:
+    """Best-effort ``glade_output_<runfolder>.dat`` from glafic's amoeba result.
+
+    Parses ``<prefix>_optresult.dat`` for the optimized model, splices it into
+    the run's staged glafic input, converts that to glade via core.translate,
+    and writes the file. Never crashes the rail: any failure falls back to a
+    best-effort file and/or a ``[warn]``.
+    """
+    try:
+        from core.translate import glafic_to_glade
+        run_name = os.path.basename(os.path.normpath(os.path.abspath(args.out)))
+        out_name = f"glade_output_{run_name}.dat"
+        template = ""
+        if template_path and os.path.isfile(template_path):
+            with open(template_path, encoding="utf-8", errors="replace") as fh:
+                template = fh.read()
+        model_lines = _extract_optresult_model_lines(
+            os.path.join(run_dir, f"{prefix}_optresult.dat"))
+        if template and model_lines:
+            glafic_text = _splice_glafic_model(template, model_lines)
+            note = ("# Built from glafic's amoeba best fit "
+                    "(<prefix>_optresult.dat spliced into the run's glafic input).")
+        elif template:
+            glafic_text = template
+            note = ("# WARNING: glafic's amoeba result block was not found; this "
+                    "reflects the INPUT model (parameters may be pre-optimization).")
+            print("  [warn] glade_output: no amoeba result block found; writing "
+                  "the input model as a best-effort fallback.", flush=True)
+        else:
+            print("  [warn] glade_output: no glafic input template to convert; "
+                  "skipped.", flush=True)
+            return
+        out = glafic_to_glade(glafic_text)
+        model = (out.get("model") or "").strip()
+        if not model:
+            print("  [warn] glade_output: glafic->glade conversion produced no "
+                  "model; skipped.", flush=True)
+            return
+        parts = [f"# GLADE result: {run_name}",
+                 "# amoeba (glafic native optimize)", note, "", model]
+        if out.get("obs"):
+            parts += ["", out["obs"]]
+        path = os.path.join(args.out, out_name)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(parts) + "\n")
+        print(f"  wrote {out_name}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [warn] glade_output export failed: {exc}", flush=True)
+
+
 def _run_amoeba(args, write_status) -> int:
     """Run glafic's native simplex optimizer (`optimize`), not GLADE's DE.
 
@@ -944,6 +1200,11 @@ def _run_amoeba(args, write_status) -> int:
             fh.write(f"image{i} = x {im[0]:.8g}  y {im[1]:.8g}  mag {im[2]:.8g}\n")
     if chi2 is not None:
         write_status(loss=float(chi2))
+
+    # glade_output first (pure Python): a pathological point-mass model can abort
+    # the glafic C binding inside the figure's critical-curve pass, so pin the
+    # exportable result to disk before rendering.
+    _amoeba_glade_output(args, run_dir, prefix, input_path)
 
     if cfg is not None:
         try:

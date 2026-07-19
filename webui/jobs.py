@@ -49,6 +49,7 @@ class Job:
     job_dir: str
     log_path: str
     mode: str = "findimage"
+    optimizer: Optional[str] = None   # point-source algorithm (findimage/de+mcmc)
     terminal: str = "?"
     pid: Optional[int] = None
     created: str = ""
@@ -81,11 +82,13 @@ class JobManager:
     def _build_command(self, job: Job, force: bool) -> str:
         files_arg = " ".join(shlex.quote(f) for f in job.files)
         force_arg = " --force" if force else ""
+        opt_arg = (f" --optimizer {shlex.quote(job.optimizer)}"
+                   if job.optimizer else "")
         run = (f"{shlex.quote(self._python())} -u "
                f"{shlex.quote(os.path.join('webui', 'runjob.py'))} "
                f"--backend {job.backend} --mode {shlex.quote(job.mode)} "
                f"--out {shlex.quote(job.job_dir)} "
-               f"--files {files_arg}{force_arg}")
+               f"--files {files_arg}{opt_arg}{force_arg}")
         # cd, set env, run, tee to log, keep the window open afterwards
         return (f"cd {shlex.quote(self.root)}; {self._env_exports()}"
                 f"{run} 2>&1 | tee {shlex.quote(job.log_path)}; "
@@ -128,7 +131,7 @@ class JobManager:
 
     # -- public API ----------------------------------------------------------
     def start(self, backend: str, files: list, mode: str = "findimage",
-              force: bool = False) -> Job:
+              force: bool = False, optimizer: Optional[str] = None) -> Job:
         job_id = (datetime.now().strftime("%y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:4])
         job_dir = os.path.join(self.runs_dir, job_id)
         os.makedirs(job_dir, exist_ok=True)
@@ -136,7 +139,7 @@ class JobManager:
         open(log_path, "w").close()  # create empty log immediately for tailing
 
         job = Job(id=job_id, backend=backend, files=list(files), job_dir=job_dir,
-                  log_path=log_path, mode=mode,
+                  log_path=log_path, mode=mode, optimizer=optimizer,
                   created=datetime.now().isoformat(timespec="seconds"))
         bash_cmd = self._build_command(job, force)
         job.terminal, job.pid = self._spawn_terminal(bash_cmd, f"GLADE {job_id}")

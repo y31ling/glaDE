@@ -15,6 +15,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from core.format import schema  # noqa: E402
+from core.format import units as _units  # noqa: E402
+
+_INPUT_DIR = os.path.join(_ROOT, "InputFiles")
 
 DISPLAY_NAME = {
     "point": "point-mass", "jaffe": "p-jaffe", "sers": "Sersic", "sie": "SIE",
@@ -39,25 +42,42 @@ pix_poi = $float        # point-source pixel size [arcsec], e.g. 0.2
 maxlev = $int           # max adaptive refinement level, e.g. 5
 """
 
-IMAGES_DATA = """source_z = $float       # source redshift, e.g. 0.4090
-lens_z = $float         # (main) lens redshift, e.g. 0.2160
-source_x = $float{lower, upper}   # source x: {lo,hi} optimizes, a value locks
-source_y = $float{lower, upper}   # source y
 
-# observed image positions [mas] as [[x1,y1],[x2,y2],...]
-obs_positions_mas_list = [[$float, $float], [$float, $float], [$float, $float], [$float, $float]]
-obs_magnifications_list = [$float, $float, $float, $float]
-obs_mag_errors_list = [$float, $float, $float, $float]
-obs_pos_sigma_mas_list = [$float, $float, $float, $float]
-center_offset_x = $float
-center_offset_y = $float
-obs_x_flip = True       # True = sky convention, False = math convention
-"""
+def _images_data(labels: dict, unitsetting=None) -> str:
+    """The observation/basic snippet, with unit comments following the active
+    profile. When a non-default profile is active, a ``UnitSetting`` line is
+    prepended so the inserted config actually binds the profile."""
+    obs_u, src_u = labels["obs_pos"], labels["src_pos"]
+    head = f"UnitSetting = '{unitsetting}'   # unit profile bound to this config\n\n" \
+        if unitsetting else ""
+    return (
+        f"{head}"
+        "source_z = $float       # source redshift, e.g. 0.4090\n"
+        "lens_z = $float         # (main) lens redshift, e.g. 0.2160\n"
+        f"source_x = $float{{lower, upper}}   # source x [{src_u}]: "
+        "{lo,hi} optimizes, a value locks\n"
+        f"source_y = $float{{lower, upper}}   # source y [{src_u}]\n"
+        "\n"
+        f"# observed image positions [{obs_u}] as [[x1,y1],[x2,y2],...]\n"
+        "obs_positions_mas_list = [[$float, $float], [$float, $float], "
+        "[$float, $float], [$float, $float]]\n"
+        "obs_magnifications_list = [$float, $float, $float, $float]\n"
+        "obs_mag_errors_list = [$float, $float, $float, $float]\n"
+        f"obs_pos_sigma_mas_list = [$float, $float, $float, $float]   "
+        f"# position sigmas [{obs_u}]\n"
+        "center_offset_x = $float\n"
+        "center_offset_y = $float\n"
+        "obs_x_flip = True       # True = sky convention, False = math convention\n")
 
-SOURCE_POINT = """source_z = $float
-source_x = $float{lower, upper}    # {lo,hi} to optimize, a value to lock
-source_y = $float{lower, upper}
-"""
+
+def _source_point(labels: dict) -> str:
+    src_u = labels["src_pos"]
+    return (
+        "source_z = $float\n"
+        f"source_x = $float{{lower, upper}}    # [{src_u}]; "
+        "{lo,hi} to optimize, a value to lock\n"
+        f"source_y = $float{{lower, upper}}    # [{src_u}]\n")
+
 
 DE_CPU = """# Algorithm: Differential Evolution on the CPU (glafic) backend
 LOSS_COEF_A = $float        # weight on position chi2, e.g. 4
@@ -140,6 +160,52 @@ glafic_verified = True      # after the run, independently re-check with the gla
 DE_WORKERS = $int           # -1 = all CPU cores
 """
 
+# --- BIPOP-CMA-ES / jSO algorithm snippets (V0.7) ------------------------- #
+# The OPTIMIZER key selects the point-source algorithm; the commented keys below
+# tune it (0 = auto where noted). Uncommented loss/verify keys are shared with DE.
+_ALGO_TAIL = """LOSS_COEF_A = $float        # weight on position chi2, e.g. 4
+LOSS_COEF_B = $float        # weight on magnification chi2, e.g. 1
+LOSS_PENALTY_PL = $float    # per-image over-tolerance penalty, e.g. 10000
+missing_img_penalty = $float # per-missing-image penalty; 0 = hard-reject (default)
+abs_mag = True              # compare |mu| (parity-insensitive, default); False = signed
+glafic_verified = True      # after the run, independently re-run the glafic binary
+"""
+
+_GPU_PRECISION = """gpu_precision = $int        # 64 = fp64 (default) | 48 = mixed (recommended:
+                            # fp32 fields + fp64 Newton refine) | 32 = fp32
+"""
+
+CMAES_KEYS = """OPTIMIZER = 'BIPOP-CMA-ES'
+# CMAES_MAXEVALS = $int    # total evaluation budget; 0 = auto (10000 * ndim)
+# CMAES_SIGMA0 = $float    # initial step in normalized [0,1] coords (default 0.3)
+# CMAES_POPSIZE = $int     # base population lambda; 0 = auto (4 + floor(3 ln n))
+# CMAES_RESTARTS = $int    # BIPOP large-restart limit (default 9)
+# CMAES_TOLFUN = $float    # stop tolerance on f (default 1e-10)
+# CMAES_TOLX = $float      # stop tolerance on x, relative to sigma0 (default 1e-12)
+# CMAES_SEED = $int        # RNG seed (default 42; falls back to DE_SEED)
+# CMAES_WORKERS = $int     # process pool; 1 = serial, -1 = all cores (default DE_WORKERS)
+"""
+
+JSO_KEYS = """OPTIMIZER = 'jSO'
+# JSO_MAXEVALS = $int      # total evaluation budget; 0 = auto (10000 * ndim)
+# JSO_NP_INIT = $int       # initial population; 0 = auto (round(25 ln(D) sqrt(D)))
+# JSO_NP_MIN = $int        # minimum population under linear reduction (default 4)
+# JSO_H = $int             # historical memory size for F/CR (default 5)
+# JSO_ARC_RATE = $float    # external-archive size factor (default 1.0)
+# JSO_PBEST_MAX = $float   # top fraction for current-to-pBest (default 0.25)
+# JSO_SEED = $int          # RNG seed (default 42; falls back to DE_SEED)
+# JSO_WORKERS = $int       # process pool; 1 = serial, -1 = all cores (default DE_WORKERS)
+"""
+
+CMAES_CPU = ("# Algorithm: BIPOP-CMA-ES on the CPU (glafic) backend.\n"
+             + CMAES_KEYS + _ALGO_TAIL)
+CMAES_GPU = ("# Algorithm: BIPOP-CMA-ES on the GPU (Rhongomyniad) backend.\n"
+             + CMAES_KEYS + _GPU_PRECISION + _ALGO_TAIL)
+JSO_CPU = ("# Algorithm: jSO on the CPU (glafic) backend.\n"
+           + JSO_KEYS + _ALGO_TAIL)
+JSO_GPU = ("# Algorithm: jSO on the GPU (Rhongomyniad) backend.\n"
+           + JSO_KEYS + _GPU_PRECISION + _ALGO_TAIL)
+
 MCMC_GENERAL = """# MCMC sampling (emcee). The prior is ALWAYS the DE {lower, upper} bounds of
 # every optimizable parameter; mass-like dims are sampled in log10 space.
 # Set MCMC_ENABLED = True to also run MCMC after a DE-CPU / DE-GPU run.
@@ -158,7 +224,16 @@ MCMC_PROGRESS = True
 """
 
 
-def _component_snippet(key: str) -> str:
+def _sub_unit_labels(text: str, labels: dict) -> str:
+    """Rewrite the engine-default unit tags in a schema description to the active
+    profile's labels: ``[h^-1 Msun]`` -> the mass label, ``[arcsec]`` -> the
+    component-position label. Fixed-unit tags ([km/s], [deg]) are left untouched.
+    A no-op under the default profile."""
+    return (text.replace("[h^-1 Msun]", f"[{labels['mass']}]")
+                .replace("[arcsec]", f"[{labels['comp_pos']}]"))
+
+
+def _component_snippet(key: str, labels: dict) -> str:
     spec = schema.model(key)
     if spec is None:
         return ""
@@ -167,6 +242,7 @@ def _component_snippet(key: str) -> str:
     params = ", ".join("$float{lower, upper}" for _ in spec.params)
     line = f"'{key}1': (1, '{key}', {z_tok}, {params})"
     desc = "; ".join(f"{p.name}: {p.desc}" for p in spec.params if p.desc)
+    desc = _sub_unit_labels(desc, labels)
     if is_extend:
         note = "  # extended source (CPU only); requires extended_file"
     else:
@@ -191,24 +267,54 @@ def _keys(category: str) -> list:
     return keys
 
 
-def template_tree() -> list:
+def _resolve_units(units):
+    """Normalize the ``template_tree`` ``units`` argument (a units dict, a profile
+    name, or None) into ``(units_dict_or_None, profile_name_or_None)``."""
+    profile_name = None
+    if isinstance(units, str):
+        profile_name = units if units.strip() not in ("", "default") else None
+        if profile_name:
+            resolved, _issues = _units.resolve_profile(profile_name, [_INPUT_DIR])
+            units = resolved
+        else:
+            units = None
+    if isinstance(units, dict):
+        path = units.get("__path__")
+        if path and profile_name is None:
+            base = os.path.basename(path)
+            if base.endswith(_units.PROFILE_SUFFIX):
+                profile_name = base[:-len(_units.PROFILE_SUFFIX)]
+    else:
+        units = None
+    return units, profile_name
+
+
+def template_tree(units=None) -> list:
+    """Editor Template-panel tree. ``units`` may be a units dict, a unit-profile
+    name, or None (engine defaults); template comments render in the active
+    profile's units, and the observation snippet binds a non-default profile via
+    a ``UnitSetting`` line."""
+    units, profile_name = _resolve_units(units)
+    labels = _units.unit_labels(units)
+    unitsetting = profile_name if not _units.is_default(units) else None
+
     def comp_nodes(category):
         return [{"name": DISPLAY_NAME.get(k, k), "key": k,
-                 "snippet": _component_snippet(k)} for k in _keys(category)]
+                 "snippet": _component_snippet(k, labels)} for k in _keys(category)]
 
     extend_keys = ["extsersic", "extgauss", "exttophat", "extmoffat", "extjaffe"]
     extend_nodes = [{"name": DISPLAY_NAME.get(k, k), "key": k,
-                     "snippet": _component_snippet(k)}
+                     "snippet": _component_snippet(k, labels)}
                     for k in extend_keys if schema.model(k)]
 
     return [
         {"name": "OBS DATA", "children": [
-            {"name": "Images Data", "snippet": IMAGES_DATA},
+            {"name": "Images Data", "snippet": _images_data(labels, unitsetting)},
             {"name": "Constants", "snippet": CONSTANTS},
             {"name": "Extend_images", "snippet": EXTEND_IMAGES},
         ]},
         {"name": "Source", "children": [
-            {"name": "point", "snippet": SOURCE_POINT},
+            {"name": "point", "snippet": _source_point(labels)},
             {"name": "gauss", "snippet": "", "disabled": True},
             {"name": "tophat", "snippet": "", "disabled": True},
         ]},
@@ -216,9 +322,17 @@ def template_tree() -> list:
         {"name": "Sub-structure", "children": comp_nodes("substructure")},
         {"name": "Extend Source", "children": extend_nodes},
         {"name": "Algorithm parameters", "children": [
-            {"name": "DE-CPU", "snippet": DE_CPU},
-            {"name": "DE-GPU", "snippet": DE_GPU},
-            {"name": "DE-Extend (CPU)", "snippet": DE_EXTEND},
+            {"name": "CPU-glafic", "children": [
+                {"name": "DE", "snippet": DE_CPU},
+                {"name": "DE-extend", "snippet": DE_EXTEND},
+                {"name": "BIPOP-CMA-ES", "snippet": CMAES_CPU},
+                {"name": "jSO", "snippet": JSO_CPU},
+            ]},
+            {"name": "GPU-rhongomyniad", "children": [
+                {"name": "DE", "snippet": DE_GPU},
+                {"name": "BIPOP-CMA-ES", "snippet": CMAES_GPU},
+                {"name": "jSO", "snippet": JSO_GPU},
+            ]},
         ]},
         {"name": "MCMC", "children": [
             {"name": "MCMC-GeneralConfig", "snippet": MCMC_GENERAL},

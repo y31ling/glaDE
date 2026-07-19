@@ -125,6 +125,12 @@ class Component:
     index: Optional[int] = None       # globally recomputed 1-based index
     source_file: Optional[str] = None
     lineno: Optional[int] = None
+    # Per-parameter unit factors for SHARED-variable references under a
+    # non-default UnitSetting profile (None = all 1.0). A shared {lo, hi}
+    # variable is dimensionless — the insertion slot decides the unit — so
+    # the factor is applied at scene-injection time while literal values
+    # were already converted at merge time. Aligned with ``params``.
+    unit_scales: Optional[list] = None
 
     def is_optimizable(self) -> bool:
         return any(isinstance(p, Bounds) for p in self.params) or isinstance(self.z, Bounds)

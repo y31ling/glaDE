@@ -87,11 +87,19 @@ def verify_with_glafic(scene: Scene, obs: ObsData, output_dir: str,
                        loss_cfg: Optional[LossConfig] = None,
                        opt_loss: Optional[float] = None,
                        prefix: str = "glafic_verify",
-                       timeout: int = 120) -> dict:
+                       timeout: int = 120,
+                       auto_check: bool = True) -> dict:
     """Run the glafic binary on the best-fit model and compare to the optimizer.
 
     Returns a report dict with ``warnings`` (a list of strings); ``ok`` is False
     when verification could not run (binary missing / glafic failed).
+
+    With ``auto_check`` (default) the report also carries a ``micro_audit``
+    section: every matched image is re-solved on a zoomed adaptive grid to
+    detect unresolved micro-image clusters caused by a compact perturber (see
+    :mod:`core.micro_audit` and microimage_auto_check_plan.md); a
+    ``physical_loss`` recomputed with the cluster Sigma|mu| and a
+    ``fake_solution`` flag are attached. ``auto_check=False`` skips all of it.
     """
     loss_cfg = loss_cfg or LossConfig()
     report: dict = {"ok": False, "warnings": []}
@@ -145,11 +153,26 @@ def verify_with_glafic(scene: Scene, obs: ObsData, output_dir: str,
 
     pred_pos = np.array([[im[0], im[1]] for im in sel], dtype=float)
     pred_mag = np.array([im[2] for im in sel], dtype=float)
-    _, mm, delta = match_images(obs.positions, pred_pos, pred_mag, obs.center_offset)
+    matched_pos, mm, delta = match_images(obs.positions, pred_pos, pred_mag,
+                                          obs.center_offset)
     gloss = float(ml_loss(delta, mm, obs.magnifications, obs.mag_errors,
                           obs.pos_sigma_mas, loss_cfg))
     report["glafic_loss"] = gloss
     report["glafic_max_delta_mas"] = float(np.max(delta))
+
+    if auto_check:
+        # layer-1 micro-image audit (auto_check; never raises — the audit
+        # wraps itself). matched_pos carries the center offset; the audit
+        # works in the model frame.
+        try:
+            from .micro_audit import micro_audit
+            model_xy = matched_pos - np.asarray(obs.center_offset, dtype=float)
+            audit = micro_audit(scene, obs, model_xy, mm,
+                                np.arange(obs.n), loss_cfg, output_dir)
+            report["micro_audit"] = audit
+            report["warnings"].extend(audit.get("warnings", []))
+        except Exception as exc:  # noqa: BLE001 — verify must never raise
+            report["warnings"].append(f"micro-audit failed to run: {exc}")
 
     if opt_loss is not None and np.isfinite(opt_loss):
         report["optimizer_loss"] = float(opt_loss)

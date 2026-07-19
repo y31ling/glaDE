@@ -58,11 +58,35 @@ Multiple assignments to the **same name within one file** is an error.
   `obs_positions_mas_list`, `obs_magnifications_list`, `obs_mag_errors_list`,
   `obs_pos_sigma_mas_list`, plus `center_offset_x`, `center_offset_y`,
   `obs_x_flip`
-* **Algorithm**: `DE_MAXITER`, `DE_POPSIZE`, `DE_ATOL`, `DE_TOL`, `DE_SEED`,
-  `DE_POLISH`, `DE_WORKERS`, `EARLY_STOPPING`, `EARLY_STOP_PATIENCE`,
+* **Algorithm**: `OPTIMIZER`, `DE_MAXITER`, `DE_POPSIZE`, `DE_ATOL`, `DE_TOL`,
+  `DE_SEED`, `DE_POLISH`, `DE_WORKERS`, `EARLY_STOPPING`, `EARLY_STOP_PATIENCE`,
+  `CMAES_MAXEVALS`, `CMAES_SEED`, `CMAES_SIGMA0`, `CMAES_POPSIZE`,
+  `CMAES_RESTARTS`, `CMAES_TOLFUN`, `CMAES_TOLX`, `CMAES_WORKERS`,
+  `JSO_MAXEVALS`, `JSO_SEED`, `JSO_NP_INIT`, `JSO_NP_MIN`, `JSO_H`,
+  `JSO_ARC_RATE`, `JSO_PBEST_MAX`, `JSO_WORKERS`,
   `LOSS_COEF_A`, `LOSS_COEF_B`, `LOSS_PENALTY_PL`, `CONSTRAINT_SIGMA`,
   `Draw_Graph`, `draw_interval`, `COMPARE_GRAPH`, `SHOW_2SIGMA`,
   `OUTPUT_PREFIX`, `MCMC_*`, `gpu_precision`, `abs_mag`
+* `OPTIMIZER` (default `'DE'`) selects the point-source optimizer:
+  `'DE'` (scipy Differential Evolution, the historical default),
+  `'BIPOP-CMA-ES'` (self-contained Hansen-2009 BI-population restart CMA-ES;
+  budget `CMAES_MAXEVALS`, 0 = auto `10000 * ndim`; `CMAES_POPSIZE` 0 = auto
+  `4 + floor(3 ln n)`; up to `CMAES_RESTARTS` large restarts) or
+  `'jSO'` (the CEC-2017 success-history adaptive DE; budget `JSO_MAXEVALS`,
+  0 = auto `10000 * ndim`; `JSO_NP_INIT` 0 = auto `round(25 ln(D) sqrt(D))`).
+  Aliases are case-insensitive (`cmaes` / `CMA-ES` / `jso`). All three run on
+  every backend: multi-process glafic on `cpu`/`glafic` (workers via
+  `CMAES_WORKERS`/`JSO_WORKERS`, defaulting to `DE_WORKERS`), the batched
+  Rhongomyniad objective on `gpu`. Extended-source (FITS) runs are DE-only.
+* `UnitSetting` (default `'default'`) names a unit profile
+  (`<name>.units.json` next to the `.dat` or under `InputFiles/`) that
+  declares which units the file is AUTHORED in; values are converted to the
+  engine convention at load time. Categories: `mass` (`hinv_msun` default —
+  glafic masses really are h^-1 Msun — or `msun`, converted with the fixed
+  `hubble`), `obs_pos` (`mas` default or `arcsec`), `comp_pos` (`arcsec`
+  default or `mas`; component centres + angular scale radii), `src_pos`
+  (`arcsec` default or `mas`). User-defined `{lo, hi}` variables stay
+  dimensionless — each reference site's slot decides the unit.
 * `abs_mag` (default `True`) compares magnifications by ABSOLUTE value in the
   point-source loss (parity-insensitive: obs `30` vs model `-29` differs by 1,
   not 59 — near critical curves the model parity flips easily and a signed

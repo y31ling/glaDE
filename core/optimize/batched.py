@@ -234,11 +234,15 @@ class BatchedGPUObjective:
                         slot[name] = ("fix", 0.0)
                 points.append(slot)
             elif not legacy and comp.is_optimizable():
+                scales = getattr(comp, "unit_scales", None)
                 slots = [("fix", float(zc))]
                 for j, p in enumerate(comp.params):
                     if isinstance(p, SharedBounds):
                         k = dim_of[("var", p.name)]
-                        slots.append(("dim", k, self.problem.dims[k].log))
+                        # shared vars are dimensionless: the slot's unit
+                        # factor (non-default UnitSetting) applies on decode
+                        sc = scales[j] if scales is not None else 1.0
+                        slots.append(("dim", k, self.problem.dims[k].log, sc))
                     elif isinstance(p, Bounds):
                         k = dim_of[("comp_param", comp.index, j)]
                         slots.append(("dim", k, self.problem.dims[k].log))
@@ -296,13 +300,19 @@ class BatchedGPUObjective:
             z = torch.zeros_like(gx)
             ax_f = ay_f = kap_f = g1_f = g2_f = z
 
+        # auto_check (hidden .dat key, default True): in-loop micro-image
+        # protection (plan §5a). False leaves every original tensor op — and
+        # therefore the same-seed bit-identity guarantees — untouched.
+        auto_check = bool(cfg.algorithm.get("auto_check", True))
+
         self._cache = dict(
             ctx=ctx, gx=gx, gy=gy, dp=dp, nx=nx, ny=ny,
             ax=ax_f.contiguous(), ay=ay_f.contiguous(), kap=kap_f.contiguous(),
             g1=g1_f.contiguous(), g2=g2_f.contiguous(), fixed_lenses=fixed_lenses,
             points=points, source_x=source_x, source_y=source_y,
             legacy=legacy, opt_lenses=opt_lenses, src_slots=src_slots,
-            chunk=chunk, precision=prec, dt_grid=dt_grid, dt_newton=dt_newton)
+            chunk=chunk, precision=prec, dt_grid=dt_grid, dt_newton=dt_newton,
+            auto_check=auto_check, lens_z=lens_z)
 
     @staticmethod
     def _legacy_eligible(cfg: GladeConfig) -> bool:
@@ -450,13 +460,18 @@ class BatchedGPUObjective:
     # -- generalized path: any GPU model as per-candidate tensors -------------
     def _slot_tensor(self, slot, arr_t):
         """slot -> float or (C,) tensor from the (ndim, C) candidate tensor.
-        Log (mass-like) dims are searched in log10 and decoded to linear."""
+        Log (mass-like) dims are searched in log10 and decoded to linear; a
+        4th slot element is the shared-variable unit factor (skipped at the
+        default 1.0 so the operation stream stays bit-identical)."""
         kind = slot[0]
         if kind == "fix":
             return slot[1]
-        _, dim_idx, is_log = slot
+        dim_idx, is_log = slot[1], slot[2]
         col = arr_t[dim_idx]
-        return self._torch.pow(10.0, col) if is_log else col
+        val = self._torch.pow(10.0, col) if is_log else col
+        if len(slot) > 3 and slot[3] != 1.0:
+            val = val * slot[3]
+        return val
 
     def _opt_lenses_t(self, arr_t):
         """[(glafic_key, params)] for the optimizable components; optimizable
@@ -592,6 +607,336 @@ class BatchedGPUObjective:
                 out[ci].append((x, y, m))
         return out
 
+    # -- in-loop micro-image protection (auto_check; plan §5a) ----------------
+    # AUDIT_N x AUDIT_N uniform seeds per local box; two boxes per triggered
+    # (candidate, image) pair: perturber +-20 theta and image +-max(3d, 5 theta)
+    _AUDIT_N = 21
+    _BETA_TOL2 = 1.0e-16          # (1e-8 arcsec)^2 back-projection validation
+
+    def _losses_for_chunk(self, arr, images_list, offset, loss_out,
+                          arr_t=None, legacy_tensors=None):
+        """Score one chunk of candidates.
+
+        With auto_check off this is exactly a ``point_source_loss`` loop.
+        With auto_check on, selection/Hungarian matching runs first (same
+        operations, same floats), triggered (candidate, image) pairs are
+        collected across the WHOLE chunk, all their local micro-solves run as
+        ONE flat batched Newton pass (:meth:`_flat_local_solve`), and the
+        cluster Sigma|mu| replaces only those images' magnifications before
+        ``ml_loss``. Untriggered candidates produce bit-identical losses.
+        """
+        obs, lc = self.obs, self.loss_cfg
+        if not self._cache["auto_check"]:
+            for c, ims in enumerate(images_list):
+                loss_out[offset + c] = point_source_loss(ims, obs, lc)
+            return
+        try:
+            self._losses_checked(arr, images_list, offset, loss_out,
+                                 arr_t, legacy_tensors)
+        except Exception as exc:  # noqa: BLE001 — fail safe to the plain loss
+            if not getattr(self, "_audit_warned", False):
+                self._audit_warned = True
+                print(f"  [warn] auto_check GPU micro-solve failed "
+                      f"({type(exc).__name__}: {exc}); falling back to the "
+                      f"unaudited loss for this chunk.", flush=True)
+            for c, ims in enumerate(images_list):
+                loss_out[offset + c] = point_source_loss(ims, obs, lc)
+
+    def _losses_checked(self, arr, images_list, offset, loss_out,
+                        arr_t, legacy_tensors):
+        from ..micro_audit import find_compact_perturbers, triggered
+        from .loss import ml_loss
+        from .matching import assign_images, select_images
+
+        obs, lc = self.obs, self.loss_cfg
+        allow_partial = lc.missing_img_penalty > 0.0
+        co = np.asarray(obs.center_offset, dtype=float)
+        pend: list[dict] = []
+        pairs: list[tuple] = []      # (pend_idx, matched_row, Perturber, d_mas)
+
+        for c, ims in enumerate(images_list):
+            if ims is None:
+                loss_out[offset + c] = INVALID_LOSS
+                continue
+            sel = select_images(ims, obs.n, allow_partial=allow_partial)
+            if sel is None:
+                loss_out[offset + c] = INVALID_LOSS
+                continue
+            n_pred = len(sel)
+            if n_pred == 0:
+                loss_out[offset + c] = float(obs.n * lc.missing_img_penalty)
+                continue
+            pred_pos = np.array([[im[0], im[1]] for im in sel], dtype=float)
+            pred_mag = np.array([im[2] for im in sel], dtype=float)
+            mpos, mmag, delta, oidx = assign_images(
+                obs.positions, pred_pos, pred_mag, obs.center_offset)
+            scene = self.problem.make_scene(np.asarray(arr[:, c], dtype=float))
+            perts = find_compact_perturbers(scene)
+            model_xy = mpos - co
+            trigs = []
+            if perts:
+                for i in range(len(mmag)):
+                    t = triggered(perts, float(model_xy[i, 0]),
+                                  float(model_xy[i, 1]))
+                    if t is not None:
+                        trigs.append((i, t))
+            if not trigs:
+                base = ml_loss(delta, mmag, obs.magnifications[oidx],
+                               obs.mag_errors[oidx], obs.pos_sigma_mas[oidx],
+                               lc)
+                loss_out[offset + c] = float(
+                    base + (obs.n - n_pred) * lc.missing_img_penalty)
+                continue
+            st = {"c": c, "delta": delta, "mmag": mmag.copy(), "oidx": oidx,
+                  "n_pred": n_pred, "model_xy": model_xy}
+            pi = len(pend)
+            pend.append(st)
+            for (i, t) in trigs:
+                pairs.append((pi, i, t[0], t[1]))
+
+        if pend:
+            self._flat_local_solve(pend, pairs, arr_t, legacy_tensors)
+            for st in pend:
+                oidx = st["oidx"]
+                base = ml_loss(st["delta"], st["mmag"],
+                               obs.magnifications[oidx],
+                               obs.mag_errors[oidx],
+                               obs.pos_sigma_mas[oidx], lc)
+                loss_out[offset + st["c"]] = float(
+                    base + (obs.n - st["n_pred"]) * lc.missing_img_penalty)
+
+    def _flat_local_solve(self, pend, pairs, arr_t, legacy_tensors):
+        """All triggered pairs of a chunk as batched Newton passes, SLICED so
+        the seed count stays memory-bounded: with Schramm-quadrature models a
+        (256, Nseed) intermediate materializes per kernel call, and a fully
+        converged worst-case population (every candidate x every image
+        triggered, ~1500 boxes = ~7e5 seeds) would otherwise blow past the
+        GPU memory envelope and crawl in near-OOM mode."""
+        per_box = self._AUDIT_N * self._AUDIT_N
+        heavy = (any(name in _SCHRAMM for name, _ in self._cache["opt_lenses"])
+                 or any(name in _SCHRAMM
+                        for name, _ in self._cache["fixed_lenses"]))
+        max_seeds = 32768 if heavy else 131072
+        if self._cache["dt_grid"] == self._torch.float32:
+            max_seeds *= 2                 # fp32 halves the bytes per seed
+        max_pairs = max(1, max_seeds // (2 * per_box))
+        reps: list[tuple] = []             # (global pair idx, x, y)
+        for s in range(0, len(pairs), max_pairs):
+            for (p_local, x, y) in self._stage1_reps(
+                    pend, pairs[s:s + max_pairs], arr_t, legacy_tensors):
+                reps.append((s + p_local, x, y))
+        if reps:
+            # stage 2 once, across ALL slices: per-call fixed overhead of the
+            # kernels dominates at these sizes, so paying it per slice was
+            # measurably slower than one aggregated pass.
+            self._stage2_substitute(pend, pairs, reps, arr_t, legacy_tensors)
+
+    def _gather_local_lenses(self, seed_cand, dt, arr_t, legacy_tensors):
+        """Per-seed lens stack + source target for the local audit: locked
+        components stay floats, per-candidate parameters are gathered from
+        the chunk's fp64 master tensors and cast to ``dt``."""
+        torch = self._torch
+        cache = self._cache
+        lenses = list(cache["fixed_lenses"])
+        if legacy_tensors is not None:
+            sx_t, sy_t, lm_t = legacy_tensors
+            zl = cache["lens_z"]
+            for k in range(sx_t.shape[1]):
+                m_k = torch.pow(10.0, lm_t[:, k])[seed_cand].to(dt)
+                x_k = sx_t[:, k][seed_cand].to(dt)
+                y_k = sy_t[:, k][seed_cand].to(dt)
+                lenses.append(("point", (zl, m_k, x_k, y_k,
+                                         0.0, 0.0, 0.0, 0.0)))
+            xs_tgt = float(cache["source_x"])
+            ys_tgt = float(cache["source_y"])
+        else:
+            for name, p in self._opt_lenses_t(arr_t):
+                q = tuple(v.view(-1)[seed_cand].to(dt)
+                          if torch.is_tensor(v) else v for v in p)
+                lenses.append((name, q))
+            sx_src, sy_src = self._source_xy_t(arr_t)
+            xs_tgt = sx_src[seed_cand].to(dt)
+            ys_tgt = sy_src[seed_cand].to(dt)
+        return lenses, xs_tgt, ys_tgt
+
+    def _stage1_reps(self, pend, pairs, arr_t, legacy_tensors):
+        """One memory-bounded slice of pairs, two-stage:
+
+        Stage 1 (bulk, at ``dt_grid`` — fp32 under gpu_precision 32/48): all
+        seeds Newton-refined; survivors of the runaway reject + a LOOSE
+        back-projection cut (1e-5 arcsec at fp32, comfortably above fp32's
+        ~1e-7 convergence floor) are deduped at theta_scale/10 into a handful
+        of representative roots per pair.
+
+        Stage 2 (polish, ALWAYS fp64, but only on those few representatives —
+        negligible cost): 3 more Newton steps restore machine-precision
+        roots, the STRICT 1e-8 arcsec validation rejects any surviving
+        non-root (near-critical phantoms whose fp32 residual was
+        magnification-compressed under the loose cut), and the
+        magnifications are recomputed in fp64. Then re-dedup (polish can
+        merge representatives), ownership-filter, and substitute Sigma|mu|.
+
+        This keeps the expensive Schramm field work at fp32 speed while the
+        accepted roots and their mu are fp64-trustworthy — the pure-fp32
+        variant let DE dig into near-critical noise needles (SIE-pm @32:
+        nominal 9.93 vs physical 215), and forcing the whole audit to fp64
+        was ~an order of magnitude slower on Schramm-heavy models."""
+        from ..micro_audit import _merge_roots
+
+        torch, K = self._torch, self._K
+        cache = self._cache
+        ctx = cache["ctx"]
+        dt1 = cache["dt_grid"]                 # fp32 at gpu_precision 32/48
+        dev = self.device
+        n = self._AUDIT_N
+        per_box = n * n
+        P = len(pairs)
+
+        # unit grid in [-1, 1]^2, reused for every box
+        u = torch.linspace(-1.0, 1.0, n, device=dev, dtype=dt1)
+        ux, uy = torch.meshgrid(u, u, indexing="xy")
+        ux = ux.reshape(-1)
+        uy = uy.reshape(-1)
+
+        cxs, cys, halves, cand_of_pair = [], [], [], []
+        for (pi, i, pert, d_mas) in pairs:
+            st = pend[pi]
+            ts = pert.theta_scale / 1000.0
+            ix, iy = st["model_xy"][i]
+            cxs.extend([pert.x, float(ix)])
+            cys.extend([pert.y, float(iy)])
+            halves.extend([20.0 * ts,
+                           max(3.0 * d_mas / 1000.0, 5.0 * ts)])
+            cand_of_pair.append(st["c"])
+        B = 2 * P
+        cx_t = torch.tensor(cxs, device=dev, dtype=dt1).view(B, 1)
+        cy_t = torch.tensor(cys, device=dev, dtype=dt1).view(B, 1)
+        h_t = torch.tensor(halves, device=dev, dtype=dt1).view(B, 1)
+        xi = (cx_t + h_t * ux.view(1, per_box)).reshape(-1)
+        yi = (cy_t + h_t * uy.view(1, per_box)).reshape(-1)
+        x0, y0 = xi.clone(), yi.clone()
+        sp = (2.0 * h_t / (n - 1)).expand(B, per_box).reshape(-1)
+        # seed -> chunk-candidate index / pair index
+        box_pair = torch.tensor([p // 2 for p in range(B)], device=dev)
+        seed_pair = box_pair.view(B, 1).expand(B, per_box).reshape(-1)
+        cand_t = torch.tensor(cand_of_pair, device=dev)
+        seed_cand = cand_t[seed_pair]
+
+        lenses, xs_tgt, ys_tgt = self._gather_local_lenses(
+            seed_cand, dt1, arr_t, legacy_tensors)
+
+        for _ in range(K.DEF_NMAX_POI_ITE):
+            ax_t, ay_t, kap, g1, g2, _phi, _mi = self._sum_lensmodel(
+                ctx, lenses, xi, yi, need_kg=True, need_phi=False)
+            pxx, pyy, pxy = kap + g1, kap - g1, g2
+            ff = xs_tgt - xi + ax_t
+            gg = ys_tgt - yi + ay_t
+            mm = (1.0 - pxx) * (1.0 - pyy) - pxy * pxy
+            xi = xi + ((1.0 - pyy) * ff + pxy * gg) / mm
+            yi = yi + ((1.0 - pxx) * gg + pxy * ff) / mm
+        ax_t, ay_t, *_rest = self._sum_lensmodel(
+            ctx, lenses, xi, yi, need_kg=False, need_phi=False)
+        # LOOSE back-projection cut: kill obvious non-roots cheaply. A true
+        # root's residual sits at the stage-1 dtype's convergence floor
+        # (fp32 ~1e-7 arcsec, fp64 ~1e-15); the strict verdict is stage 2's.
+        res2 = (xs_tgt - xi + ax_t) ** 2 + (ys_tgt - yi + ay_t) ** 2
+        loose2 = 1.0e-10 if dt1 == torch.float32 else self._BETA_TOL2
+        keep = (((xi - x0) ** 2 + (yi - y0) ** 2) <= (2.0 * sp * sp)) \
+            & (res2 <= loose2)
+
+        k_idx = torch.nonzero(keep, as_tuple=False).reshape(-1)
+        if k_idx.numel() == 0:
+            return []
+        kp = seed_pair[k_idx].cpu().numpy()
+        kx = xi[k_idx].cpu().numpy()
+        ky = yi[k_idx].cpu().numpy()
+        cand_by_pair = [[] for _ in range(P)]
+        for j in range(len(kp)):
+            cand_by_pair[int(kp[j])].append((float(kx[j]), float(ky[j]), 0.0))
+
+        # dedup to representatives BEFORE the fp64 polish: a handful of
+        # points per pair, so the fp64 stage costs next to nothing.
+        reps = []
+        for p, (pi, i, pert, _d) in enumerate(pairs):
+            if not cand_by_pair[p]:
+                continue
+            for (x, y, _m) in _merge_roots([cand_by_pair[p]],
+                                           pert.theta_scale / 10.0):
+                reps.append((p, x, y))
+        return reps
+
+    def _stage2_substitute(self, pend, pairs, reps, arr_t, legacy_tensors):
+        """fp64 polish + strict validation of the stage-1 representatives
+        (one aggregated pass for the whole chunk), then dedup / ownership /
+        Sigma|mu| substitution — see :meth:`_stage1_reps`."""
+        from ..micro_audit import _merge_roots
+
+        torch, K = self._torch, self._K
+        cache = self._cache
+        ctx = cache["ctx"]
+        dev = self.device
+        P = len(pairs)
+        cand_t = torch.tensor([pend[pi]["c"] for (pi, _i, _p, _d) in pairs],
+                              device=dev)
+        rep_pair = [r[0] for r in reps]
+        rep_x = [r[1] for r in reps]
+        rep_y = [r[2] for r in reps]
+
+        dt2 = self.dtype
+        rp_t = torch.tensor(rep_pair, device=dev)
+        xr = torch.tensor(rep_x, device=dev, dtype=dt2)
+        yr = torch.tensor(rep_y, device=dev, dtype=dt2)
+        rep_cand = cand_t[rp_t]
+        lenses2, xs2, ys2 = self._gather_local_lenses(
+            rep_cand, dt2, arr_t, legacy_tensors)
+        kap = g1 = g2 = None
+        for _ in range(3):
+            ax_t, ay_t, kap, g1, g2, _phi, _mi = self._sum_lensmodel(
+                ctx, lenses2, xr, yr, need_kg=True, need_phi=False)
+            pxx, pyy, pxy = kap + g1, kap - g1, g2
+            ff = xs2 - xr + ax_t
+            gg = ys2 - yr + ay_t
+            mm = (1.0 - pxx) * (1.0 - pyy) - pxy * pxy
+            xr = xr + ((1.0 - pyy) * ff + pxy * gg) / mm
+            yr = yr + ((1.0 - pxx) * gg + pxy * ff) / mm
+        ax_t, ay_t, kap, g1, g2, _phi, _mi = self._sum_lensmodel(
+            ctx, lenses2, xr, yr, need_kg=True, need_phi=False)
+        muinv = (1.0 - kap) ** 2 - (g1 * g1 + g2 * g2)
+        mag = 1.0 / (muinv + K.DEF_IMAG_CEIL)
+        res2 = (xs2 - xr + ax_t) ** 2 + (ys2 - yr + ay_t) ** 2
+        ok = res2 <= self._BETA_TOL2            # strict fp64 verdict
+        ok_idx = torch.nonzero(ok, as_tuple=False).reshape(-1)
+        if ok_idx.numel() == 0:
+            return
+        op = rp_t[ok_idx].cpu().numpy()
+        oxp = xr[ok_idx].cpu().numpy()
+        oyp = yr[ok_idx].cpu().numpy()
+        omp = mag[ok_idx].cpu().numpy()
+        roots_of = [[] for _ in range(P)]
+        for j in range(len(op)):
+            roots_of[int(op[j])].append(
+                (float(oxp[j]), float(oyp[j]), float(omp[j])))
+
+        for p, (pi, i, pert, _d) in enumerate(pairs):
+            if not roots_of[p]:
+                continue                       # fail safe: keep single root
+            st = pend[pi]
+            ix, iy = st["model_xy"][i]
+            # re-dedup: polish may have merged two stage-1 representatives
+            roots = _merge_roots([roots_of[p]], pert.theta_scale / 10.0)
+            total = 0.0
+            found = False
+            for (x, y, m) in roots:
+                d_own = (x - ix) ** 2 + (y - iy) ** 2
+                if all(d_own <= (x - st["model_xy"][j, 0]) ** 2
+                       + (y - st["model_xy"][j, 1]) ** 2
+                       for j in range(len(st["model_xy"])) if j != i):
+                    total += abs(m)
+                    found = True
+            if found:
+                st["mmag"][i] = total
+
+
     # -- objective -----------------------------------------------------------
     def __call__(self, params_arr):
         try:
@@ -654,7 +999,6 @@ class BatchedGPUObjective:
         if arr.ndim == 1:
             arr = arr[:, None]
         popsize = arr.shape[1]
-        obs = self.obs
         loss = np.empty(popsize)
 
         if not self._cache["legacy"]:
@@ -663,16 +1007,15 @@ class BatchedGPUObjective:
                 sub = arr[:, s:s + chunk]
                 arr_t = torch.tensor(sub, dtype=self.dtype, device=self.device)
                 images = self._solve_general(arr_t)
-                for c in range(sub.shape[1]):
-                    loss[s + c] = point_source_loss(images[c], obs, self.loss_cfg)
+                self._losses_for_chunk(sub, images, s, loss, arr_t=arr_t)
             return loss
 
         sx_t, sy_t, lm_t = self._batch_tensors(arr)
         all_images = self._solve(sx_t, sy_t, lm_t,
                                  float(self._cache["source_x"]),
                                  float(self._cache["source_y"]))
-        for c in range(popsize):
-            loss[c] = point_source_loss(all_images[c], obs, self.loss_cfg)
+        self._losses_for_chunk(arr, all_images, 0, loss,
+                               legacy_tensors=(sx_t, sy_t, lm_t))
         return loss
 
 

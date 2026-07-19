@@ -160,11 +160,13 @@ class BatchedExtendGPUObjective:
         for comp in cfg.components:
             mspec = schema.model(comp.type)
             zc = comp.z.value if isinstance(comp.z, Fixed) else lens_z
+            scales = getattr(comp, "unit_scales", None)
             slots = [("fix", float(zc))]
             for j, p in enumerate(comp.params):
                 if isinstance(p, SharedBounds):
                     k = dim_of[("var", p.name)]
-                    slots.append(("dim", k, self.problem.dims[k].log))
+                    sc = scales[j] if scales is not None else 1.0
+                    slots.append(("dim", k, self.problem.dims[k].log, sc))
                 elif isinstance(p, Bounds):
                     k = dim_of[("comp_param", comp.index, j)]
                     slots.append(("dim", k, self.problem.dims[k].log))
@@ -254,13 +256,18 @@ class BatchedExtendGPUObjective:
 
     # -- candidate decoding ------------------------------------------------
     def _slot_tensor(self, slot, arr_t):
-        """slot -> float or (C,) tensor from the (ndim, C) candidate tensor."""
+        """slot -> float or (C,) tensor from the (ndim, C) candidate tensor.
+        A 4th slot element is the shared-variable unit factor (non-default
+        UnitSetting); at the default 1.0 nothing is multiplied."""
         kind = slot[0]
         if kind == "fix":
             return slot[1]
-        _, dim_idx, is_log = slot
+        dim_idx, is_log = slot[1], slot[2]
         col = arr_t[dim_idx]
-        return self._torch.pow(10.0, col) if is_log else col
+        val = self._torch.pow(10.0, col) if is_log else col
+        if len(slot) > 3 and slot[3] != 1.0:
+            val = val * slot[3]
+        return val
 
     def _build_lenses(self, arr_t, shape_suffix=(1, 1)):
         """[(name, params)] with per-candidate tensors of shape (C, *suffix)."""

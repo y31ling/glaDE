@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700" role="img" aria-labelledby="title desc">
+  <title id="title">Recovered micro-images around iPTF16geu image 4</title>
+  <desc id="desc">The four roots recovered from the iptf-nfw-pm-1234 snapshot, plotted relative to their flux-weighted centroid, with positive and negative parity shown in blue and red.</desc>
+  <defs>
+    <style>
+      .bg{fill:#0b1220}.panel{fill:#111c2e;stroke:#334155;stroke-width:2}.t{fill:#e5e7eb;font-family:'Noto Sans CJK SC','Noto Sans CJK TC',Arial,'Noto Sans',sans-serif}.muted{fill:#9ca3af;font-family:'Noto Sans CJK SC','Noto Sans CJK TC',Arial,'Noto Sans',sans-serif}.axis{stroke:#64748b;stroke-width:1.5}.grid{stroke:#273449;stroke-width:1}.pos{fill:#60a5fa;stroke:#dbeafe;stroke-width:2}.neg{fill:#fb7185;stroke:#ffe4e6;stroke-width:2}.halo{fill:none;stroke:#fbbf24;stroke-width:4;stroke-dasharray:8 6}.code{fill:#c4b5fd;font-family:'DejaVu Sans Mono',monospace}
+    </style>
+  </defs>
+  <rect width="1000" height="700" class="bg"/>
+  <text x="40" y="48" class="t" font-size="28" font-weight="700">iPTF16geu image 4: the roots the coarse finder missed</text>
+  <text x="40" y="78" class="t" font-size="21">iPTF16geu 第 4 像：粗求像器漏掉的根</text>
+  <rect x="35" y="100" width="650" height="545" rx="16" class="panel"/>
+
+  <!-- plot mapping x=-2.2..2.2 to 95..625; y=-1.8..1.8 to 600..145 -->
+  <g>
+    <line x1="95" y1="372.5" x2="625" y2="372.5" class="axis"/>
+    <line x1="360" y1="145" x2="360" y2="600" class="axis"/>
+    <g class="grid">
+      <line x1="119.1" y1="145" x2="119.1" y2="600"/><line x1="239.5" y1="145" x2="239.5" y2="600"/><line x1="480.5" y1="145" x2="480.5" y2="600"/><line x1="600.9" y1="145" x2="600.9" y2="600"/>
+      <line x1="95" y1="183" x2="625" y2="183"/><line x1="95" y1="309.3" x2="625" y2="309.3"/><line x1="95" y1="435.7" x2="625" y2="435.7"/><line x1="95" y1="562.1" x2="625" y2="562.1"/>
+    </g>
+    <g class="muted" font-size="14" text-anchor="middle">
+      <text x="119.1" y="623">−2</text><text x="239.5" y="623">−1</text><text x="360" y="623">0</text><text x="480.5" y="623">+1</text><text x="600.9" y="623">+2</text>
+    </g>
+    <g class="muted" font-size="14" text-anchor="end">
+      <text x="84" y="188">+1.5</text><text x="84" y="314">+0.5</text><text x="84" y="441">−0.5</text><text x="84" y="567">−1.5</text>
+    </g>
+    <text x="360" y="640" class="t" text-anchor="middle" font-size="16">Δx from flux centroid [mas]</text>
+    <text x="51" y="374" class="t" text-anchor="middle" font-size="16" transform="rotate(-90 51 374)">Δy [mas]</text>
+
+    <!-- roots: coordinates relative centroid, y inverted -->
+    <circle cx="538.2" cy="467.5" r="24" class="pos"/>
+    <text x="568" y="474" class="t" font-size="17">+16.161</text>
+
+    <circle cx="381.8" cy="354.6" r="19" class="neg"/>
+    <circle cx="381.8" cy="354.6" r="32" class="halo"/>
+    <text x="410" y="346" class="t" font-size="17">−9.0945</text>
+    <text x="410" y="369" fill="#fbbf24" font-family="'Noto Sans CJK SC','Noto Sans CJK TC',Arial,'Noto Sans',sans-serif" font-size="14">coarse report / 粗网格所报</text>
+
+    <circle cx="165.8" cy="283.9" r="24" class="pos"/>
+    <text x="94" y="270" class="t" font-size="17">+15.790</text>
+
+    <circle cx="299.3" cy="517.8" r="7" class="neg"/>
+    <text x="216" y="545" class="t" font-size="17">−0.179</text>
+
+    <!-- perturber -->
+    <polygon points="316.6,466.2 328.6,478.2 316.6,490.2 304.6,478.2" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+    <text x="215" y="460" class="t" font-size="15">point perturber / 点扰动体</text>
+
+    <circle cx="360" cy="372.5" r="5" fill="#4ade80"/>
+    <text x="368" y="392" fill="#4ade80" font-family="'Noto Sans CJK SC','Noto Sans CJK TC',Arial,'Noto Sans',sans-serif" font-size="14">flux centroid</text>
+  </g>
+
+  <rect x="715" y="112" width="250" height="520" rx="16" class="panel"/>
+  <text x="740" y="150" class="t" font-size="19" font-weight="700">What the detector sees</text>
+  <text x="740" y="176" class="t" font-size="17">探测器真正测到什么</text>
+  <line x1="740" y1="198" x2="940" y2="198" stroke="#334155"/>
+  <text x="740" y="233" class="muted" font-size="15">Signed sum / 带符号和</text>
+  <text x="740" y="267" class="code" font-size="22">Σ μᵢ = +22.677</text>
+  <text x="740" y="296" class="muted" font-size="14">≈ smooth baseline +22.673</text>
+  <text x="740" y="340" class="muted" font-size="15">Unresolved flux / 未分辨总流量</text>
+  <text x="740" y="376" class="code" font-size="25" font-weight="700">Σ |μᵢ| = 41.224</text>
+  <text x="740" y="410" class="muted" font-size="14">not / 不是  |−9.0945|</text>
+  <line x1="740" y1="435" x2="940" y2="435" stroke="#334155"/>
+  <circle cx="756" cy="474" r="9" class="pos"/><text x="778" y="480" class="t" font-size="15">positive parity / 正宇称</text>
+  <circle cx="756" cy="510" r="9" class="neg"/><text x="778" y="516" class="t" font-size="15">negative parity / 负宇称</text>
+  <text x="740" y="558" class="muted" font-size="14">Cluster span: 3.41 mas</text>
+  <text x="740" y="582" class="muted" font-size="14">Nearest-root gaps: 1.46–1.88 mas</text>
+  <text x="740" y="606" class="muted" font-size="14">Marker area ∝ |μ| (schematic)</text>
+</svg>

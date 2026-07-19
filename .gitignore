@@ -193,3 +193,8 @@ tools/mcmc_gpu_v_2.py
 .claude/
 # internal correspondence draft (kept local, like the V0.5.1 dev notes)
 EMAIL_to_Oguri.txt
+
+# ==================== V0.7.0 ====================
+# WebUI FindImage backend-settings icons ship in git; keep the blanket *.png
+# rule from silently dropping them (same precedent as source/icon/*.png).
+!webui/static/icons/*.png

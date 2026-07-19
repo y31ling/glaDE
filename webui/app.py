@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 _THIS = os.path.dirname(os.path.abspath(__file__))
@@ -226,7 +227,85 @@ def files_export():
 # --------------------------------------------------------------------------- #
 @app.route("/api/templates")
 def templates():
-    return jsonify(template_tree())
+    """Editor Template tree. ``?units=<profileName>`` renders unit-aware comments
+    (and a UnitSetting line) for that profile; omitted / 'default' = engine units.
+    """
+    from core.format.units import resolve_profile
+    prof = request.args.get("units")
+    units = None
+    if prof and prof.strip() not in ("", "default"):
+        units, _issues = resolve_profile(prof, [INPUT_DIR])
+        if units is None:                         # unknown/unreadable profile
+            return jsonify(template_tree())       # fall back to engine defaults
+    return jsonify(template_tree(units if units is not None else None))
+
+
+# --------------------------------------------------------------------------- #
+# unit profiles (the UnitSetting key)
+# --------------------------------------------------------------------------- #
+@app.route("/api/units")
+def units_get():
+    """Unit categories + options, the fixed-unit rows, and the saved profiles
+    found in InputFiles/ (``*.units.json``)."""
+    from core.format import units as U
+    categories = {name: {"default": default, "options": list(opts)}
+                  for name, (default, opts) in U.CATEGORIES.items()}
+    profiles = []
+    try:
+        entries = sorted(os.listdir(INPUT_DIR))
+    except OSError:
+        entries = []
+    for entry in entries:
+        if not entry.endswith(U.PROFILE_SUFFIX):
+            continue
+        path = os.path.join(INPUT_DIR, entry)
+        if not os.path.isfile(path):
+            continue
+        name = entry[:-len(U.PROFILE_SUFFIX)]
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            raw = data.get("units", data) if isinstance(data, dict) else {}
+            merged = dict(U.DEFAULT_UNITS)
+            if isinstance(raw, dict):
+                for k, v in raw.items():
+                    if k in U.CATEGORIES:
+                        merged[k] = v
+            profiles.append({"name": name, "units": merged})
+        except (OSError, ValueError) as exc:
+            profiles.append({"name": name, "error": str(exc)})
+    return jsonify({"categories": categories, "fixed": U.FIXED_UNITS,
+                    "profiles": profiles})
+
+
+@app.route("/api/units/save", methods=["POST"])
+def units_save():
+    """Validate + write a unit profile to InputFiles/<name>.units.json."""
+    from core.format import units as U
+    data = request.get_json(force=True)
+    name = re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("name", "")).strip())
+    if not name:
+        return jsonify({"error": "invalid profile name "
+                        "(letters, digits, '_' and '-' only)"}), 400
+    given = data.get("units", {})
+    if not isinstance(given, dict):
+        return jsonify({"error": "'units' must be an object"}), 400
+    clean = {}
+    for k, v in given.items():
+        if k not in U.CATEGORIES:
+            return jsonify({"error": f"unknown category {k!r} (expected one of "
+                            f"{', '.join(U.CATEGORIES)})"}), 400
+        if v not in U.CATEGORIES[k][1]:
+            return jsonify({"error": f"{k} = {v!r}: expected one of "
+                            f"{', '.join(U.CATEGORIES[k][1])}"}), 400
+        clean[k] = v
+    rel = f"{name}{U.PROFILE_SUFFIX}"
+    body = json.dumps({"format": U.PROFILE_FORMAT, "units": clean}, indent=2)
+    try:
+        store.write(rel, body + "\n")
+    except (OSError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True, "path": rel, "name": name, "units": clean})
 
 
 # --------------------------------------------------------------------------- #
@@ -304,6 +383,69 @@ def _display_defaults(cfg, engine: str, mode: str) -> dict:
     return out
 
 
+# V0.7 pipeline contract: purpose + optimizer selectors -> the runjob command
+# line. The optimizer strings map to core.optimize.runner's canonical names.
+_OPT_CLI = {"de": "DE", "cmaes": "BIPOP-CMA-ES", "jso": "jSO"}
+
+
+def _plan_from_payload(data) -> tuple[dict, object]:
+    """Normalize an /api/run(/check) payload (old or new shape) into a plan.
+
+    New V0.7 shape: ``{backend:'cpu'|'gpu', purpose:'calcimage'|'optimize'|
+    'mcmc', optimizer:'amoeba'|'de'|'cmaes'|'jso'}``. Old shape: ``{backend}``
+    with backend in cpu/gpu/glafic/mcmc/mcmc-gpu (unchanged).
+
+    Returns ``(plan, err)``. ``plan`` keys: ``engine`` ('cpu'|'gpu'|'glafic',
+    what load_config validates against + jobs.start's backend), ``glafic_rail``
+    (run the native/mixed amoeba selection logic), ``optimizer`` (canonical name
+    or None), ``purpose``, and ``rail`` (legacy only). ``err`` is a
+    ``(body, status)`` tuple to return immediately, else None."""
+    if "purpose" in data:
+        backend = str(data.get("backend", "cpu")).lower()
+        purpose = str(data["purpose"]).lower()
+        if backend not in ("cpu", "gpu"):
+            return {}, ({"ok": False, "errors": [
+                f"backend must be 'cpu' or 'gpu' (got {backend!r})"]}, 400)
+        if purpose in ("calcimage", "mcmc"):
+            return {"engine": backend, "glafic_rail": False, "optimizer": None,
+                    "purpose": purpose}, None
+        if purpose == "optimize":
+            optimizer = str(data.get("optimizer", "de")).lower()
+            if optimizer == "amoeba":
+                if backend == "gpu":
+                    return {}, ({"ok": False, "errors": [
+                        "amoeba is glafic-native and CPU-only; use the CPU "
+                        "backend, or pick DE / BIPOP-CMA-ES / jSO for the GPU."]},
+                        400)
+                return {"engine": "glafic", "glafic_rail": True,
+                        "optimizer": None, "purpose": "amoeba"}, None
+            if optimizer not in _OPT_CLI:
+                return {}, ({"ok": False, "errors": [
+                    f"unknown optimizer {optimizer!r}; expected amoeba, de, "
+                    f"cmaes or jso"]}, 400)
+            return {"engine": backend, "glafic_rail": False,
+                    "optimizer": _OPT_CLI[optimizer], "purpose": "optimize"}, None
+        return {}, ({"ok": False, "errors": [
+            f"unknown purpose {purpose!r}; expected calcimage, optimize or "
+            f"mcmc"]}, 400)
+
+    # ---- legacy contract: a single backend rail ----
+    rail = str(data["backend"])
+    return {"engine": _rail_engine(rail), "glafic_rail": rail == "glafic",
+            "optimizer": None, "purpose": "legacy", "rail": rail}, None
+
+
+def _resolve_mode(plan: dict, cfg) -> str:
+    """The runjob ``--mode`` for a resolved plan + parsed cfg."""
+    purpose = plan["purpose"]
+    if purpose in ("calcimage", "mcmc", "amoeba"):
+        return purpose
+    if purpose == "optimize":
+        return ("de+mcmc" if bool(cfg.algorithm.get("MCMC_ENABLED", False))
+                else "findimage")
+    return _resolve_engine_mode(plan["rail"], cfg)[1]   # legacy
+
+
 @app.route("/api/run/check", methods=["POST"])
 def run_check():
     """Validate a selection without launching. Returns blocking errors and the
@@ -312,11 +454,16 @@ def run_check():
     from core.format.validate import is_extend_mode
     from core.optimize.problem import OptProblem
     data = request.get_json(force=True)
-    rail = data["backend"]
-    engine = _rail_engine(rail)
-    # the Glafic rail runs glafic's amoeba; native .input selections skip glade
-    # validation entirely, and a mixed selection is rejected with a clear message.
-    if rail == "glafic":
+    plan, err = _plan_from_payload(data)
+    if err is not None:
+        body, _status = err                       # preview endpoint: surface at 200
+        return jsonify({"ok": False, "mode": "?", "engine": "?",
+                        "errors": body.get("errors", []), "warnings": [],
+                        "defaulted": {}, "ndim": 0})
+    engine = plan["engine"]
+    # the glafic / amoeba rail runs glafic's amoeba; native .input selections skip
+    # glade validation entirely, and a mixed selection is rejected clearly.
+    if plan["glafic_rail"]:
         kind = _glafic_selection_kind(data["files"])
         if kind == "mixed":
             return jsonify({"ok": False, "mode": "amoeba", "engine": "glafic",
@@ -331,12 +478,13 @@ def run_check():
     cfg, issues = load_config(files, backend=engine, with_defaults=True)
     errors = [i.message for i in issues if i.is_error]
     extend = is_extend_mode(cfg)
-    _engine, mode = _resolve_engine_mode(rail, cfg)
-    defaulted = _display_defaults(cfg, _engine, mode)
+    mode = _resolve_mode(plan, cfg) if not errors else "?"
+    defaulted = _display_defaults(cfg, engine, mode) if not errors else {}
     return jsonify({
         "ok": not errors,
         "mode": "extend" if extend else mode,
         "engine": engine,
+        "optimizer": plan["optimizer"],
         "errors": errors,
         "warnings": [i.message for i in issues if not i.is_error],
         "defaulted": {k: _jsonable(v) for k, v in defaulted.items()},
@@ -348,14 +496,19 @@ def run_check():
 def run_start():
     from core.format import load_config
     data = request.get_json(force=True)
-    rail = data["backend"]
     rel_files = data["files"]
     force = bool(data.get("force"))
-    engine = _rail_engine(rail)
 
-    # the Glafic rail runs glafic's amoeba. Native .input selections run directly
-    # (no glade parsing / defaults confirmation); a mixed selection is rejected.
-    if rail == "glafic":
+    plan, err = _plan_from_payload(data)
+    if err is not None:
+        body, status = err
+        return jsonify(body), status
+    engine = plan["engine"]
+
+    # the glafic / amoeba rail runs glafic's amoeba. Native .input selections run
+    # directly (no glade parsing / defaults confirmation); a mixed selection is
+    # rejected.
+    if plan["glafic_rail"]:
         kind = _glafic_selection_kind(rel_files)
         if kind == "mixed":
             return jsonify({"ok": False, "errors": [_MIXED_MSG]}), 200
@@ -372,15 +525,16 @@ def run_start():
         # 200 (like needs_confirm) so the front-end renders the error list;
         # a 4xx would surface only as a generic "BAD REQUEST" message.
         return jsonify({"ok": False, "errors": errors}), 200
-    _engine, mode = _resolve_engine_mode(rail, cfg)
+    mode = _resolve_mode(plan, cfg)
     if cfg.applied_defaults and not force:
         return jsonify({"ok": False, "needs_confirm": True,
                         "defaulted": {k: _jsonable(v) for k, v in
-                                      _display_defaults(cfg, _engine, mode).items()}}), 200
+                                      _display_defaults(cfg, engine, mode).items()}}), 200
 
     job = jobs.start(engine, [os.path.join("InputFiles", p) for p in rel_files],
-                     mode=mode, force=True)
-    return jsonify({"ok": True, "job_id": job.id, "terminal": job.terminal, "mode": mode})
+                     mode=mode, force=True, optimizer=plan["optimizer"])
+    return jsonify({"ok": True, "job_id": job.id, "terminal": job.terminal,
+                    "mode": mode, "optimizer": plan["optimizer"]})
 
 
 @app.route("/api/run/<job_id>/stream")

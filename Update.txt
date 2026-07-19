@@ -1,3 +1,46 @@
+V0.7.0-Rave - 微像盲区 auto_check + BIPOP-CMA-ES/jSO 优化器 + glade_output 自动导出 + 单位系统
+
+- 重大修复：微像盲区 auto_check（默认开启）。
+  - verify 层新增微像审计 core/micro_audit.py（micro_audit）：对每个匹配像做局部细网格
+    findimg 复核，汇总 Σ|μ|、physical_loss，并标记 fake_solution（真实源被过粗网格漏检、
+    误判为合法解的假解）。
+  - 优化循环内新增触发式 Σ|μ| 检查：CPU 走 glafic 缩放（rescale）周期性复核，GPU 走
+    批量局部种子 Newton（保持批处理吞吐，不逐候选串行）。
+  - auto_check=False 时与旧版本逐位一致，不改变任何既有 .dat 的拟合结果。
+  - 定罪/零误伤锚点测试 T1–T4 全部通过：nfw-pm 组合 Σ|μ|=41.2 被正确定罪（此前会被
+    误判为合法解），nfw-nfw 组合零误伤（合法解不被误判）。
+- 新增两个优化算法：BIPOP-CMA-ES 与 jSO（均为忠实自研实现，非第三方库封装）——jSO 严格
+  按 CEC2017 原论文与参考代码实现，BIPOP 按 Hansen (2009) 与 pycma 的重启记账逻辑实现
+  （core/optimize/cmaes.py、core/optimize/jso.py，共享 core/optimize/evaluator.py 的
+  种群求值器）。仅适用于点源路径；CPU 走 glafic 多进程、GPU 走 Rhongomyniad 批量，双轨
+  可选。.dat 新增 OPTIMIZER 键（DE / BIPOP-CMA-ES / jSO）及各自的 CMAES_* / JSO_*
+  超参数键；python API 对应 glade.optimize(algorithm=...)。
+- 新增 glade_output_<run目录名>.dat：每次运行结束自动写出一份完整、可直接复用的 glade
+  输入文件，把本次拟合中所有原本 {lo, hi} 的可优化参数替换为最优解定值，方便直接搬回
+  GLADE 继续跑或存档。
+- WebUI FindImage：原来的五个后端按钮改为一个 Backend 设置图标，弹出面板选
+  Backend × 用途（Calcimage 代表值直接找像不优化 / Optimize / MCMC-only）× 算法，
+  当前生效的管线常驻显示；设置面板占据原来终端的位置，选择自动记忆。
+- Editor：Algorithm parameters 模板树按后端分组——CPU-glafic（DE / DE-extend /
+  BIPOP-CMA-ES / jSO）与 GPU-rhongomyniad（DE / BIPOP-CMA-ES / jSO）；新增 UnitSetting
+  按钮，弹出单位配置对话框。
+- 单位系统（core/format/units.py）：
+  - 修复一处长期的注释/文档 bug：glafic 质量参数的真实单位是 h⁻¹M⊙，此前注释误写为 M⊙。
+  - 新增 UnitSetting 单位档案：InputFiles/<名>.units.json，.dat 用 UnitSetting 键指向；
+    支持质量（h⁻¹M⊙ / M⊙）、观测像位置（mas / arcsec）、组件位置尺度（arcsec / mas）、
+    源位置（arcsec / mas）的真实数值换算（非仅显示文本）；未指定档案时用 DEFAULT_UNITS
+    回退，行为与旧版本一致。
+  - 用户自定义共享变量（{lo, hi} 的 shared variable）保持无量纲，按其在 .dat 中的插入
+    位置继承所在字段的单位。
+- 新增测试：core/tests/test_micro_audit.py、test_optimizers.py、test_units.py。
+- 版本号：glade/__init__.py、Rhongomyniad/rhongomyniad/__init__.py、core/__init__.py
+  三处 __version__ 统一为 0.7.0（core/__init__.py 此前停留在 V0.4.5 未跟随，一并同步）。
+- README：顶部横幅从 V0.6.0 更新为 V0.7.0-Rave，只保留最新版本说明（历史仍在 History
+  表与 changelog 中）；History 表新增 0.7.0-Rave 行。
+- .gitignore：新增 V0.7.0 小节，为 webui/static/icons/*.png（WebUI 后端设置图标）加 !
+  例外，避免被 *.png 通配规则吞掉（沿用 source/icon/*.png 的先例）。
+
+
 V0.6.1 - 一键更新器 update.sh + Clave 合法 .dat 导出与画布对齐
 
 - 新增一键更新脚本 update.sh：从 GitHub 拉取最新代码并原地刷新既有安装，无需重装。

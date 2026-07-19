@@ -157,12 +157,18 @@ class OptProblem:
             else:
                 z = ov.get(("comp_z", comp.index),
                            comp.z.value if isinstance(comp.z, Fixed) else float("nan"))
+            scales = getattr(comp, "unit_scales", None)
             params: list[float] = []
             for j, p in enumerate(comp.params):
                 if isinstance(p, Fixed):
                     params.append(p.value)
                 elif isinstance(p, SharedBounds):
-                    params.append(ov[("var", p.name)])
+                    # shared variables are dimensionless; the insertion slot's
+                    # unit factor (non-default UnitSetting) applies here
+                    v = ov[("var", p.name)]
+                    if scales is not None:
+                        v *= scales[j]
+                    params.append(v)
                 else:  # Bounds -> from candidate
                     params.append(ov[("comp_param", comp.index, j)])
             sc = SceneComponent(_glafic_key(comp.type), float(z), params)

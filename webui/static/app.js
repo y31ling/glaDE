@@ -85,9 +85,37 @@ const I18N = {
     "fi.fig_result": "Result",
     "fi.fig_corner": "MCMC corner",
     "fi.fig_trace": "MCMC trace",
+    // --- V0.7 pipeline settings ---
+    "fi.settings_title": "Backend / pipeline settings",
+    "fi.settings_head": "Pipeline settings",
+    "fi.sec_backend": "Backend",
+    "fi.sec_purpose": "Purpose",
+    "fi.sec_optimizer": "Optimizer",
+    "fi.backend_cpu": "CPU",
+    "fi.backend_gpu": "GPU",
+    "fi.engine_glafic": "glafic",
+    "fi.engine_rhon": "Rhongomyniad",
+    "fi.hint_cpu": "glafic engine · multiprocess CPU",
+    "fi.hint_gpu": "Rhongomyniad engine · batched CUDA (point-source)",
+    "fi.purpose_calcimage": "Calcimage",
+    "fi.purpose_optimize": "Optimize",
+    "fi.purpose_mcmc": "MCMC-only",
+    "fi.hint_calcimage": "Compute images at representative values, without optimizing.",
+    "fi.hint_optimize": "Search the parameters to fit the observations.",
+    "fi.hint_mcmc": "Sample the posterior only (no DE).",
+    "fi.opt_amoeba": "amoeba",
+    "fi.opt_de": "DE",
+    "fi.opt_cmaes": "BIPOP-CMA-ES",
+    "fi.opt_jso": "jSO",
+    "fi.hint_amoeba": "glafic native downhill simplex.",
+    "fi.hint_de": "Differential Evolution.",
+    "fi.hint_cmaes": "BIPOP restart CMA-ES.",
+    "fi.hint_jso": "jSO — adaptive Differential Evolution.",
+    "fi.save": "Save",
     "common.refresh": "Refresh",
     "common.cancel": "Cancel",
     "common.ok": "OK",
+    "common.save": "Save",
     "common.confirm": "Confirm",
     "common.delete": "Delete",
     "ed.explorer": "Explorer",
@@ -130,6 +158,27 @@ const I18N = {
     "ed.export_failed": "Export failed: {0}",
     "ed.paste_failed": "Paste failed: {0}",
     "ed.clave_failed": "Import to Clave failed: {0}",
+    // --- V0.7 unit settings ---
+    "ed.unitsetting": "Unit settings",
+    "unit.title": "Unit settings",
+    "unit.profile": "Profile",
+    "unit.save_as": "Save as",
+    "unit.new_profile": "new profile…",
+    "unit.col_category": "Category",
+    "unit.col_unit": "Unit",
+    "unit.fixed_note": "Fixed units (not adjustable)",
+    "unit.custom_note": "Custom {lo, hi} variables are dimensionless — they take the unit of wherever they are inserted.",
+    "unit.cat.mass": "Lens masses",
+    "unit.cat.obs_pos": "Observed image positions",
+    "unit.cat.comp_pos": "Component positions & scale radii",
+    "unit.cat.src_pos": "Source position",
+    "unit.fixed.velocity": "Velocity dispersion",
+    "unit.fixed.angle": "Angles",
+    "unit.fixed.grid": "Grid",
+    "unit.fixed.center_offset": "Center offset",
+    "unit.fixed.time_delay": "Time delay",
+    "unit.save_failed": "Save failed: {0}",
+    "unit.name_required": "Please enter a profile name.",
   },
   zh: {
     "nav.findimage": "找像",
@@ -161,9 +210,37 @@ const I18N = {
     "fi.fig_result": "结果",
     "fi.fig_corner": "MCMC 角图",
     "fi.fig_trace": "MCMC 迹线",
+    // --- V0.7 管线设置 ---
+    "fi.settings_title": "后端 / 管线设置",
+    "fi.settings_head": "管线设置",
+    "fi.sec_backend": "后端",
+    "fi.sec_purpose": "用途",
+    "fi.sec_optimizer": "优化器",
+    "fi.backend_cpu": "CPU",
+    "fi.backend_gpu": "GPU",
+    "fi.engine_glafic": "glafic",
+    "fi.engine_rhon": "Rhongomyniad",
+    "fi.hint_cpu": "glafic 引擎 · 多进程 CPU",
+    "fi.hint_gpu": "Rhongomyniad 引擎 · 批量 CUDA(点源)",
+    "fi.purpose_calcimage": "计算像",
+    "fi.purpose_optimize": "优化",
+    "fi.purpose_mcmc": "仅 MCMC",
+    "fi.hint_calcimage": "在代表值处直接计算像,不进行优化。",
+    "fi.hint_optimize": "搜索参数以拟合观测。",
+    "fi.hint_mcmc": "仅采样后验(不做 DE)。",
+    "fi.opt_amoeba": "amoeba",
+    "fi.opt_de": "DE",
+    "fi.opt_cmaes": "BIPOP-CMA-ES",
+    "fi.opt_jso": "jSO",
+    "fi.hint_amoeba": "glafic 原生下山单纯形。",
+    "fi.hint_de": "差分进化。",
+    "fi.hint_cmaes": "BIPOP 重启 CMA-ES。",
+    "fi.hint_jso": "jSO — 自适应差分进化。",
+    "fi.save": "保存",
     "common.refresh": "刷新",
     "common.cancel": "取消",
     "common.ok": "确定",
+    "common.save": "保存",
     "common.confirm": "确认",
     "common.delete": "删除",
     "ed.explorer": "资源管理器",
@@ -206,6 +283,27 @@ const I18N = {
     "ed.export_failed": "导出失败: {0}",
     "ed.paste_failed": "粘贴失败: {0}",
     "ed.clave_failed": "导入 Clave 失败: {0}",
+    // --- V0.7 单位设置 ---
+    "ed.unitsetting": "单位设置",
+    "unit.title": "单位设置",
+    "unit.profile": "配置",
+    "unit.save_as": "另存为",
+    "unit.new_profile": "新配置…",
+    "unit.col_category": "类别",
+    "unit.col_unit": "单位",
+    "unit.fixed_note": "固定单位(不可调整)",
+    "unit.custom_note": "自定义 {lo, hi} 变量无量纲 —— 取决于插入位置对应的单位。",
+    "unit.cat.mass": "透镜质量",
+    "unit.cat.obs_pos": "观测像位置",
+    "unit.cat.comp_pos": "组件位置与尺度半径",
+    "unit.cat.src_pos": "源位置",
+    "unit.fixed.velocity": "速度弥散",
+    "unit.fixed.angle": "角度",
+    "unit.fixed.grid": "网格",
+    "unit.fixed.center_offset": "中心偏移",
+    "unit.fixed.time_delay": "时间延迟",
+    "unit.save_failed": "保存失败: {0}",
+    "unit.name_required": "请输入配置名称。",
   },
 };
 let LANG = localStorage.getItem("glade_lang") || "en";
@@ -311,16 +409,137 @@ const Clave = {
 };
 
 // ===================== FindImage =====================
+// pipeline = {backend:'cpu'|'gpu', purpose:'calcimage'|'optimize'|'mcmc',
+//             optimizer:'amoeba'|'de'|'cmaes'|'jso'}
+const PIPELINE_KEY = "glade_pipeline";
+const PIPELINE_DEFAULT = { backend: "cpu", purpose: "optimize", optimizer: "de" };
+// optimizer options per backend (amoeba is glafic-native, invalid on GPU)
+function optimizersFor(backend) {
+  return backend === "gpu" ? ["de", "cmaes", "jso"] : ["amoeba", "de", "cmaes", "jso"];
+}
+function loadPipeline() {
+  // 1) modern key
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(PIPELINE_KEY) || "null"); } catch (e) { raw = null; }
+  let p;
+  if (raw && typeof raw === "object" && raw.backend) {
+    p = { backend: raw.backend, purpose: raw.purpose || "optimize", optimizer: raw.optimizer || "de" };
+  } else {
+    // 2) migrate an old backend-selection key, if any
+    const old = localStorage.getItem("glade_backend");
+    const MAP = {
+      cpu: { backend: "cpu", purpose: "optimize", optimizer: "de" },
+      gpu: { backend: "gpu", purpose: "optimize", optimizer: "de" },
+      glafic: { backend: "cpu", purpose: "optimize", optimizer: "amoeba" },
+      mcmc: { backend: "cpu", purpose: "mcmc", optimizer: "de" },
+      "mcmc-gpu": { backend: "gpu", purpose: "mcmc", optimizer: "de" },
+    };
+    p = MAP[old] || { ...PIPELINE_DEFAULT };
+  }
+  // normalise
+  if (p.backend !== "cpu" && p.backend !== "gpu") p.backend = "cpu";
+  if (!["calcimage", "optimize", "mcmc"].includes(p.purpose)) p.purpose = "optimize";
+  if (!optimizersFor(p.backend).includes(p.optimizer)) p.optimizer = "de";
+  return p;
+}
+
 const FindImage = {
-  backend: "cpu", files: [], selected: new Set(), es: null, _termInfo: null,
+  pipeline: PIPELINE_DEFAULT, files: [], selected: new Set(),
+  es: null, _termInfo: null, settingsOpen: false,
   init() {
-    $$(".backend-opt").forEach((b) => b.onclick = () => {
-      $$(".backend-opt").forEach((x) => x.classList.toggle("active", x === b));
-      this.backend = b.dataset.backend;
-    });
+    this.pipeline = loadPipeline();
+    this.savePipeline();          // persist any migrated / normalised value
+    $("#fi-settings-btn").onclick = () => this.toggleSettings();
+    this.renderPipeline();
     $("#fi-refresh").onclick = () => this.refresh();
     $("#fi-run").onclick = () => this.run();
     this.refresh();
+  },
+  savePipeline() {
+    localStorage.setItem(PIPELINE_KEY, JSON.stringify(this.pipeline));
+  },
+  // ---- pipeline display (in the rail) ----
+  renderPipeline() {
+    const p = this.pipeline;
+    const box = $("#fi-pipeline"); if (!box) return;
+    const engine = p.backend === "gpu" ? t("fi.engine_rhon") : t("fi.engine_glafic");
+    const backendName = p.backend === "gpu" ? t("fi.backend_gpu") : t("fi.backend_cpu");
+    const purposeName = { calcimage: "fi.purpose_calcimage", optimize: "fi.purpose_optimize", mcmc: "fi.purpose_mcmc" }[p.purpose];
+    const optName = { amoeba: "fi.opt_amoeba", de: "fi.opt_de", cmaes: "fi.opt_cmaes", jso: "fi.opt_jso" }[p.optimizer];
+    let html =
+      `<div class="pl-node pl-backend"><div class="pl-main">${backendName}</div>` +
+      `<div class="pl-sub">${engine}</div></div>` +
+      `<div class="pl-bar">|</div>` +
+      `<div class="pl-node"><div class="pl-main">${t(purposeName)}</div></div>`;
+    if (p.purpose === "optimize") {
+      html += `<div class="pl-bar">|</div>` +
+        `<div class="pl-node"><div class="pl-main">${t(optName)}</div></div>`;
+    }
+    box.innerHTML = html;
+  },
+  // ---- settings panel (over the terminal) ----
+  toggleSettings() {
+    this.settingsOpen = !this.settingsOpen;
+    $("#fi-settings-btn").classList.toggle("active", this.settingsOpen);
+    $("#fi-terminal-wrap").classList.toggle("hidden", this.settingsOpen);
+    $("#fi-settings-panel").classList.toggle("hidden", !this.settingsOpen);
+    if (this.settingsOpen) this.renderSettings();
+  },
+  _optCard(kind, value, current, labelKey, hintKey) {
+    const active = current === value ? " active" : "";
+    return `<button class="setting-card${active}" data-kind="${kind}" data-value="${value}">` +
+      `<span class="sc-label">${t(labelKey)}</span>` +
+      `<span class="sc-hint">${t(hintKey)}</span></button>`;
+  },
+  renderSettings() {
+    const p = this.pipeline;
+    const panel = $("#fi-settings-panel");
+    let html = `<div class="settings-head">${t("fi.settings_head")}</div>`;
+    html += `<div class="settings-scroll">`;
+    // Row 1: backend
+    html += `<div class="setting-section"><div class="setting-label">${t("fi.sec_backend")}</div>` +
+      `<div class="setting-cards">` +
+      this._optCard("backend", "cpu", p.backend, "fi.backend_cpu", "fi.hint_cpu") +
+      this._optCard("backend", "gpu", p.backend, "fi.backend_gpu", "fi.hint_gpu") +
+      `</div></div>`;
+    // Row 2: purpose
+    html += `<div class="setting-section"><div class="setting-label">${t("fi.sec_purpose")}</div>` +
+      `<div class="setting-cards">` +
+      this._optCard("purpose", "calcimage", p.purpose, "fi.purpose_calcimage", "fi.hint_calcimage") +
+      this._optCard("purpose", "optimize", p.purpose, "fi.purpose_optimize", "fi.hint_optimize") +
+      this._optCard("purpose", "mcmc", p.purpose, "fi.purpose_mcmc", "fi.hint_mcmc") +
+      `</div></div>`;
+    // Row 3: optimizer (only for purpose = optimize)
+    if (p.purpose === "optimize") {
+      const HINTS = { amoeba: "fi.hint_amoeba", de: "fi.hint_de", cmaes: "fi.hint_cmaes", jso: "fi.hint_jso" };
+      const LABELS = { amoeba: "fi.opt_amoeba", de: "fi.opt_de", cmaes: "fi.opt_cmaes", jso: "fi.opt_jso" };
+      html += `<div class="setting-section"><div class="setting-label">${t("fi.sec_optimizer")}</div>` +
+        `<div class="setting-cards">` +
+        optimizersFor(p.backend).map((o) => this._optCard("optimizer", o, p.optimizer, LABELS[o], HINTS[o])).join("") +
+        `</div></div>`;
+    }
+    html += `</div>`; // settings-scroll
+    html += `<div class="settings-foot">` +
+      `<button id="fi-settings-save" class="run-btn">${t("fi.save")}</button></div>`;
+    panel.innerHTML = html;
+    // wire cards
+    $$(".setting-card", panel).forEach((c) => c.onclick = () => this._pick(c.dataset.kind, c.dataset.value));
+    $("#fi-settings-save").onclick = () => this.toggleSettings();
+  },
+  _pick(kind, value) {
+    const p = this.pipeline;
+    if (kind === "backend") {
+      p.backend = value;
+      // amoeba is invalid on GPU -> fall back to DE
+      if (!optimizersFor(p.backend).includes(p.optimizer)) p.optimizer = "de";
+    } else if (kind === "purpose") {
+      p.purpose = value;
+    } else if (kind === "optimizer") {
+      p.optimizer = value;
+    }
+    this.savePipeline();          // auto-persist on every change
+    this.renderSettings();
+    this.renderPipeline();
   },
   async refresh() {
     this.tree = await api("/api/files/tree");
@@ -328,6 +547,8 @@ const FindImage = {
   },
   refreshTexts() {
     this.updateSummary();
+    this.renderPipeline();
+    if (this.settingsOpen) this.renderSettings();
     if (this._termInfo) {
       $("#term-title").textContent =
         fmt(t("fi.term_title_job"), this._termInfo.jobId, this._termInfo.terminal);
@@ -378,8 +599,10 @@ const FindImage = {
   },
   async run() {
     const files = [...this.selected];
+    const p = this.pipeline;
+    const payload = { backend: p.backend, purpose: p.purpose, optimizer: p.optimizer, files };
     let res;
-    try { res = await apiJSON("/api/run", { backend: this.backend, files }); }
+    try { res = await apiJSON("/api/run", payload); }
     catch (e) { return modal({ title: t("fi.run_failed"), bodyHTML: `<div class="errlist">${e.message}</div>`,
       actions: [{ label: t("common.ok"), value: 1, cls: "primary" }] }); }
 
@@ -394,7 +617,7 @@ const FindImage = {
         `<p>${t("fi.defaults_intro")}</p>
          <div class="deflist">${rows}</div><p>${t("fi.defaults_q")}</p>`);
       if (!ok) return;
-      res = await apiJSON("/api/run", { backend: this.backend, files, force: true });
+      res = await apiJSON("/api/run", { ...payload, force: true });
     }
     if (res.job_id) this.startStream(res.job_id, res.terminal);
   },
@@ -445,7 +668,8 @@ const Editor = {
   tabs: [], active: null, changeCb: null, panel: "explorer", clipboard: null,
 
   init() {
-    $$(".icon-btn").forEach((b) => b.onclick = () => this.setPanel(b.dataset.panel));
+    $$(".icon-btn[data-panel]").forEach((b) => b.onclick = () => this.setPanel(b.dataset.panel));
+    $("#icon-unit").onclick = () => UnitSetting.open();
     $("#exp-refresh").onclick = () => this.loadTree();
     $("#exp-new-file").onclick = () => this.newEntry("file", "");
     $("#exp-new-folder").onclick = () => this.newEntry("folder", "");
@@ -667,22 +891,40 @@ const Editor = {
 
   // ---- templates ----
   async loadTemplates() {
-    const tree = await api("/api/templates"); const host = $("#template-tree"); host.innerHTML = "";
-    tree.forEach((grp) => {
-      const row = document.createElement("div"); row.className = "tree-row open";
-      row.innerHTML = `<span class="twisty">▶</span><span class="ico">▤</span><span class="label">${grp.name}</span>`;
-      const kids = document.createElement("div"); kids.className = "tree-children open";
-      (grp.children || []).forEach((leaf) => {
-        const lr = document.createElement("div");
-        lr.className = "tree-row" + (leaf.disabled || !leaf.snippet ? " disabled" : "");
-        lr.style.paddingLeft = "24px";
-        lr.innerHTML = `<span class="ico">›</span><span class="label">${leaf.name}</span>`;
-        if (!leaf.disabled && leaf.snippet) lr.onclick = () => this.insertTemplate(leaf);
-        kids.appendChild(lr);
-      });
+    // fetch the tree for the active units profile (comments switch units)
+    const prof = localStorage.getItem(UNITS_PROFILE_KEY) || "default";
+    const url = (prof && prof !== "default")
+      ? "/api/templates?units=" + encodeURIComponent(prof)
+      : "/api/templates";
+    const tree = await api(url);
+    const host = $("#template-tree"); host.innerHTML = "";
+    // arbitrary nesting: a node with `children` is a group; otherwise a leaf.
+    tree.forEach((node) => host.appendChild(this._tmplNode(node, 0)));
+  },
+  _tmplNode(node, depth) {
+    const wrap = document.createElement("div");
+    const indent = 8 + depth * 14;   // px; matches .tree indentation feel
+    if (Array.isArray(node.children)) {
+      const open = depth === 0;      // top-level groups open, deeper ones collapsed
+      const row = document.createElement("div");
+      row.className = "tree-row" + (open ? " open" : "");
+      row.style.paddingLeft = indent + "px";
+      row.innerHTML = `<span class="twisty">▶</span><span class="ico">▤</span><span class="label">${node.name}</span>`;
+      const kids = document.createElement("div");
+      kids.className = "tree-children" + (open ? " open" : "");
+      node.children.forEach((c) => kids.appendChild(this._tmplNode(c, depth + 1)));
       row.onclick = () => { row.classList.toggle("open"); kids.classList.toggle("open"); };
-      host.appendChild(row); host.appendChild(kids);
-    });
+      wrap.appendChild(row); wrap.appendChild(kids);
+    } else {
+      const leaf = node;
+      const lr = document.createElement("div");
+      lr.className = "tree-row" + (leaf.disabled || !leaf.snippet ? " disabled" : "");
+      lr.style.paddingLeft = (indent + 16) + "px";
+      lr.innerHTML = `<span class="ico">›</span><span class="label">${leaf.name}</span>`;
+      if (!leaf.disabled && leaf.snippet) lr.onclick = () => this.insertTemplate(leaf);
+      wrap.appendChild(lr);
+    }
+    return wrap;
   },
   insertTemplate(leaf) {
     if (!this.active) { alert(t("ed.open_first")); return; }
@@ -802,6 +1044,121 @@ const Editor = {
     if (!ok) return;
     try { await apiJSON("/api/files/delete", { path: this.active }); const p = this.active; this.closeTab(p); this.loadTree(); }
     catch (e) { alert(e.message); }
+  },
+};
+
+// ===================== Unit settings (Editor) =====================
+const UNITS_PROFILE_KEY = "glade_units_profile";
+// contract-shaped fallback if GET /api/units is unavailable
+const UNITS_FALLBACK = {
+  categories: {
+    mass: { default: "h^-1 Msun", options: ["h^-1 Msun", "Msun"] },
+    obs_pos: { default: "mas", options: ["mas", "arcsec"] },
+    comp_pos: { default: "arcsec", options: ["arcsec", "mas"] },
+    src_pos: { default: "arcsec", options: ["arcsec", "mas"] },
+  },
+  fixed: { velocity: "km/s", angle: "deg", grid: "arcsec",
+           center_offset: "arcsec", time_delay: "days" },
+  profiles: [],
+};
+// the order category rows are shown in
+const UNIT_CAT_ORDER = ["obs_pos", "mass", "comp_pos", "src_pos"];
+
+const UnitSetting = {
+  data: null,
+  async open() {
+    // fetch the unit universe; fall back to the contract-shaped default
+    try { this.data = await api("/api/units"); }
+    catch (e) { this.data = UNITS_FALLBACK; }
+    if (!this.data || !this.data.categories) this.data = UNITS_FALLBACK;
+    const active = localStorage.getItem(UNITS_PROFILE_KEY) || "default";
+    this._render(active);
+  },
+  _profileUnits(name) {
+    // units map for a named profile ('default' -> {} = each category's default)
+    if (!name || name === "default") return {};
+    const p = (this.data.profiles || []).find((x) => x.name === name);
+    return (p && p.units) || {};
+  },
+  _catOrder() {
+    const cats = this.data.categories || {};
+    const ordered = UNIT_CAT_ORDER.filter((k) => k in cats);
+    Object.keys(cats).forEach((k) => { if (!ordered.includes(k)) ordered.push(k); });
+    return ordered;
+  },
+  _render(profileName) {
+    const cats = this.data.categories || {};
+    const fixed = this.data.fixed || {};
+    const cur = this._profileUnits(profileName);
+    const names = ["default", ...((this.data.profiles || []).map((p) => p.name))];
+    const profOpts = names.map((n) =>
+      `<option value="${n}"${n === profileName ? " selected" : ""}>${n}</option>`).join("");
+    // adjustable category rows
+    const catRows = this._catOrder().map((k) => {
+      const c = cats[k];
+      const chosen = cur[k] || c.default;
+      const opts = (c.options || [c.default]).map((o) =>
+        `<option value="${o.replace(/"/g, "&quot;")}"${o === chosen ? " selected" : ""}>${o}</option>`).join("");
+      return `<tr><td class="ut-label">${t("unit.cat." + k)}</td>` +
+        `<td><select class="ut-select" data-cat="${k}">${opts}</select></td></tr>`;
+    }).join("");
+    // fixed (read-only) rows
+    const fixedRows = Object.entries(fixed).map(([k, v]) =>
+      `<tr class="ut-fixed"><td class="ut-label">${t("unit.fixed." + k)}</td>` +
+      `<td><span class="ut-fixedval">${v}</span></td></tr>`).join("");
+
+    const body =
+      `<div class="unit-toprow">` +
+        `<label class="unit-field"><span>${t("unit.profile")}</span>` +
+          `<select id="u-profile">${profOpts}</select></label>` +
+        `<label class="unit-field"><span>${t("unit.save_as")}</span>` +
+          `<input id="u-name" value="${profileName === "default" ? "" : profileName}" placeholder="${t("unit.new_profile")}" /></label>` +
+      `</div>` +
+      `<table class="unit-table"><thead><tr>` +
+        `<th>${t("unit.col_category")}</th><th>${t("unit.col_unit")}</th></tr></thead>` +
+        `<tbody>${catRows}</tbody></table>` +
+      `<div class="unit-fixed-note">${t("unit.fixed_note")}</div>` +
+      `<table class="unit-table unit-table-fixed"><tbody>${fixedRows}</tbody></table>` +
+      `<div class="unit-custom-note">${t("unit.custom_note")}</div>`;
+
+    const back = $("#modal");
+    $("#modal-title").textContent = t("unit.title");
+    $("#modal-body").innerHTML = body;
+    const ad = $("#modal-actions");
+    ad.className = "modal-actions unit-actions";
+    ad.innerHTML = "";
+    const cancel = document.createElement("button");
+    cancel.textContent = t("common.cancel");
+    cancel.onclick = () => this._close();
+    const save = document.createElement("button");
+    save.textContent = t("common.save"); save.className = "primary";
+    save.onclick = () => this._save();
+    ad.appendChild(cancel); ad.appendChild(save);
+    back.classList.remove("hidden");
+
+    // switching the profile selector reloads that profile's values + name
+    $("#u-profile").onchange = (e) => this._render(e.target.value);
+  },
+  _close() {
+    $("#modal").classList.add("hidden");
+    $("#modal-actions").className = "modal-actions";   // restore shared class
+  },
+  async _save() {
+    let name = ($("#u-name").value || "").trim() || $("#u-profile").value || "default";
+    const units = {};
+    $$("#modal-body .ut-select").forEach((s) => { units[s.dataset.cat] = s.value; });
+    if (name !== "default") {
+      try { await apiJSON("/api/units/save", { name, units }); }
+      catch (e) { alert(fmt(t("unit.save_failed"), e.message)); return; }
+      // reflect the saved profile locally so a reopen shows it
+      const list = (this.data.profiles = this.data.profiles || []);
+      const ex = list.find((p) => p.name === name);
+      if (ex) ex.units = units; else list.push({ name, units });
+    }
+    localStorage.setItem(UNITS_PROFILE_KEY, name);
+    this._close();
+    // re-fetch templates so snippet comments switch to the chosen units
+    try { await Editor.loadTemplates(); } catch (e) { /* editor may not be mounted */ }
   },
 };
 

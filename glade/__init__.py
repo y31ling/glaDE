@@ -28,7 +28,7 @@ import os
 import sys
 from pathlib import Path
 
-__version__ = "0.6.1"
+__version__ = "0.7.0"
 
 # ── path bootstrap: make core / glafic / rhongomyniad importable ────────────
 _ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +59,7 @@ from core.optimize import (  # noqa: E402
 # ── lazy exports (pull in matplotlib / emcee / engines on first use) ───────
 _LAZY = {
     "make_triptych":      ("core.report", "make_triptych"),
+    "write_glade_output": ("core.report", "write_glade_output"),
     "make_extend_figure": ("core.report", "make_extend_figure"),
     "run_mcmc":           ("core.mcmc", "run_mcmc"),
     "MCMCConfig":         ("core.mcmc", "MCMCConfig"),
