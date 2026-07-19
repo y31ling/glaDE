@@ -74,6 +74,17 @@ def optimize(cfg: GladeConfig,
     (DE only); ``base_dir`` resolves relative FITS / constraint / prior paths.
     """
     from ..format.validate import is_extend_mode
+    if "fine_tuning" in cfg.algorithm:
+        # optimize() is single-stage by contract; an ACTIVE fine_tuning key
+        # would otherwise be silently ignored on the library path (the staged
+        # pipeline is run_fine_tuning / the WebUI runjob dispatch).
+        from .fine_tuning import resolve_fine_tuning
+        if resolve_fine_tuning(cfg)[0] is not None:
+            import warnings
+            warnings.warn(
+                "the active fine_tuning key is not executed by optimize(); "
+                "call glade.run_fine_tuning(cfg, backend=...) for the staged "
+                "macro -> substructure -> polish pipeline", stacklevel=2)
     algo = normalize_algorithm(
         algorithm if algorithm is not None
         else cfg.algorithm.get("OPTIMIZER", "DE"))

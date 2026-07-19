@@ -1,3 +1,81 @@
+V0.7.1 - fine_tuning staged optimization (macro -> substructure -> joint polish)
+
+- New .dat key fine_tuning (absent = off by default):
+  fine_tuning = (activate, algo1, A1, B1, algo2, A2, B2, algo3, perturb, A3, B3)
+  with companion keys fine_tuning_top_k (diverse basins / chains, default 3) and
+  fine_tuning_diversity (basin-diversity criterion: at least one dimension
+  differs by >= diversity x that dimension's bound width, default 0.1).
+- Round 1 removes every substructure component and globally searches only the
+  user-optimizable macro (main lens + source) parameters; the top_k mutually
+  diverse basins from the search history seed independent chains.
+- Round 2 freezes each chain's macro (source position included) at its seed and
+  optimizes only the substructure {lo, hi} parameters.
+- Round 3 first prunes (a chain whose round-2 loss is an order of magnitude
+  worse than the best is dropped), then re-opens EVERY lens / substructure /
+  source parameter -- user-fixed or optimizable alike -- in a narrow
+  value*(1 +- perturb) box and polishes jointly; the winner is the final
+  result, and a runner-up within 2x of the winner is called out in the log
+  (the data may not distinguish the two solutions).
+- Per-round algorithms: DE / BIPOP-CMA-ES / jSO (amoeba is NOT supported --
+  that is the glafic-binary rail); AN/BN override LOSS_COEF_A/B per round while
+  budgets still come from the usual DE_*/CMAES_*/JSO_* keys. The lens vs
+  substructure split uses the STRICT rule: an Nl/Ns index suffix wins, else the
+  model's schema category (never the report-marker "optimizable => substructure"
+  default -- that would delete the main lens in round 1).
+- When an activation precondition fails (no main lens, no substructure, nothing
+  to optimize in round 1 or 2, extended-source mode, or a shared {lo, hi}
+  variable spanning both a lens and a substructure component) the run falls
+  back to a normal single optimization with a warning.
+- Deliberate semantics: redshifts and hubble keep their original optimizability
+  in round 3 (a user-fixed z is a measurement and does not wander); an
+  originally-fixed exact zero stays fixed while an originally-optimizable zero
+  falls back to +- perturb x (hi - lo); shared variables remain ONE shared
+  dimension (still shared after the round-3 narrowing); _unused parameter slots
+  are skipped. With the substructure removed, the round-1 macro may form fewer
+  images than observed -- if the hard reject empties round 1, consider
+  missing_img_penalty > 0 or a round-1 B1 = 0 (see SPEC.md).
+- Per-stage deliverables land in ft_round1/, ft_round2_chain<n>/,
+  ft_round3_chain<n>/ under the run directory (best_params.txt + a reusable
+  glade_output_*.dat, written BEFORE any glafic figure so a C-binding abort
+  cannot lose them); status.json gains a fine_tuning summary (per-chain seed /
+  round2 / round3 losses and prune flags); the winner then flows through the
+  normal triptych / glafic-verify / MCMC machinery (the MCMC seed is re-mapped
+  onto the user's ORIGINAL {lo, hi} bounds, so the prior is unchanged).
+- WebUI: the Editor template tree (Algorithm parameters) gains a "Fine-tuning
+  (staged)" snippet; no new mode is needed -- findimage / de+mcmc automatically
+  take the staged pipeline when fine_tuning is active (the CLI --optimizer is
+  ignored there; the .dat tuple decides each round).
+- Safety hardening (landed after an adversarial review pass):
+  - The round-3 box is intersected with the user's original {lo, hi} (for
+    originally-optimizable parameters) and clamped to the engine's hard
+    parameter domains (ellipticity e < 1, Sersic n in [0.06, 20], power-law
+    gamma in (1, 3), ...) -- crossing those makes glafic exit() at the C level,
+    killing the whole process; a box that collapses under clamping keeps the
+    parameter fixed.
+  - Round 3 can only IMPROVE a chain: the incumbent (box centre) is re-scored
+    under the round-3 objective and kept whenever the polish fails to beat it
+    (skipped chains get the same re-scoring, so all chains' final losses
+    compare in the same units).
+  - The winner's headline loss is re-expressed in the .dat's own LOSS_COEF_A/B
+    convention (per-stage files keep each round's own), so status /
+    best_params / triptych / glafic-verify read like a normal run.
+  - The MCMC seed re-mapped onto the full problem is clipped into the user
+    bounds (the round-3 box may lawfully poke past them, and an out-of-prior
+    seed collapses the walker init).
+  - select_diverse never pads the chains with INVALID_LOSS candidates; derived
+    round configs pin the Nl/Ns classification (so the report never marks the
+    main lens as a subhalo) and strip the fine_tuning keys (per-stage
+    glade_output files are directly re-runnable single-stage inputs).
+  - fine_tuning / fine_tuning_top_k / fine_tuning_diversity (and their UPPER
+    aliases) are reserved names from this release on; an older .dat using them
+    as custom variables must rename them (the error message says so). On the
+    library path, glade.optimize() warns about an active fine_tuning key and
+    points to the newly exported glade.run_fine_tuning().
+- New tests: core/tests/test_fine_tuning.py (parsing / validation / partition /
+  freezing / perturbation / pruning / domain clamping / no-regression guard /
+  end-to-end / determinism, 22 cases).
+
+
 V0.7.0-Rave - micro-image blind-spot auto_check + BIPOP-CMA-ES/jSO optimizers + glade_output auto-export + unit system
 
 - Major fix: micro-image blind-spot auto_check (on by default).

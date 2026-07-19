@@ -181,8 +181,15 @@ def main(argv=None) -> int:
 
     # ---- point-source optimization (findimage / de+mcmc) ----
     if args.mode in ("findimage", "de+mcmc"):
-        de_result = _run_de(args, cfg, obs, problem, loss_cfg)
-        best_x = de_result.x
+        from core.optimize.fine_tuning import resolve_fine_tuning
+        ft_spec, _ft_errors, _ft_warns = resolve_fine_tuning(cfg)
+        if ft_spec is not None:
+            de_result, best_x = _run_fine_tuning(args, cfg, obs, problem,
+                                                 loss_cfg, ft_spec,
+                                                 write_status)
+        else:
+            de_result = _run_de(args, cfg, obs, problem, loss_cfg)
+            best_x = de_result.x
         write_status(loss=de_result.loss, iterations=de_result.de.nit,
                      algorithm=de_result.algorithm,
                      fitted={k: float(v) for k, v in de_result.fitted.items()})
@@ -610,6 +617,124 @@ def _run_de(args, cfg, obs, problem, loss_cfg):
         for k, v in result.fitted.items():
             fh.write(f"{k} = {float(v):.10g}\n")
     return result
+
+
+def _run_fine_tuning(args, cfg, obs, problem, loss_cfg, spec, write_status):
+    """The fine_tuning pipeline: macro -> substructure -> joint polish.
+
+    Per-stage deliverables (best_params.txt + pinned glade_output .dat, both
+    pure Python) go into ft_* subdirs as each stage completes -- BEFORE any
+    glafic figure/verify can abort the C binding. The winner then flows through
+    the normal post-run machinery (triptych / verify / MCMC) unchanged; its
+    loss is re-scored under the .dat's OWN ``LOSS_COEF_A/B`` so the top-level
+    outputs (status/best_params/triptych/verify) compare like a normal run
+    (per-stage files keep each round's own convention).
+
+    Returns ``(winner OptResult, best_x)`` where best_x re-expresses the winner
+    in the FULL problem's dimensions, clipped into the user's ``{lo, hi}``
+    bounds (round 3's box may lawfully poke past them and an out-of-prior MCMC
+    seed collapses the walker init).
+    """
+    import math
+
+    from core.optimize.fine_tuning import run_fine_tuning
+
+    algos = " / ".join(r.algorithm for r in spec.rounds)
+    _hr(f"Fine-tuning · 3 rounds ({algos}) · top_k={spec.top_k} · "
+        f"backend={args.backend}")
+    if args.optimizer:
+        print(f"  [note] --optimizer {args.optimizer} is ignored: fine_tuning "
+              f"picks each round's algorithm from the .dat tuple", flush=True)
+    if int(cfg.algorithm.get("Draw_Graph", 0) or 0):
+        print("  [note] Draw_Graph iteration frames are not rendered under "
+              "fine_tuning (each round searches a different sub-space)",
+              flush=True)
+    t0 = time.time()
+    ft_status = {"top_k": spec.top_k, "perturb": spec.perturb, "stages": []}
+
+    def on_iter(it, pop, best, energies):
+        if it <= 2 or it % 5 == 0:
+            print(f"  iter {it:4d}   best_loss = {best:.4f}   "
+                  f"elapsed {time.time()-t0:.0f}s", flush=True)
+
+    def stage_hook(stage, chain, result):
+        sub = stage if chain is None else f"{stage}_chain{chain}"
+        stage_dir = os.path.join(args.out, f"ft_{sub}")
+        os.makedirs(stage_dir, exist_ok=True)
+        with open(os.path.join(stage_dir, "best_params.txt"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(f"# GLADE fine_tuning {sub}  {result.algorithm}  "
+                     f"loss={result.loss:.8f}\n")
+            for k, v in result.fitted.items():
+                fh.write(f"{k} = {float(v):.10g}\n")
+        try:
+            from core.report import write_glade_output
+            write_glade_output(result, stage_dir)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [warn] {sub} glade_output export failed: {exc}", flush=True)
+        ft_status["stages"].append({"stage": stage, "chain": chain,
+                                    "loss": float(result.loss),
+                                    "algorithm": result.algorithm,
+                                    "dir": os.path.basename(stage_dir)})
+        write_status(fine_tuning=ft_status)
+
+    ft = run_fine_tuning(cfg, backend=args.backend, spec=spec,
+                         on_iteration=on_iter, stage_hook=stage_hook,
+                         log=lambda m: print(m, flush=True))
+
+    ft_status["winner_chain"] = ft.winner_chain
+    ft_status["chains"] = [
+        {"chain": ch.chain, "seed_loss": float(ch.seed_loss),
+         "round2_loss": float(ch.round2.loss) if ch.round2 else None,
+         "round3_loss": float(ch.round3.loss) if ch.round3 else None,
+         "pruned": bool(ch.pruned),
+         "final_loss": float(ch.final_loss)}
+        for ch in ft.chains]
+    write_status(fine_tuning=ft_status)
+
+    result = ft.winner
+    # Re-score the winner under the .dat's OWN loss coefficients so every
+    # top-level consumer (status, best_params, triptych title, glafic verify)
+    # compares in the same convention as a non-fine_tuning run. The per-round
+    # (A3/B3) values remain in the ft_* stage files and status["fine_tuning"].
+    try:
+        from core.optimize.backends import make_backend
+        from core.optimize.objective import point_source_loss
+        images = make_backend(args.backend).compute_images(result.scene)
+        round_loss = float(result.loss)
+        result.loss = float(point_source_loss(images, obs, loss_cfg))
+        if abs(round_loss - result.loss) > 1e-9:
+            print(f"  winner loss {round_loss:.6g} (round-3 A/B) -> "
+                  f"{result.loss:.6g} in the .dat's LOSS_COEF convention",
+                  flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [warn] could not re-score the winner under the .dat "
+              f"coefficients: {exc}", flush=True)
+
+    _hr(f"fine_tuning result · winner chain {ft.winner_chain}")
+    print(f"  best loss  : {result.loss:.4f}", flush=True)
+    for k, v in result.fitted.items():
+        print(f"    {k:18s} = {float(v):.6g}", flush=True)
+    with open(os.path.join(args.out, "best_params.txt"), "w",
+              encoding="utf-8") as fh:
+        fh.write(f"# GLADE fine_tuning result (chain {ft.winner_chain})  "
+                 f"backend={args.backend}  loss={result.loss:.8f}\n")
+        for k, v in result.fitted.items():
+            fh.write(f"{k} = {float(v):.10g}\n")
+
+    # re-express the winner in the FULL problem's dimensions (search space,
+    # log10 for mass dims), clipped into the user's bounds, so downstream MCMC
+    # keeps the user's prior and its walker init cannot collapse on a bound
+    best_x = []
+    for d in problem.dims:
+        v = ft.winner_values.get(d.target)
+        if v is None or (d.log and v <= 0.0):
+            x = 0.5 * (d.lo + d.hi)
+        else:
+            x = math.log10(v) if d.log else float(v)
+        best_x.append(min(max(x, d.lo), d.hi))
+    import numpy as np
+    return result, np.asarray(best_x, dtype=float)
 
 
 def _run_mcmc(args, cfg, obs, problem, loss_cfg, best_x, write_status):

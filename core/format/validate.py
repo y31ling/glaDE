@@ -328,4 +328,16 @@ def validate(cfg: GladeConfig, backend: Optional[str] = None) -> list[Issue]:
                     f"OPTIMIZER = {opt!r} is point-source only; "
                     f"extended-source (FITS) runs use DE"))
 
+    # fine_tuning: format errors are ERRORs; a requested activation whose
+    # precondition fails (no substructure, extend mode, ...) only WARNs -- the
+    # run then proceeds as a normal single optimization (documented fallback).
+    if any(k in cfg.algorithm for k in
+           ("fine_tuning", "fine_tuning_top_k", "fine_tuning_diversity")):
+        from ..optimize.fine_tuning import resolve_fine_tuning
+        _spec, ft_errors, ft_warnings = resolve_fine_tuning(cfg)
+        for msg in ft_errors:
+            issues.append(Issue(ERROR, "bad_fine_tuning", msg))
+        for msg in ft_warnings:
+            issues.append(Issue(WARNING, "fine_tuning_inactive", msg))
+
     return issues

@@ -10,6 +10,12 @@ with no manual ``sys.path`` boilerplate::
     result = glade.optimize(cfg, backend="gpu")
     glade.make_triptych(result, glade.build_obs(cfg), "triptych.png")
 
+For a ``.dat`` with an active ``fine_tuning`` key, use the staged pipeline
+(``optimize`` runs a single stage and only warns)::
+
+    ft = glade.run_fine_tuning(cfg, backend="cpu")
+    result = ft.winner
+
 Importing this package bootstraps ``sys.path`` for the whole GLADE tree (repo
 root, glafic's python bindings, Rhongomyniad), so ``import core`` /
 ``import glafic`` / ``import rhongomyniad`` all work afterwards too.
@@ -28,7 +34,7 @@ import os
 import sys
 from pathlib import Path
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 # ── path bootstrap: make core / glafic / rhongomyniad importable ────────────
 _ROOT = Path(__file__).resolve().parents[1]
@@ -49,11 +55,15 @@ from core.format import (  # noqa: E402
     load_config,
 )
 from core.optimize import (  # noqa: E402
+    FineTuningResult,
+    FineTuningSpec,
     OptProblem,
     OptResult,
     build_obs,
     make_backend,
     optimize,
+    resolve_fine_tuning,
+    run_fine_tuning,
 )
 
 # ── lazy exports (pull in matplotlib / emcee / engines on first use) ───────
@@ -78,6 +88,7 @@ __all__ = [
     "load_config", "lint_text", "has_errors", "GladeConfig", "Bounds", "Fixed",
     # optimize
     "optimize", "OptResult", "build_obs", "OptProblem", "make_backend",
+    "run_fine_tuning", "resolve_fine_tuning", "FineTuningSpec", "FineTuningResult",
     # lazy: report / mcmc / verify
     *_LAZY.keys(),
     # low-level engine access

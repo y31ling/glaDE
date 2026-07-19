@@ -206,6 +206,22 @@ JSO_CPU = ("# Algorithm: jSO on the CPU (glafic) backend.\n"
 JSO_GPU = ("# Algorithm: jSO on the GPU (Rhongomyniad) backend.\n"
            + JSO_KEYS + _GPU_PRECISION + _ALGO_TAIL)
 
+FINE_TUNING = """# Fine-tuning: staged macro -> substructure -> joint-polish pipeline.
+# Round 1 removes the substructure and fits the macro (main lens + source);
+# the top_k diverse basins seed chains. Round 2 freezes each chain's macro and
+# fits only the substructure. Round 3 prunes chains >10x worse than the best,
+# then re-opens EVERY deflector/source parameter (fixed or {lo,hi} alike) in a
+# value*(1 +- perturb) box and polishes. Needs >=1 main-lens AND >=1
+# substructure component (use 'Nl'/'Ns' index suffixes to disambiguate);
+# algoN = 'DE' | 'BIPOP-CMA-ES' | 'jSO' (amoeba unsupported); AN/BN override
+# LOSS_COEF_A/B per round. Falls back to a normal run (with a warning) when a
+# precondition fails. See SPEC.md for the full semantics.
+#              activate algo1  A1  B1   algo2  A2  B2   algo3  perturb A3  B3
+fine_tuning = (True,   'DE',   4,  0,   'DE',  4,  1,   'DE',  0.01,   4,  1)
+fine_tuning_top_k = $int      # diverse round-1 basins kept as chains, e.g. 3
+fine_tuning_diversity = $float # min normalized L-inf distance between basins, e.g. 0.1
+"""
+
 MCMC_GENERAL = """# MCMC sampling (emcee). The prior is ALWAYS the DE {lower, upper} bounds of
 # every optimizable parameter; mass-like dims are sampled in log10 space.
 # Set MCMC_ENABLED = True to also run MCMC after a DE-CPU / DE-GPU run.
@@ -333,6 +349,7 @@ def template_tree(units=None) -> list:
                 {"name": "BIPOP-CMA-ES", "snippet": CMAES_GPU},
                 {"name": "jSO", "snippet": JSO_GPU},
             ]},
+            {"name": "Fine-tuning (staged)", "snippet": FINE_TUNING},
         ]},
         {"name": "MCMC", "children": [
             {"name": "MCMC-GeneralConfig", "snippet": MCMC_GENERAL},

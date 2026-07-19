@@ -421,6 +421,10 @@ ALGORITHM_KEYS = (
     # auto_check: micro-image audit + in-loop triggered Sigma|mu| (hidden key;
     # True by default, False restores the pre-V0.7 behaviour bit-identically).
     "auto_check",
+    # fine_tuning: the staged macro -> substructure -> joint-polish pipeline.
+    # 11-tuple (activate, algo1, A1, B1, algo2, A2, B2, algo3, perturb, A3, B3)
+    # or the single literal False; see core/optimize/fine_tuning.py.
+    "fine_tuning", "fine_tuning_top_k", "fine_tuning_diversity",
     "CONSTRAINT_SIGMA",
     "PENALTY_COEFFICIENT", "Draw_Graph", "draw_interval", "PRINT_INTERVAL",
     "COMPARE_GRAPH", "SHOW_2SIGMA", "OUTPUT_PREFIX", "glafic_verified",
@@ -440,7 +444,10 @@ DEPRECATED_KEYS = frozenset({
 # other algorithm knobs).
 SCALAR_ALIASES = {"lambda": "lambda_cosmo",
                   "MISSING_IMG_PENALTY": "missing_img_penalty",
-                  "GPU_PRECISION": "gpu_precision"}
+                  "GPU_PRECISION": "gpu_precision",
+                  "FINE_TUNING": "fine_tuning",
+                  "FINE_TUNING_TOP_K": "fine_tuning_top_k",
+                  "FINE_TUNING_DIVERSITY": "fine_tuning_diversity"}
 
 # Hard-required for a runnable config (no defaults).
 REQUIRED_OBS_KEYS = OBS_ARRAY_KEYS

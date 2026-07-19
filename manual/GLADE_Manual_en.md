@@ -32,7 +32,7 @@ curve, χ², parity, …) is explained where it first matters and in the Glossar
    — 5.2 [FindImage](#52-the-findimage-tab) · 5.3 [Editor](#53-the-editor-tab) · 5.4 [Clave](#54-the-clave-tab)
 6. [The `.dat` configuration format](#6-the-dat-configuration-format)
 7. [Fitting engines & algorithms](#7-fitting-engines--algorithms)
-   — DE · loss function · backends & GPU batching · MCMC · extended sources · verification
+   — DE · loss function · backends & GPU batching · MCMC · extended sources · verification · staged fine-tuning
 8. [Understanding run outputs](#8-understanding-run-outputs)
 9. [Command line & Python library](#9-command-line--python-library)
 10. [Numerical accuracy: the `TOL_ROMBERG_JHK` note](#10-numerical-accuracy-the-tol_romberg_jhk-note)
@@ -999,6 +999,14 @@ per image), `obs_parity_list` (default 0).
 | `missing_img_penalty` | 0.0 | per-missing-image penalty. 0 = a candidate producing fewer images than observed is hard-rejected; > 0 = it is scored on the images it has, plus `(n_obs − n_pred) × penalty`, giving DE a gradient toward full image multiplicity. |
 | `abs_mag` | True | compare (and plot) magnifications by absolute value — parity-insensitive. `False` restores the signed pre-V0.5 behaviour bit-exactly. |
 
+**Staged fine-tuning** — macro → substructure → joint polish (§7.9)
+
+| key | default | meaning |
+|---|---|---|
+| `fine_tuning` | absent = off | the 11-tuple `(activate, algo1, A1, B1, algo2, A2, B2, algo3, perturb, A3, B3)` — or the single literal `False`. Runs the staged pipeline of §7.9 instead of one global search: round 1 removes every substructure component and fits only the user-optimizable macro (main lens + source), keeping the `fine_tuning_top_k` mutually diverse basins as independent chains; round 2 freezes each chain's macro (source included) at its seed and fits only the substructure; round 3 drops chains whose round-2 loss is > 10× the best, then re-opens **every** lens/substructure/source parameter — user-fixed or optimizable alike — in a `value·(1 ± perturb)` box around the chain incumbent and polishes; the lowest-loss surviving chain wins. `algoN` = `'DE'` / `'BIPOP-CMA-ES'` / `'jSO'` (amoeba is *not* supported); `AN`/`BN` override `LOSS_COEF_A`/`LOSS_COEF_B` for that round only. Lens vs substructure: an explicit `Nl`/`Ns` index suffix wins, else the model's schema category. Falls back to a normal run (with a warning) when the config has no main lens, no substructure, nothing optimizable in round 1 or 2, is extended-source (FITS), or a shared `{lo,hi}` variable spans a lens and a substructure. Round-3 fine print: redshifts/`hubble` keep their original optimizability; an originally-fixed exact zero stays fixed, an originally-optimizable zero falls back to `±perturb·(hi−lo)`; the box is intersected with the original user `{lo,hi}` (for originally-optimizable parameters) and clamped to the engine's hard domains (ellipticity < 1, Sersic n ∈ [0.06, 20], power-law γ ∈ (1, 3), …) — a box that collapses under clamping keeps the parameter fixed. Round 3 can only *improve* a chain: the incumbent (box centre) is re-scored under the round-3 objective and kept if the polish fails to beat it; skipped chains are re-scored the same way, so all chains' final losses compare in the same `A3`/`B3` units. Per-stage outputs land in `ft_round1/`, `ft_round2_chain<n>/`, `ft_round3_chain<n>/` under the run directory — each keeps its round's own loss convention, and its `glade_output_*.dat` is a directly re-runnable *single-stage* input (explicit `Nl`/`Ns` suffixes, no `fine_tuning` key); the winner's headline loss (status.json, `best_params.txt`, triptych, glafic verify) is re-expressed in the `.dat`'s own `LOSS_COEF_A`/`LOSS_COEF_B` convention, and the winner then flows through the normal triptych/verify/MCMC machinery (the MCMC seed is clipped into the original user bounds). The three key names (and their upper-case aliases) are *reserved* since V0.7.1 — an older `.dat` using them as custom variables must rename them. Library path: `glade.run_fine_tuning(cfg, backend=...)`; plain `glade.optimize()` runs a single stage and warns if it sees an active `fine_tuning` key. Alias `FINE_TUNING`. |
+| `fine_tuning_top_k` | 3 | integer ≥ 1 — how many mutually diverse round-1 basins are kept as independent chains. Alias `FINE_TUNING_TOP_K`. |
+| `fine_tuning_diversity` | 0.1 | in (0, 1] — two candidates count as different basins when at least one search dimension differs by ≥ this fraction of that dimension's bound width (a normalized L∞ distance). Alias `FINE_TUNING_DIVERSITY`. |
+
 **GPU**
 
 | key | default | meaning |
@@ -1330,6 +1338,52 @@ total vs GLADE's, warn at > 5 % relative difference).
 
 Standalone deep checks live in `tools/verify_gpu_models.py` (every GPU kernel vs
 glafic) and `tools/verify_gpu_precision.py` (the 64/48/32 tiers vs scipy-exact).
+
+## 7.9 Staged fits: `fine_tuning`
+
+A many-component model — a macro lens plus substructure clumps — often defeats a
+single global search: the substructure dimensions drown out the macro basin. The
+`fine_tuning` key (§6.9) replaces the one-shot search with three rounds:
+
+1. **Macro.** Every substructure component is removed and only the
+   user-optimizable main-lens + source parameters are searched. The
+   `fine_tuning_top_k` best, mutually diverse basins (differing by
+   ≥ `fine_tuning_diversity` of a bound width in at least one dimension) each
+   seed an independent chain. With the substructure gone, the macro may form
+   fewer images than observed — consider `missing_img_penalty > 0` (or a
+   round-1 `B1 = 0`) if the hard reject keeps emptying round 1.
+2. **Substructure.** Each chain freezes its macro (source included) at its seed
+   and fits only the substructure `{lo,hi}` parameters.
+3. **Joint polish.** Chains > 10× worse than the best are dropped; the survivors
+   re-open *every* deflector/source parameter — user-fixed ones included — in a
+   narrow `value·(1 ± perturb)` box and polish. The box has guard rails: where
+   the parameter was originally optimizable it is intersected with your
+   original `{lo,hi}`, and it is always clamped to the engine's hard domains
+   (ellipticity < 1, Sersic n ∈ [0.06, 20], power-law γ ∈ (1, 3)); a box that
+   collapses under clamping keeps the parameter fixed. Polishing can only
+   improve a chain — the incumbent is re-scored under the round-3 objective and
+   kept when the polish fails to beat it (skipped chains are re-scored the same
+   way, so every chain's final loss is comparable). The lowest-loss chain wins
+   (a runner-up within 2× is reported: the data may not distinguish the
+   solutions).
+
+Each round can name its own algorithm (`DE` / `BIPOP-CMA-ES` / `jSO` — never
+amoeba) and its own loss weights `AN`/`BN`; budgets still come from the usual
+`DE_*`/`CMAES_*`/`JSO_*` keys. Per-stage results are archived in `ft_round1/`,
+`ft_round2_chain<n>/`, `ft_round3_chain<n>/`, each with `best_params.txt` (in
+that round's own `AN`/`BN` convention) and a `glade_output_*.dat` that re-runs
+that stage on its own — explicit `Nl`/`Ns` suffixes, no `fine_tuning` key. The
+winner's headline loss — `status.json`, `best_params.txt`, the triptych, glafic
+verification — is re-expressed in your `.dat`'s own
+`LOSS_COEF_A`/`LOSS_COEF_B` convention, so the run reads like any other; MCMC
+still samples the *original* user bounds (the seed is clipped into them). If a
+precondition fails (no main lens, no substructure, an empty round 1 or 2, FITS
+mode, a shared variable spanning lens and substructure), GLADE warns and falls
+back to a normal single run. Two footnotes: the three key names (and their
+upper-case aliases) are reserved since V0.7.1, so an older `.dat` using them as
+custom variables must rename them; and from Python, use
+`glade.run_fine_tuning(cfg, backend=...)` — plain `glade.optimize()` runs a
+single stage and only warns about an active `fine_tuning` key.
 
 ---
 

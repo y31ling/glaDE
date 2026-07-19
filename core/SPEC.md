@@ -66,7 +66,8 @@ Multiple assignments to the **same name within one file** is an error.
   `JSO_ARC_RATE`, `JSO_PBEST_MAX`, `JSO_WORKERS`,
   `LOSS_COEF_A`, `LOSS_COEF_B`, `LOSS_PENALTY_PL`, `CONSTRAINT_SIGMA`,
   `Draw_Graph`, `draw_interval`, `COMPARE_GRAPH`, `SHOW_2SIGMA`,
-  `OUTPUT_PREFIX`, `MCMC_*`, `gpu_precision`, `abs_mag`
+  `OUTPUT_PREFIX`, `MCMC_*`, `gpu_precision`, `abs_mag`,
+  `fine_tuning`, `fine_tuning_top_k`, `fine_tuning_diversity`
 * `OPTIMIZER` (default `'DE'`) selects the point-source optimizer:
   `'DE'` (scipy Differential Evolution, the historical default),
   `'BIPOP-CMA-ES'` (self-contained Hansen-2009 BI-population restart CMA-ES;
@@ -78,6 +79,68 @@ Multiple assignments to the **same name within one file** is an error.
   every backend: multi-process glafic on `cpu`/`glafic` (workers via
   `CMAES_WORKERS`/`JSO_WORKERS`, defaulting to `DE_WORKERS`), the batched
   Rhongomyniad objective on `gpu`. Extended-source (FITS) runs are DE-only.
+* `fine_tuning` (default absent = off) runs the staged
+  macro → substructure → joint-polish pipeline instead of one global search:
+
+  ```
+  fine_tuning = (activate,            # True / False
+                 algo1, A1, B1,       # round 1: main lens + source only
+                 algo2, A2, B2,       # round 2: substructure, macro frozen
+                 algo3, perturb,      # round 3: joint polish; perturb = 0.01 -> ±1%
+                 A3, B3)
+  fine_tuning_top_k     = 3           # diverse round-1 basins kept as chains
+  fine_tuning_diversity = 0.1         # min normalized L∞ distance between basins
+  ```
+
+  **Round 1** removes every substructure component and globally fits the
+  user-optimizable macro (main-lens + source) parameters; the `top_k`
+  mutually-diverse best candidates (two candidates are diverse when at least
+  one dimension differs by ≥ `fine_tuning_diversity` of its bound width) seed
+  independent chains. **Round 2** freezes each chain's macro — source included —
+  at its seed and fits only the substructure `{lo,hi}` parameters. **Round 3**
+  prunes chains an order of magnitude worse than the best (`loss > 10× best`),
+  then re-opens EVERY deflector/source parameter — user-fixed or optimizable
+  alike — in a `value*(1 ± perturb)` box around the chain incumbent and
+  polishes; the winner is the surviving chain with the lowest loss (a runner-up
+  within 2× is reported — the data may not distinguish the solutions).
+
+  Per-round `algoN` (`DE` / `BIPOP-CMA-ES` / `jSO`; amoeba is the glafic-binary
+  rail and is NOT supported) and `AN`/`BN` override `OPTIMIZER` /
+  `LOSS_COEF_A` / `LOSS_COEF_B` for that round only; each algorithm still reads
+  its own `DE_*`/`CMAES_*`/`JSO_*` budget keys. Components split lens vs
+  substructure by the STRICT rule: an explicit `Nl`/`Ns` index suffix wins,
+  else the model's schema category (never the report-marker "optimizable ⇒
+  substructure" default). Deliberate semantics: redshifts and `hubble` keep
+  their original optimizability in round 3 (a user-fixed z is a measurement);
+  `_unused` slots stay put; an originally-optimizable exact zero falls back to
+  a `perturb*(hi-lo)` half-width, an originally-fixed zero stays fixed; a
+  shared `{lo,hi}` variable stays ONE (narrowed) shared dimension. Safety of
+  the round-3 box: it is intersected with the original user `{lo,hi}` for
+  originally-optimizable parameters and clamped to the engine's hard parameter
+  domains (e.g. ellipticity < 1, Sersic n in [0.06, 20]) — crossing those
+  makes glafic `exit()` the whole process; a box that collapses under clamping
+  keeps the parameter fixed. Round 3 can only IMPROVE a chain: the incumbent
+  (box centre) is re-scored under the round-3 objective and kept whenever the
+  polish fails to beat it (skipped chains get the same re-scoring, so every
+  chain's final loss compares in the same `A3/B3` convention). Activation
+  FALLS BACK to a normal single run (with a warning) when: the config has no
+  main lens or no substructure, round 1 or round 2 would have nothing to
+  optimize, the run is extended-source (FITS), or a shared variable spans both
+  a lens and a substructure component. Round 1 removes the substructure, so a
+  macro-only model may form fewer images than observed — consider
+  `missing_img_penalty > 0` (or a round-1 `B1 = 0`) if the hard reject empties
+  the round-1 landscape. Per-stage results land in `ft_round1/`,
+  `ft_round2_chain<n>/`, `ft_round3_chain<n>/` under the run directory (each
+  with `best_params.txt` + a pinned re-runnable single-stage
+  `glade_output_*.dat` carrying an explicit `Nl`/`Ns` suffix per component);
+  the winner's headline loss is re-expressed in the `.dat`'s own
+  `LOSS_COEF_A/B` convention (per-stage files keep each round's own), and the
+  winner then flows through the normal result/triptych/verify/MCMC machinery
+  (MCMC is re-seeded over the ORIGINAL user bounds). The three key names (and
+  their UPPER-case aliases) are reserved since V0.7.1 — an older `.dat` using
+  them as custom variables must rename them. On the Python library path use
+  `glade.run_fine_tuning(cfg, backend=...)`; plain `glade.optimize()` runs a
+  single stage and only warns about an active key.
 * `UnitSetting` (default `'default'`) names a unit profile
   (`<name>.units.json` next to the `.dat` or under `InputFiles/`) that
   declares which units the file is AUTHORED in; values are converted to the

@@ -1,3 +1,55 @@
+V0.7.1 - fine_tuning 三轮分阶段优化（宏观 → 子结构 → 联合精修）
+
+- 新增 .dat 键 fine_tuning（默认缺省 = 关闭）：
+  fine_tuning = (activate, 算法1, A1, B1, 算法2, A2, B2, 算法3, 扰动比例, A3, B3)
+  配套 fine_tuning_top_k（互异盆地/链数，默认 3）与 fine_tuning_diversity
+  （盆地互异判据：至少一维相差 ≥ diversity × 该维搜索区间宽度，默认 0.1）。
+- 第一轮移除全部子结构组件，仅全局搜索主透镜 + 源的用户可优化参数；从搜索历史中
+  选出 top_k 个互异盆地作为独立链的种子。
+- 第二轮逐链把宏观（含源位置）冻结在种子值，仅优化子结构 {lo, hi} 参数。
+- 第三轮先剪枝（round-2 loss 比最优链差一个数量级即淘汰），随后不论用户原本固定
+  还是可优化，所有透镜/子结构/源参数一律在 value*(1±扰动) 的窄区间内联合精修；
+  胜者为最终结果，与胜者差距 2 倍以内的链会在日志中提示（数据可能无法区分两解）。
+- 每轮算法可选 DE / BIPOP-CMA-ES / jSO（不支持 amoeba，那是 glafic 二进制轨道）；
+  AN/BN 逐轮覆盖 LOSS_COEF_A/B，预算仍读各自的 DE_*/CMAES_*/JSO_* 键。透镜/子结构
+  划分用严格规则：Nl/Ns 后缀优先，其次模型 schema 类别（绝不使用报告层
+  "可优化 ⇒ 子结构"的默认规则——那会在第一轮把主透镜删掉）。
+- 激活前置条件不满足时（无主透镜、无子结构、第一/二轮无可优化维度、extend 模式、
+  共享 {lo, hi} 变量横跨透镜与子结构）自动回退为普通单次优化并给出警告。
+- 刻意语义：红移与 hubble 在第三轮保持用户原本的可优化性（固定的 z 视为测量值，
+  不参与游走）；原本固定且恰为 0 的参数保持固定，原本可优化而现值为 0 的参数回退
+  为 ±扰动×(hi−lo)；共享变量始终保持单一共享维度（第三轮收窄后仍共享）；_unused
+  参数槽不参与。第一轮移除子结构后宏观模型可能产出少于观测的像——如遇第一轮被
+  硬拒清空，考虑 missing_img_penalty > 0 或第一轮 B1 = 0（SPEC.md 有说明）。
+- 运行目录新增 ft_round1/、ft_round2_chain<n>/、ft_round3_chain<n>/ 分阶段产物
+  （best_params.txt + 可直接复用的 glade_output_*.dat，先于任何 glafic 图表写盘，
+  防 C 绑定中断丢结果）；status.json 新增 fine_tuning 汇总（各链 seed/round2/
+  round3 loss 与剪枝标记）；胜者照常走三联图/glafic 验证/MCMC（MCMC 种子重新映射
+  回用户原始 {lo, hi} 边界，先验不变）。
+- WebUI：Editor 模板树 Algorithm parameters 新增 Fine-tuning (staged) 片段；无需
+  新模式，findimage / de+mcmc 检测到 fine_tuning 激活即自动走分轮管线（此时命令行
+  --optimizer 被忽略，以 .dat 元组为准）。
+- 安全加固（对抗性审查后落地）：
+  - 第三轮扰动框会与用户原始 {lo, hi}（原本可优化的参数）求交，并钳制到引擎硬参数域
+    （如椭率 e < 1、Sersic n ∈ [0.06, 20]、幂律 gamma ∈ (1, 3) 等）——越界会触发
+    glafic C 层 exit() 直接杀死整个进程；钳制后区间塌缩的参数保持固定。
+  - 第三轮只会改进链：incumbent（扰动框中心）会在第三轮目标下重打分，精修若不如
+    incumbent 则保留 incumbent（被跳过的链同样重打分，保证跨链 loss 同单位可比）。
+  - 胜者的总 loss 会重表为 .dat 自身 LOSS_COEF_A/B 约定（分阶段文件保留各轮约定），
+    使 status/best_params/三联图/glafic 验证与普通运行同一口径。
+  - MCMC 种子映射回全问题维度时钳制进用户边界（第三轮框可合法越过边界，越界种子
+    会让 walker 初始化塌缩）。
+  - select_diverse 不会用 INVALID_LOSS 候选凑数填充链；派生轮次配置固化 Nl/Ns 分类
+    （避免报告层把主透镜画成子晕标记）并剥离 fine_tuning 键（分阶段 glade_output
+    可直接单轮重跑）。
+  - fine_tuning/fine_tuning_top_k/fine_tuning_diversity（含大写别名）自本版本起为
+    保留字；旧 .dat 若把它们用作自定义变量需改名（报错信息会提示）。库路径
+    glade.optimize() 遇到激活的 fine_tuning 键会 warning 提示改用
+    glade.run_fine_tuning()（新增 facade 导出）。
+- 新增测试 core/tests/test_fine_tuning.py（解析/校验/划分/冻结/扰动/剪枝/域钳制/
+  不回退守卫/端到端/确定性，22 项）。
+
+
 V0.7.0-Rave - 微像盲区 auto_check + BIPOP-CMA-ES/jSO 优化器 + glade_output 自动导出 + 单位系统
 
 - 重大修复：微像盲区 auto_check（默认开启）。
